@@ -25,35 +25,24 @@ metadata:
 spec:
   project: {{ .Credentials.ProjectID }}
   region: "{{ .Descriptor.Region }}"
-{{- if ne .Descriptor.Networks.VPCID "" }}
+  {{- if ne .Descriptor.Networks.VPCID "" }}
   network:
     name: {{ .Descriptor.Networks.VPCID }}
     {{- if ne .Descriptor.Networks.Subnets nil }}
     autoCreateSubnetworks: false
     subnets:
-    {{- range .Descriptor.Networks.Subnets }}
+    {{- with (index .Descriptor.Networks.Subnets 0) }}
     - name: {{ .SubnetId }}
-    {{- if ne .Region "" }}
-      region: {{ .Region }}
-    {{- end }}
-    {{- if ne .Description "" }}
-      description: {{ .Description }}
-    {{- end }}
-    {{- if checkReference .PrivateGoogleAccess }}
-      privateGoogleAccess: {{ .PrivateGoogleAccess }}
-    {{- end }}
-    {{- if ne .CidrBlock "" }}
+      region: "{{ $.Descriptor.Region }}"
+      {{- if ne .CidrBlock "" }}
       cidrBlock: {{ .CidrBlock }}
-    {{- end }} 
+      {{- end }}
     {{- end }}
-    {{- else }}
-    autoCreateSubnetworks: true
     {{- end }}
-    
-{{- else }}
+  {{- else }}
   network:
     name: default
-{{- end }}
+  {{- end }}
 ---
 kind: KubeadmControlPlane
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
@@ -89,7 +78,7 @@ spec:
             name: gce-conf
             pathType: FileOrCreate
     files:
-      {{- if .ExternalRegistry.User }}
+      {{- if .DockerRegistries }}
       - content: |
           version = 2
           imports = [\"/etc/containerd/conf.d/*.toml\"]
@@ -104,10 +93,12 @@ spec:
               [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors]
                 [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors.\"docker.io\"]
                   endpoint = [\"https://registry-1.docker.io\"]
-              {{- $url := hostname .ExternalRegistry.Url }}
+              {{- range $reg := .DockerRegistries }}
+              {{- $url := hostname $reg.url }}
               [plugins.\"io.containerd.grpc.v1.cri\".registry.configs.\"{{ $url }}\".auth]
-                password = \"{{ .ExternalRegistry.Pass }}\"
-                username = \"{{ .ExternalRegistry.User }}\"
+                password = \"{{ $reg.pass }}\"
+                username = \"{{ $reg.user }}\"
+              {{- end }}
         path: /etc/containerd/config.toml
       {{- end }}
       - content: |
@@ -137,8 +128,11 @@ spec:
       {{- if .Descriptor.ControlPlane.RootVolume.Type }}
       rootDeviceType: {{ .Descriptor.ControlPlane.RootVolume.Type }}
       {{- end }}
+      {{- if ne .Descriptor.Networks.Subnets nil }}
+      subnet: {{ with (index .Descriptor.Networks.Subnets 0) }}{{ .SubnetId }}{{ end }}
+      {{- end }}
 {{- range $node := .Descriptor.WorkerNodes }}
-{{- range $index, $n := loop .AZ .Quantity .NodeGroupMaxSize .NodeGroupMinSize }}
+{{- range $index, $n := loop .AZ .ZoneDistribution .Quantity .NodeGroupMaxSize .NodeGroupMinSize }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
@@ -186,6 +180,9 @@ spec:
       {{- if $node.RootVolume.Type }}
       rootDeviceType: {{ $node.RootVolume.Type }}
       {{- end }}
+      {{- if ne $.Descriptor.Networks.Subnets nil }}
+      subnet: {{ with (index $.Descriptor.Networks.Subnets 0) }}{{ .SubnetId }}{{ end }}
+      {{- end }}
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
@@ -195,7 +192,7 @@ metadata:
 spec:
   template:
     spec:
-      {{- if $.ExternalRegistry.User }}
+      {{- if $.DockerRegistries }}
       files:
         - content: |
             version = 2
@@ -211,10 +208,12 @@ spec:
                 [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors]
                   [plugins.\"io.containerd.grpc.v1.cri\".registry.mirrors.\"docker.io\"]
                     endpoint = [\"https://registry-1.docker.io\"]
-                {{- $url := hostname $.ExternalRegistry.Url }}
+                {{- range $reg := $.DockerRegistries }}
+                {{- $url := hostname $reg.url }}
                 [plugins.\"io.containerd.grpc.v1.cri\".registry.configs.\"{{ $url }}\".auth]
-                  password = \"{{ $.ExternalRegistry.Pass }}\"
-                  username = \"{{ $.ExternalRegistry.User }}\"
+                  password = \"{{ $reg.pass }}\"
+                  username = \"{{ $reg.user }}\"
+                {{- end }}
           path: /etc/containerd/config.toml
         {{- end }}
       joinConfiguration:
@@ -222,5 +221,6 @@ spec:
           name: {{`'{{ ds.meta_data.local_hostname.split(\".\")[0] }}'`}}
           kubeletExtraArgs:
             cloud-provider: gce
+            node-labels: \"{{ if $node.Labels }}{{ range $key, $value := $node.Labels }}{{ $key }}={{ $value }},{{- end }}{{- end }}\"
 {{- end }}
 {{- end }}
