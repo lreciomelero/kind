@@ -34,6 +34,9 @@ spec:
     {{- with (index .Descriptor.Networks.Subnets 0) }}
     - name: {{ .SubnetId }}
       region: "{{ $.Descriptor.Region }}"
+      {{- if ne .CidrBlock "" }}
+      cidrBlock: {{ .CidrBlock }}
+      {{- end }}
     {{- end }}
     {{- end }}
   {{- else }}
