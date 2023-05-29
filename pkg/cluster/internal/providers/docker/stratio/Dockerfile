@@ -16,6 +16,10 @@ ENV TIGERA_OPERATOR=v3.25.1
 ENV CAPI_REPO=/root/.cluster-api/local-repository
 ENV CAPA=v2.0.2
 
+# Cluster-operator envs
+ENV NEXUS_STRATIO_REPO=helm-devel
+ENV CLUSTER_OPERATOR_VERSION=0.1.0-PR8-SNAPSHOT
+
 # Download clusterctl (61.5M)
 RUN curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/${CLUSTERCTL}/clusterctl-linux-amd64 -o /usr/local/bin/clusterctl \
     && chmod +x /usr/local/bin/clusterctl
@@ -37,6 +41,9 @@ RUN mkdir -p /stratio/helm \
   && for i in {1..3}; do timeout 5 helm pull cluster-autoscaler --version ${CLUSTER_AUTOSCALER} --repo https://kubernetes.github.io/autoscaler --untar --untardir /stratio/helm; done \
   && helm pull tigera-operator --version ${TIGERA_OPERATOR} --repo https://docs.projectcalico.org/charts --untar --untardir /stratio/helm
 
+RUN curl -L http://qa.int.stratio.com/repository/${NEXUS_STRATIO_REPO}/cluster-operator-${CLUSTER_OPERATOR_VERSION}.tgz -o /stratio/helm/cluster-operator.tgz \
+  && tar -xf /stratio/helm/cluster-operator.tgz -C /stratio/helm 
+  
 RUN mkdir -p ${CAPI_REPO}/infrastructure-aws/${CAPA} \
   && echo "\
 providers:\n\

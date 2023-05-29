@@ -1,0 +1,201 @@
+apiVersion: installer.stratio.com/v1beta1
+kind: KeosCluster
+metadata:
+    name: keos-{{ $.ClusterID }}
+    namespace: keoscluster-system
+spec:
+    cluster_id: {{ $.ClusterID }}
+    deploy_autoscaler: {{ $.DeployAutoscaler }}
+    {{- if checkReference $.Bastion }}
+    bastion:
+    {{- if ne $.Bastion.NodeImage "" }}
+      node_image: {{ $.Bastion.NodeImage }}
+    {{- end }}
+    {{- if ne $.Bastion.VMSize "" }}
+      vm_size: {{ $.Bastion.VMSize }}
+    {{- end }}
+    {{- if ne $.Bastion.AllowedCIDRBlocks "" }}
+      allowedCIDRBlocks: {{ $.Bastion.AllowedCIDRBlocks }}
+    {{- end }}
+    {{- if ne $.Bastion.SSHKey "" }}
+      ssh_key: {{ $.Bastion.SSHKey }}
+    {{- end }}
+    {{- end }}
+    {{- if or ( ne $.Credentials.GithubToken "") ( ne $.Credentials.AWS.AccessKey) ( ne $.Credentials.GCP.project_id) ( isNotEmpty  $.Credentials.DockerRegistries) }}
+    credentials:
+      {{- if checkReference $.Credentials.AWS }}
+      aws:
+        aws_access_key_id: {{ $.Credentials.AWS.AccessKey }}
+        aws_secret_access_key: {{ $.Credentials.AWS.SecretKey }}
+        region: {{ $.Credentials.AWS.Region }}
+        aws_account_id: {{ $.Credentials.AWS.Account }}
+      {{- end }}
+      {{- if checkReference $.Credentials.GCP }}
+      gcp:
+        project_id: {{ $.Credentials.GCP.ProjectID }}
+        private_key_id: {{ $.Credentials.GCP.PrivateKeyID }}
+        private_key: {{ $.Credentials.GCP.PrivateKey }}
+        client_email: {{ $.Credentials.GCP.ClientEmail }}
+        client_id: {{ $.Credentials.GCP.ClientID }}
+      {{- end }}
+      {{- if ne $.Credentials.GithubToken "" }}
+      github_token: {{ $.Credentials.GithubToken }}
+      {{- end }}
+      {{- if isNotEmpty  $.Credentials.DockerRegistries }}
+      docker_registries:
+      {{- range $.Credentials.DockerRegistries }}
+      - url: {{ .URL }}
+        user:  {{ .User }}
+        pass: {{ .Pass }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    infra_provider: {{ $.InfraProvider }}
+    k8s_version:  {{ $.K8SVersion }}
+    region: {{ $.Region }}
+    {{- if checkReference $.Networks }}
+    networks:
+      {{- if ne $.Networks.VPCID "" }}
+      vpc_id: {{ $.Networks.VPCID }}
+      {{- end }}
+      {{- if ne $.Networks.CidrBlock "" }}
+      cidr: {{ $.Networks.CidrBlock }}
+      {{- end }}
+      {{- if ne $.Networks.AvailabilityZoneUsageLimit 0 }}
+      az_usage_limit: {{ $.Networks.AvailabilityZoneUsageLimit }}
+      {{- end }}
+      {{- if ne $.Networks.AvailabilityZoneSelection "" }}
+      az_selection: {{ $.Networks.AvailabilityZoneSelection }}
+      {{- end }}
+      {{- if isNotEmpty $.Networks.Tags }}
+      tags:
+      {{- range $key,$value := $.Networks.Tags }}
+       {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if isNotEmpty $.Networks.Subnets }}
+      subnets:
+      {{- range $.Networks.subnets }}
+      - subnet_id: {{ .SubnetId }}
+        {{- if ne .AvailabilityZone "" }}
+        az: {{ .AvailabilityZone }}
+        {{- end }}
+        {{- if checkReference .IsPublic }}
+        isPublic: {{ .IsPublic }}
+        {{- end }}
+        {{- if ne .RouteTableId "" }}
+        routeTableId:  {{ .RouteTableId }} 
+        {{- end }}
+        {{- if ne .NatGatewayId "" }}
+        natGatewayId:  {{ .NatGatewayId }} 
+        {{- end }}
+        {{- if ne .CidrBlock "" }}
+        cidrBlock:  {{ .CidrBlock }} 
+        {{- end }}
+        {{- if isNotEmpty .Tags }}
+        tags:
+        {{- range $key,$value := .Tags }}
+         {{ $key }}: {{ $value }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if checkReference $.Dns.ManageZone }}
+    dns:
+      manage_zone: {{ $.Dns.ManageZone }}
+    {{- end }}
+    {{- if isNotEmpty $.DockerRegistries }}
+    docker_registries:
+    {{- range $.DockerRegistries }}
+    - url: {{ .URL }}
+      auth_required: {{ .AuthRequired }} 
+      type: {{ .Type }}
+      keos_registry: {{ .KeosRegistry }}
+    {{- end }}
+    {{- end }}
+    {{- if ne $.ExternalDomain "" }}
+    external_domain: {{ $.ExternalDomain }}
+    {{- end }}
+    control_plane:
+      managed: {{ $.ControlPlane.Managed }}
+      {{- if ne $.ControlPlane.Name "" }}
+      name: {{ $.ControlPlane.Name }}
+      {{- end }}
+      {{- if ne $.ControlPlane.NodeImage "" }}
+      node_image: {{ $.ControlPlane.NodeImage }}
+      {{- end }}
+      highly_available: {{ $.ControlPlane.HighlyAvailable }}
+      size: {{ $.ControlPlane.Size }}
+      {{- if ne $.ControlPlane.RootVolume.Type "" }}
+      root_volume: 
+        size: {{ $.ControlPlane.RootVolume.Size }}
+        type: {{ $.ControlPlane.RootVolume.Type }}
+        encrypted: {{ $.ControlPlane.RootVolume.Encrypted }}
+      {{- end }}
+      {{- if checkReference $.ControlPlane.AWS.AssociateOIDCProvider }}
+      aws:
+        associate_oidc_provider: {{ $.ControlPlane.AWS.AssociateOIDCProvider }}
+        logging:
+          api_server: {{ $.ControlPlane.AWS.Logging.ApiServer }}
+          audit: {{ $.ControlPlane.AWS.Logging.Audit }}
+          authenticator: {{ $.ControlPlane.AWS.Logging.Authenticator }}
+          controller_manager: {{ $.ControlPlane.AWS.Logging.ControllerManager }}
+          scheduler: {{ $.ControlPlane.AWS.Logging.Scheduler }}
+      {{- end }}
+      {{- if isNotEmpty $.ControlPlane.ExtraVolumes }}
+      extra_volumes:
+      {{- range $.ControlPlane.ExtraVolumes }}
+      -  device_name: {{ $.DeviceName }}
+         size: {{ .Size }}
+         type: {{ .Type }}
+         mount_path: {{ .MountPath }}
+         encrypted: {{ .Encrypted }}
+         label: {{ .Label }}
+      {{- end }}
+      {{- end }}
+    {{- if isNotEmpty $.WorkerNodes }}
+    worker_nodes:
+    {{- range $.WorkerNodes }}
+    - name: {{ .Name }}
+      {{- if ne .NodeImage "" }}
+      node_image: {{ .NodeImage }}
+      {{- end }}
+      quantity: {{ .Quantity }}
+      {{- if ne .Size "" }}
+      size: {{ .Size }}
+      {{- end }}
+      zone_distribution: {{ .ZoneDistribution }}
+      {{- if ne .AZ "" }}
+      az: {{ .AZ }}
+      {{- end }}
+      ssh_key: {{ .SSHKey }}
+      spot: {{ .Spot }}
+      max_size: {{ .NodeGroupMaxSize }}
+      min_size: {{ .NodeGroupMinSize }}
+      {{- if checkReference .RootVolume }}
+      root_volume: 
+        size: {{ .RootVolume.Size }}
+        type: {{ .RootVolume.Type }}
+        encrypted: {{ .RootVolume.Encrypted }}
+      {{- end }}
+      {{- if isNotEmpty .ExtraVolumes }}
+      extra_volumes:
+      {{- range .ExtraVolumes }}
+      -  device_name: {{ .DeviceName }}
+         size: {{ .Size }}
+         type: {{ .Type }}
+         mount_path: {{ .MountPath }}
+         encrypted: {{ .Encrypted }}
+         label: {{ .Label }}
+      {{- end }}
+      {{- end }}
+      {{- if isNotEmpty .Labels }}
+      labels:
+      {{- range $key,$value := .Labels }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+    
