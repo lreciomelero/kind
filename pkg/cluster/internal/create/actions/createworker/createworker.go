@@ -225,109 +225,49 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Creating the workload cluster 💥")
 		defer ctx.Status.End(false)
 
+		descriptorFile, err := fillCredentials(*descriptorFile, githubToken, dockerRegistries)
+
+		regcredKeos := "regcred-keos"
+		command := "kubectl create secret docker-registry " + regcredKeos +
+			" --namespace=" + capiClustersNamespace
+
+		for _, creds := range descriptorFile.Credentials.DockerRegistries {
+			command = command +
+				" --docker-server=" + creds.URL +
+				" --docker-username=" + creds.User +
+				" --docker-password=" + creds.Pass
+		}
+
+		err = commons.ExecuteCommand(node, command)
+		if err != nil {
+			return errors.Wrap(err, "failed to create secret regcred-keos")
+		}
+
+		registry := "eosregistry.azurecr.io"
+		repository := "keos/stratio/cluster-operator"
+		version := "0.1.0-PR8-SNAPSHOT"
+
 		var clusterOperatorValues = `---
+namespace: 
+  name: ` + capiClustersNamespace + `
+
 kindInstalation:
-  enabled: true
+  enabled: false
 
 app:
-  crd:
-    resource: keoscluster
-  name: controller-manager
-  replicas: 1
-  securityContext:
-    allowPrivilegeEscalation: true
-    capabilities:
-      drop:
-      - ALL
-  resources:
-    limits:
-      cpu: 500m
-      memory: 128Mi
-    requests:
-      cpu: 10m
-      memory: 64Mi
-  volumes:
-    certVolume:
-      enable: true
-      name: cert
+  imagePullSecrets:
+    enabled: true
+    name: ` + regcredKeos + `
   containers:
     controllerManager:
-      name: manager
-      serviceAccountName:  keoscluster-controller-manager
-      securityContext: 
-        runAsNonRoot: true
       image: 
-        registry: qa.int.stratio.com:8443
-        repository: stratio/cluster-operator
-        tag: 0.1.0-PR8-SNAPSHOT
-      ports:
-        webhookServerPort: 9443
-      volumeMounts:
-        mountPath: /tmp/k8s-webhook-server/serving-certs
-        name: cert
-        readOnly: true
-      imagePullSecrets:
-        enable: false
-        name: regcred-keos
-      args:
-      - "--health-probe-bind-address=:8081"
-      - "--metrics-bind-address=127.0.0.1:8080"
-      - "--leader-elect"
-      command: "/manager"
-      livenessProbe:
-        httpGet:
-          path: /healthz
-          port: 8081
-          scheme: HTTP
-        initialDelaySeconds: 15
-        periodSeconds: 20
-      readinessProbe:
-        httpGet:
-          path: /readyz
-          port: 8081
-          scheme: HTTP
-        initialDelaySeconds: 5
-        periodSeconds: 10
-    kubeRbacProxy:
-      image: "gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1"
-      name: kube-rbac-proxy
-      args: 
-      - "--secure-listen-address=0.0.0.0:8443"
-      - "--upstream=http://127.0.0.1:8080/"
-      - "--logtostderr=true"
-      - "--v=0"
-      ports:
-        containerPort: 8443
-        name: https
-        protocol: TCP
-        
-affinity: 
-  controller:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-        - matchExpressions:
-          - key: kubernetes.io/arch
-            operator: In
-            values:
-            - amd64
-            - arm64
-            - ppc64le
-            - s390x
-          - key: kubernetes.io/os
-            operator: In
-            values:
-            - linux`
+        registry: ` + registry + `
+        repository: ` + repository + `
+        tag: ` + version + ``
 
 		clusterOperatorValuesPath := "/kind/cluster-operator-values.yaml"
 		raw := bytes.Buffer{}
 		cmd := node.Command("sh", "-c", "echo \""+clusterOperatorValues+"\" > "+clusterOperatorValuesPath)
-		if err := cmd.SetStdout(&raw).Run(); err != nil {
-			return errors.Wrap(err, "failed to write the clusterOperatorValues manifest")
-		}
-
-		raw = bytes.Buffer{}
-		cmd = node.Command("sh", "-c", "chmod 777 "+clusterOperatorValuesPath)
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to write the clusterOperatorValues manifest")
 		}
@@ -339,8 +279,6 @@ affinity:
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to apply manifests")
 		}
-
-		descriptorFile, err := fillCredentials(*descriptorFile, githubToken, dockerRegistries)
 
 		keosCluster, err := getKeosClusterManifest(descriptorFile)
 		if err != nil {
@@ -355,7 +293,7 @@ affinity:
 
 		//AÑADIR CONDICION DE ESPERA AL DEPLOYMENT DE KEOSCLUSTER
 		raw = bytes.Buffer{}
-		cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "-n", "keoscluster-system", "--timeout=300s")
+		cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "-n", capiClustersNamespace, "--timeout=300s")
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to create the worker Cluster")
 		}
@@ -368,8 +306,6 @@ affinity:
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to apply manifests")
 		}
-
-		//fmt.Println("keosCluster: " + fmt.Sprintln(keosCluster))
 
 		time.Sleep(10 * time.Second)
 
@@ -575,68 +511,16 @@ affinity:
 
 			ctx.Status.Start("Prepare cluster to move the cluster-operator 🗝️")
 
-			command := "sed -i 's/qa\\.int\\.stratio\\.com:8443/eosregistry.azurecr.io/g' " + clusterOperatorValuesPath
-			err = commons.ExecuteCommand(node, command)
-			if err != nil {
-				return errors.Wrap(err, "failed to change registry in "+clusterOperatorValuesPath)
-			}
-			command = "sed -i 's/stratio\\/cluster-operator/keos\\/stratio\\/cluster-operator/g' " + clusterOperatorValuesPath
+			command = "sed -i '/^\\s*imagePullSecrets:/,/^\\(\\s*enable:\\)/ s/^\\(\\s*enable:\\).*/\\1 false/' " + clusterOperatorValuesPath
 			err = commons.ExecuteCommand(node, command)
 			if err != nil {
 				return errors.Wrap(err, "failed to change repository in "+clusterOperatorValuesPath)
-			}
-
-			command = "sed -i '/^kindInstalation:/,/^\\s*enabled:/ s/^\\(\\s*enabled:\\).*/\\1 false/' " + clusterOperatorValuesPath
-			//command = "awk '/kindInstalation:/ {f=1; print; next} f && /^  enabled:/ {$0=\"  enabled: false\"; f=0} 1' " + clusterOperatorValues + " > archivo_temp.yaml && mv archivo_temp.yaml " + clusterOperatorValues
-			err = commons.ExecuteCommand(node, command)
-			if err != nil {
-				return errors.Wrap(err, "failed to change repository in "+clusterOperatorValuesPath)
-			}
-
-			command = "sed -i '/^\\s*imagePullSecrets:/,/^\\(\\s*enable:\\)/ s/^\\(\\s*enable:\\).*/\\1 true/' " + clusterOperatorValuesPath
-			//command = "awk '/      imagePullSecrets:/ {f=1; print; next} f && /^        enable:/ {$0=\"        enable: true\"; f=0} 1' " + clusterOperatorValues + " > archivo_temp.yaml && mv archivo_temp.yaml " + clusterOperatorValues
-			err = commons.ExecuteCommand(node, command)
-			if err != nil {
-				return errors.Wrap(err, "failed to change repository in "+clusterOperatorValuesPath)
-			}
-
-			command = "kubectl create ns keoscluster-system" +
-				" --kubeconfig=" + kubeconfigPath
-
-			err = commons.ExecuteCommand(node, command)
-			if err != nil {
-				return errors.Wrap(err, "failed to create ns keoscluster-system")
-			}
-
-			// Create docker-registry secret
-			command = "kubectl create secret docker-registry regcred-keos" +
-				" --kubeconfig=" + kubeconfigPath +
-				" --namespace=keoscluster-system"
-
-			for _, creds := range descriptorFile.Credentials.DockerRegistries {
-				command = command +
-					" --docker-server=" + creds.URL +
-					" --docker-username=" + creds.User +
-					" --docker-password=" + creds.Pass
-
-			}
-
-			err = commons.ExecuteCommand(node, command)
-			if err != nil {
-				return errors.Wrap(err, "failed to create docker-registry secret")
 			}
 
 			ctx.Status.End(true)
 
 			ctx.Status.Start("Moving the management role 🗝️")
 			defer ctx.Status.End(false)
-
-			// Create namespace for CAPI clusters (it must exists) in worker cluster
-			raw = bytes.Buffer{}
-			cmd = node.Command("kubectl", "--kubeconfig", kubeconfigPath, "create", "ns", capiClustersNamespace)
-			if err := cmd.SetStdout(&raw).Run(); err != nil {
-				return errors.Wrap(err, "failed to create manifests Namespace")
-			}
 
 			// Pivot management role to worker cluster
 			raw = bytes.Buffer{}
@@ -656,29 +540,28 @@ affinity:
 			}
 
 			raw = bytes.Buffer{}
-			cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "--kubeconfig", kubeconfigPath, "-n", "keoscluster-system", "--timeout=300s")
+			cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "--kubeconfig", kubeconfigPath, "-n", capiClustersNamespace, "--timeout=300s")
 			if err := cmd.SetStdout(&raw).Run(); err != nil {
 				return errors.Wrap(err, "failed to create the worker Cluster")
 			}
 
-			//kubectl wait deployment -n <namespace> <deployment_name> --for condition=Available=True
 			time.Sleep(10 * time.Second)
 
-			command = "kubectl get keoscluster -n keoscluster-system keos-" + descriptorFile.ClusterID + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
+			command = "kubectl get keoscluster -n " + capiClustersNamespace + " keos-" + descriptorFile.ClusterID + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
 			err = commons.ExecuteCommand(node, command)
 			if err != nil {
 				return errors.Wrap(err, "failed to create docker-registry secret")
 			}
 
-			cmd = node.Command("sh", "-c", "kubectl delete keoscluster -n keoscluster-system keos-"+descriptorFile.ClusterID)
+			cmd = node.Command("sh", "-c", "kubectl delete keoscluster -n "+capiClustersNamespace+" keos-"+descriptorFile.ClusterID)
 			if err := cmd.SetStdout(&raw).Run(); err != nil {
 				return errors.Wrap(err, "failed to uninstall cluster-operator")
 			}
 
-			// cmd = node.Command("sh", "-c", "helm uninstall cluster-operator ")
-			// if err := cmd.SetStdout(&raw).Run(); err != nil {
-			// 	return errors.Wrap(err, "failed to uninstall cluster-operator")
-			// }
+			cmd = node.Command("sh", "-c", "helm uninstall cluster-operator ")
+			if err := cmd.SetStdout(&raw).Run(); err != nil {
+				return errors.Wrap(err, "failed to uninstall cluster-operator")
+			}
 
 			ctx.Status.End(true)
 

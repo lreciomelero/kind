@@ -2,7 +2,9 @@ apiVersion: installer.stratio.com/v1beta1
 kind: KeosCluster
 metadata:
     name: keos-{{ $.ClusterID }}
-    namespace: keoscluster-system
+    namespace: cluster-{{ $.ClusterID }}
+    labels:
+      clusterctl.cluster.x-k8s.io/move-hierarchy: "true"
 spec:
     cluster_id: {{ $.ClusterID }}
     deploy_autoscaler: {{ $.DeployAutoscaler }}
