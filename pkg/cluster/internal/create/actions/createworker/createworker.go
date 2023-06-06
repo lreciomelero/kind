@@ -227,9 +227,9 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		descriptorFile, err := fillCredentials(*descriptorFile, githubToken, dockerRegistries)
 
-		regcredKeos := "regcred-keos"
+		regcredKeos := "regcred-keoscluster"
 		command := "kubectl create secret docker-registry " + regcredKeos +
-			" --namespace=" + capiClustersNamespace
+			" --namespace=kube-system"
 
 		for _, creds := range descriptorFile.Credentials.DockerRegistries {
 			command = command +
@@ -240,7 +240,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		err = commons.ExecuteCommand(node, command)
 		if err != nil {
-			return errors.Wrap(err, "failed to create secret regcred-keos")
+			return errors.Wrap(err, "failed to create secret "+regcredKeos)
 		}
 
 		registry := "eosregistry.azurecr.io"
@@ -248,12 +248,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		version := "0.1.0-PR8-SNAPSHOT"
 
 		var clusterOperatorValues = `---
-namespace: 
-  name: ` + capiClustersNamespace + `
-
-kindInstalation:
-  enabled: false
-
 app:
   imagePullSecrets:
     enabled: true
@@ -287,13 +281,16 @@ app:
 
 		raw = bytes.Buffer{}
 		cmd = node.Command("sh", "-c", "echo '"+keosCluster+"' > "+"/kind/keoscluster.yaml")
+
+		//time.Sleep(5 * time.Minute)
+
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to apply manifests")
 		}
 
 		//AÑADIR CONDICION DE ESPERA AL DEPLOYMENT DE KEOSCLUSTER
 		raw = bytes.Buffer{}
-		cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "-n", capiClustersNamespace, "--timeout=300s")
+		cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "--namespace=kube-system", "--timeout=300s")
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to create the worker Cluster")
 		}
@@ -460,7 +457,7 @@ app:
 
 				// Allow egress in kube-system Namespace
 				raw = bytes.Buffer{}
-				cmd = node.Command("kubectl", "--kubeconfig", kubeconfigPath, "-n", "kube-system", "apply", "-f", allowCommonEgressNetPolPath)
+				cmd = node.Command("kubectl", "--kubeconfig", kubeconfigPath, "--namespace=kube-system", "apply", "-f", allowCommonEgressNetPolPath)
 				if err := cmd.SetStdout(&raw).Run(); err != nil {
 					return errors.Wrap(err, "failed to apply kube-system egress NetworkPolicy")
 				}
@@ -511,10 +508,12 @@ app:
 
 			ctx.Status.Start("Prepare cluster to move the cluster-operator 🗝️")
 
-			command = "sed -i '/^\\s*imagePullSecrets:/,/^\\(\\s*enable:\\)/ s/^\\(\\s*enable:\\).*/\\1 false/' " + clusterOperatorValuesPath
-			err = commons.ExecuteCommand(node, command)
-			if err != nil {
-				return errors.Wrap(err, "failed to change repository in "+clusterOperatorValuesPath)
+			if !descriptorFile.ControlPlane.Managed {
+				command = "sed -i '/^\\s*imagePullSecrets:/,/^\\(\\s*enable:\\)/ s/^\\(\\s*enable:\\).*/\\1 false/' " + clusterOperatorValuesPath
+				err = commons.ExecuteCommand(node, command)
+				if err != nil {
+					return errors.Wrap(err, "failed to change repository in "+clusterOperatorValuesPath)
+				}
 			}
 
 			ctx.Status.End(true)
@@ -534,13 +533,30 @@ app:
 
 			ctx.Status.Start("Moving the cluster-operator 🗝️")
 
+			if descriptorFile.ControlPlane.Managed {
+
+				// // Allow egress in CAPX's Namespace
+				// command = "kubectl --kubeconfig " + kubeconfigPath + " -n " + capiClustersNamespace + " apply -f " + allowCommonEgressNetPolPath
+				// err = commons.ExecuteCommand(node, command)
+				// if err != nil {
+				// 	return errors.Wrap(err, "failed to apply CAPX's NetworkPolicy in workload cluster")
+				// }
+
+				command = "kubectl get secret --namespace=kube-system " + regcredKeos + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
+				err = commons.ExecuteCommand(node, command)
+				if err != nil {
+					return errors.Wrap(err, "failed to move regcred repository")
+				}
+			}
+
 			cmd = node.Command("sh", "-c", "helm install cluster-operator /stratio/helm/cluster-operator --kubeconfig "+kubeconfigPath+" --values "+clusterOperatorValuesPath)
 			if err := cmd.SetStdout(&raw).Run(); err != nil {
 				return errors.Wrap(err, "failed to install cluster-operator")
 			}
 
+			kubesystemns := "kube-system"
 			raw = bytes.Buffer{}
-			cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "--kubeconfig", kubeconfigPath, "-n", capiClustersNamespace, "--timeout=300s")
+			cmd = node.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "--kubeconfig", kubeconfigPath, "-n", kubesystemns, "--timeout=300s")
 			if err := cmd.SetStdout(&raw).Run(); err != nil {
 				return errors.Wrap(err, "failed to create the worker Cluster")
 			}

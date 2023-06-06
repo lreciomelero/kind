@@ -30,6 +30,7 @@ RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases
 
 # Add alias for kubectl
 RUN echo 'alias k="kubectl"' >> ~/.bashrc
+RUN echo 'alias kw="kubectl --kubeconfig /kind/worker-cluster.kubeconfig"' >> ~/.bashrc
 
 RUN curl -L https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz -o /root/helm.tar.gz \
   && tar -xf /root/helm.tar.gz -C /root && mv /root/linux-amd64/helm /usr/local/bin/helm \
@@ -55,3 +56,6 @@ providers:\n\
     -o ${CAPI_REPO}/infrastructure-aws/${CAPA}/metadata.yaml \
   && curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/${CAPA}/infrastructure-components.yaml \
     -o ${CAPI_REPO}/infrastructure-aws/${CAPA}/infrastructure-components.yaml
+
+RUN apt update \
+    && apt -y install vim

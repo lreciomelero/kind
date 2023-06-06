@@ -3,8 +3,6 @@ kind: KeosCluster
 metadata:
     name: keos-{{ $.ClusterID }}
     namespace: cluster-{{ $.ClusterID }}
-    labels:
-      clusterctl.cluster.x-k8s.io/move-hierarchy: "true"
 spec:
     cluster_id: {{ $.ClusterID }}
     deploy_autoscaler: {{ $.DeployAutoscaler }}
@@ -127,6 +125,7 @@ spec:
       {{- if ne $.ControlPlane.NodeImage "" }}
       node_image: {{ $.ControlPlane.NodeImage }}
       {{- end }}
+      {{- if not $.ControlPlane.Managed }}
       highly_available: {{ $.ControlPlane.HighlyAvailable }}
       size: {{ $.ControlPlane.Size }}
       {{- if ne $.ControlPlane.RootVolume.Type "" }}
@@ -135,7 +134,8 @@ spec:
         type: {{ $.ControlPlane.RootVolume.Type }}
         encrypted: {{ $.ControlPlane.RootVolume.Encrypted }}
       {{- end }}
-      {{- if checkReference $.ControlPlane.AWS.AssociateOIDCProvider }}
+      {{- end }}
+      {{- if $.ControlPlane.AWS.AssociateOIDCProvider }}
       aws:
         associate_oidc_provider: {{ $.ControlPlane.AWS.AssociateOIDCProvider }}
         logging:
