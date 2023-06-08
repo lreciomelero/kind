@@ -3,7 +3,7 @@ module sigs.k8s.io/kind
 go 1.19
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/BurntSushi/toml v1.0.0
 	github.com/alessio/shellescape v1.4.1
