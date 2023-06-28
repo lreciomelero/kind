@@ -228,7 +228,7 @@ func (b *GCPBuilder) getParameters(sc commons.StorageClass) commons.SCParameters
 	}
 }
 
-func (b *GCPBuilder) internalNginx(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (bool, error) {
+func (b *GCPBuilder) internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterName string) (bool, error) {
 	if len(b.dataCreds) == 0 {
 		return false, errors.New("Insufficient credentials.")
 	}

@@ -56,7 +56,7 @@ type PBuilder interface {
 	configureStorageClass(n nodes.Node, k string, sc commons.StorageClass) error
 	getParameters(sc commons.StorageClass) commons.SCParameters
 	getAzs(networks commons.Networks) ([]string, error)
-	internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterID string) (bool, error)
+	internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterName string) (bool, error)
 }
 
 type Provider struct {
@@ -128,8 +128,8 @@ func (i *Infra) configureStorageClass(n nodes.Node, k string, sc commons.Storage
 	return i.builder.configureStorageClass(n, k, sc)
 }
 
-func (i *Infra) internalNginx(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (bool, error) {
-	requiredIntenalNginx, err := i.builder.internalNginx(networks, credentialsMap, ClusterID)
+func (i *Infra) internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterName string) (bool, error) {
+	requiredIntenalNginx, err := i.builder.internalNginx(networks, credentialsMap, clusterName)
 	if err != nil {
 		return false, err
 	}
@@ -288,13 +288,13 @@ func (p *Provider) installCAPXLocal(n nodes.Node) error {
 	return nil
 }
 
-func enableSelfHealing(n nodes.Node, descriptorFile commons.DescriptorFile, namespace string) error {
+func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace string) error {
 	var c string
 	var err error
 
-	if !descriptorFile.ControlPlane.Managed {
+	if !keosCluster.Spec.ControlPlane.Managed {
 		machineRole := "-control-plane-node"
-		generateMHCManifest(n, descriptorFile.ClusterID, namespace, machineHealthCheckControlPlaneNodePath, machineRole)
+		generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckControlPlaneNodePath, machineRole)
 
 		c = "kubectl -n " + namespace + " apply -f " + machineHealthCheckControlPlaneNodePath
 		_, err = commons.ExecuteCommand(n, c)
@@ -304,7 +304,7 @@ func enableSelfHealing(n nodes.Node, descriptorFile commons.DescriptorFile, name
 	}
 
 	machineRole := "-worker-node"
-	generateMHCManifest(n, descriptorFile.ClusterID, namespace, machineHealthCheckWorkerNodePath, machineRole)
+	generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckWorkerNodePath, machineRole)
 
 	c = "kubectl -n " + namespace + " apply -f " + machineHealthCheckWorkerNodePath
 	_, err = commons.ExecuteCommand(n, c)

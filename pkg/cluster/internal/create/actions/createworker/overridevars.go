@@ -35,7 +35,7 @@ import (
 //go:embed files/*/internal-ingress-nginx.yaml
 var internalIngressFiles embed.FS
 
-func override_vars(descriptorFile commons.DescriptorFile, credentialsMap map[string]string, ctx *actions.ActionContext, infra *Infra) error {
+func override_vars(keosCluster commons.KeosCluster, credentialsMap map[string]string, ctx *actions.ActionContext, infra *Infra) error {
 
 	overrideVarsDir := "override_vars"
 	originalFilePath := filepath.Join(overrideVarsDir, "ingress-nginx.yaml")
@@ -51,7 +51,7 @@ func override_vars(descriptorFile commons.DescriptorFile, credentialsMap map[str
 		}
 	}
 
-	requiredInternalNginx, err := infra.internalNginx(descriptorFile.Networks, credentialsMap, descriptorFile.ClusterID)
+	requiredInternalNginx, err := infra.internalNginx(keosCluster.Spec.Networks, credentialsMap, keosCluster.Metadata.Name)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func override_vars(descriptorFile commons.DescriptorFile, credentialsMap map[str
 		}
 
 		// Create ingress-nginx.yaml in override_vars folder if required
-		internalIngressFilePath := "files/" + descriptorFile.InfraProvider + "/internal-ingress-nginx.yaml"
+		internalIngressFilePath := "files/" + keosCluster.Spec.InfraProvider + "/internal-ingress-nginx.yaml"
 		internalIngressFile, err := internalIngressFiles.Open(internalIngressFilePath)
 		if err != nil {
 			return errors.Wrap(err, "error opening the internal ingress nginx file")

@@ -86,10 +86,11 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	// Parse the cluster descriptor
-	descriptorFile, err := commons.GetClusterDescriptor(a.descriptorPath)
+	keosCluster, err := commons.GetClusterDescriptor(a.descriptorPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse cluster descriptor")
 	}
+	descriptorFile := &keosCluster.Spec
 
 	// Get the secrets
 
@@ -192,10 +193,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Generating workload cluster manifests 📝")
 	defer ctx.Status.End(false)
 
-	capiClustersNamespace := "cluster-" + descriptorFile.ClusterID
+	capiClustersNamespace := "cluster-" + keosCluster.Metadata.Name
 
 	templateParams := commons.TemplateParams{
-		Descriptor:       *descriptorFile,
+		KeosCluster:      *keosCluster,
 		Credentials:      credentialsMap,
 		DockerRegistries: dockerRegistries,
 	}
@@ -212,7 +213,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	// Create the cluster manifests file in the container
-	descriptorPath := "/kind/manifests/cluster_" + descriptorFile.ClusterID + ".yaml"
+	descriptorPath := "/kind/manifests/cluster_" + keosCluster.Metadata.Name + ".yaml"
 	c = "echo \"" + descriptorData + "\" > " + descriptorPath
 	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
@@ -268,7 +269,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		// Wait for the control plane initialization
-		c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneInitialized --timeout=25m cluster " + descriptorFile.ClusterID
+		c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneInitialized --timeout=25m cluster " + keosCluster.Metadata.Name
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to create the worker Cluster")
@@ -280,7 +281,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		defer ctx.Status.End(false)
 
 		// Get the workload cluster kubeconfig
-		c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + descriptorFile.ClusterID + " | tee " + kubeconfigPath
+		c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + keosCluster.Metadata.Name + " | tee " + kubeconfigPath
 		kubeconfig, err := commons.ExecuteCommand(n, c)
 		if err != nil || kubeconfig == "" {
 			return errors.Wrap(err, "failed to get workload cluster kubeconfig")
@@ -308,7 +309,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				ctx.Status.Start("Installing cloud-provider in workload cluster ☁️")
 				defer ctx.Status.End(false)
 
-				err = installCloudProvider(n, *descriptorFile, kubeconfigPath, descriptorFile.ClusterID)
+				err = installCloudProvider(n, *descriptorFile, kubeconfigPath, keosCluster.Metadata.Name)
 				if err != nil {
 					return errors.Wrap(err, "failed to install external cloud-provider in workload cluster")
 				}
@@ -349,7 +350,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Creating Kubernetes RBAC for internal loadbalancing 🔐")
 			defer ctx.Status.End(false)
 
-			requiredInternalNginx, err := infra.internalNginx(descriptorFile.Networks, credentialsMap, descriptorFile.ClusterID)
+			requiredInternalNginx, err := infra.internalNginx(descriptorFile.Networks, credentialsMap, keosCluster.Metadata.Name)
 			if err != nil {
 				return err
 			}
@@ -396,7 +397,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		if !descriptorFile.ControlPlane.Managed && descriptorFile.ControlPlane.HighlyAvailable {
 			// Wait for all control planes creation
-			c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneReady --timeout 10m cluster " + descriptorFile.ClusterID
+			c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneReady --timeout 10m cluster " + keosCluster.Metadata.Name
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
 				return errors.Wrap(err, "failed to create the worker Cluster")
@@ -411,7 +412,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		if provider.capxProvider == "azure" && descriptorFile.ControlPlane.Managed && descriptorFile.Security.NodesIdentity != "" {
 			// Update AKS cluster with the user kubelet identity until the provider supports it
-			err := assignUserIdentity(descriptorFile.Security.NodesIdentity, descriptorFile.ClusterID, descriptorFile.Region, credentialsMap)
+			err := assignUserIdentity(descriptorFile.Security.NodesIdentity, keosCluster.Metadata.Name, descriptorFile.Region, credentialsMap)
 			if err != nil {
 				return errors.Wrap(err, "failed to assign user identity to the workload Cluster")
 			}
@@ -422,7 +423,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Enabling workload cluster's self-healing 🏥")
 		defer ctx.Status.End(false)
 
-		err = enableSelfHealing(n, *descriptorFile, capiClustersNamespace)
+		err = enableSelfHealing(n, *keosCluster, capiClustersNamespace)
 		if err != nil {
 			return errors.Wrap(err, "failed to enable workload cluster's self-healing")
 		}
@@ -528,8 +529,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			c = "helm install cluster-autoscaler /stratio/helm/cluster-autoscaler" +
 				" --kubeconfig " + kubeconfigPath +
 				" --namespace kube-system" +
-				" --set autoDiscovery.clusterName=" + descriptorFile.ClusterID +
-				" --set autoDiscovery.labels[0].namespace=cluster-" + descriptorFile.ClusterID +
+				" --set autoDiscovery.clusterName=" + keosCluster.Metadata.Name +
+				" --set autoDiscovery.labels[0].namespace=cluster-" + keosCluster.Metadata.Name +
 				" --set cloudProvider=clusterapi" +
 				" --set clusterAPIMode=incluster-incluster"
 
@@ -599,13 +600,13 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Generating the KEOS descriptor 📝")
 	defer ctx.Status.End(false)
 
-	err = createKEOSDescriptor(*descriptorFile, provider.stClassName)
+	err = createKEOSDescriptor(*keosCluster, provider.stClassName)
 	if err != nil {
 		return err
 	}
 	ctx.Status.End(true) // End Generating KEOS descriptor
 
-	err = override_vars(*descriptorFile, credentialsMap, ctx, infra)
+	err = override_vars(*keosCluster, credentialsMap, ctx, infra)
 	if err != nil {
 		return err
 	}

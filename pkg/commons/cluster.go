@@ -36,16 +36,24 @@ type Resource struct {
 	Spec       map[string]interface{} `yaml:"spec"`
 }
 
-type K8sObject struct {
+type KeosCluster struct {
 	APIVersion string         `yaml:"apiVersion" validate:"required"`
 	Kind       string         `yaml:"kind" validate:"required"`
+	Metadata   Metadata       `yaml:"metadata" validate:"required,dive"`
 	Spec       DescriptorFile `yaml:"spec" validate:"required,dive"`
+}
+
+type Metadata struct {
+	Name        string            `json:"name,omitempty" validate:"required,min=3,max=100"`
+	Namespace   string            `json:"namespace,omitempty" `
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // DescriptorFile represents the YAML structure in the spec field of the descriptor file
 type DescriptorFile struct {
-	ClusterID        string `yaml:"cluster_id" validate:"required,min=3,max=100"`
-	DeployAutoscaler bool   `yaml:"deploy_autoscaler" validate:"boolean"`
+	// ClusterID        string `yaml:"cluster_id" validate:"required,min=3,max=100"`
+	DeployAutoscaler bool `yaml:"deploy_autoscaler" validate:"boolean"`
 
 	Bastion Bastion `yaml:"bastion"`
 
@@ -216,7 +224,7 @@ type DockerRegistry struct {
 }
 
 type TemplateParams struct {
-	Descriptor       DescriptorFile
+	KeosCluster      KeosCluster
 	Credentials      map[string]string
 	DockerRegistries []map[string]interface{}
 }
@@ -326,12 +334,12 @@ func (d DescriptorFile) Init() DescriptorFile {
 }
 
 // Read descriptor file
-func GetClusterDescriptor(descriptorPath string) (*DescriptorFile, error) {
+func GetClusterDescriptor(descriptorPath string) (*KeosCluster, error) {
 	_, err := os.Stat(descriptorPath)
 	if err != nil {
 		return nil, errors.New("No exists any cluster descriptor as " + descriptorPath)
 	}
-	var k8sStruct K8sObject
+	var k8sStruct KeosCluster
 
 	descriptorRAW, err := os.ReadFile(descriptorPath)
 	if err != nil {
@@ -343,7 +351,7 @@ func GetClusterDescriptor(descriptorPath string) (*DescriptorFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	descriptorFile := k8sStruct.Spec
+	//descriptorFile := k8sStruct.Spec
 	validate := validator.New()
 
 	validate.RegisterCustomTypeFunc(CustomTypeAWSCredsFunc, AWSCredentials{})
@@ -352,11 +360,11 @@ func GetClusterDescriptor(descriptorPath string) (*DescriptorFile, error) {
 	validate.RegisterValidation("lte_param_if_exists", lteParamIfExists)
 	validate.RegisterValidation("required_if_for_bool", requiredIfForBool)
 
-	err = validate.Struct(descriptorFile)
+	err = validate.Struct(k8sStruct)
 	if err != nil {
 		return nil, err
 	}
-	return &descriptorFile, nil
+	return &k8sStruct, nil
 }
 
 func DecryptFile(filePath string, vaultPassword string) (string, error) {

@@ -278,7 +278,7 @@ func (b *AzureBuilder) getParameters(sc commons.StorageClass) commons.SCParamete
 	}
 }
 
-func (b *AzureBuilder) internalNginx(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (bool, error) {
+func (b *AzureBuilder) internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterName string) (bool, error) {
 	var resourceGroup string
 	os.Setenv("AZURE_CLIENT_ID", credentialsMap["ClientID"])
 	os.Setenv("AZURE_SECRET_ID", credentialsMap["ClientSecret"])
@@ -301,7 +301,7 @@ func (b *AzureBuilder) internalNginx(networks commons.Networks, credentialsMap m
 		if networks.ResourceGroup != "" {
 			resourceGroup = networks.ResourceGroup
 		} else {
-			resourceGroup = ClusterID
+			resourceGroup = clusterName
 		}
 		for _, subnet := range networks.Subnets {
 			publicSubnetID, _ := AzureFilterPublicSubnet(ctx, subnetsClient, resourceGroup, networks.VPCID, subnet.SubnetId)

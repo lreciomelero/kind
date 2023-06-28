@@ -25,19 +25,19 @@ type commonValidator struct {
 var validator Validator
 
 func InitValidator(descriptorPath string) error {
-	descriptorFile, err := commons.GetClusterDescriptor(descriptorPath)
+	keosCluster, err := commons.GetClusterDescriptor(descriptorPath)
 	if err != nil {
 		return err
 	}
 
-	infraProvider := descriptorFile.InfraProvider
-	managed := descriptorFile.ControlPlane.Managed
+	infraProvider := keosCluster.Spec.InfraProvider
+	managed := keosCluster.Spec.ControlPlane.Managed
 	validator, err = getValidator(infraProvider, managed)
 	if err != nil {
 		return err
 	}
 
-	validator.DescriptorFile(*descriptorFile)
+	validator.DescriptorFile(keosCluster.Spec)
 	return nil
 }
 
