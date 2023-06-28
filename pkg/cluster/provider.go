@@ -187,8 +187,8 @@ func (p *Provider) Create(name string, vaultPassword string, descriptorPath stri
 }
 
 // Delete tears down a kubernetes-in-docker cluster
-func (p *Provider) Delete(name, explicitKubeconfigPath string) error {
-	return internaldelete.Cluster(p.logger, p.provider, defaultName(name), explicitKubeconfigPath)
+func (p *Provider) Delete(name, explicitKubeconfigPath string, descriptorPath string) error {
+	return internaldelete.Cluster(p.logger, p.provider, defaultName(name), explicitKubeconfigPath, descriptorPath)
 }
 
 // List returns a list of clusters for which nodes exist

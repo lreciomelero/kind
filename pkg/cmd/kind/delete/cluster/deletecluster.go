@@ -30,9 +30,12 @@ import (
 )
 
 type flagpole struct {
-	Name       string
-	Kubeconfig string
+	Name           string
+	Kubeconfig     string
+	DescriptorPath string
 }
+
+const clusterDefaultPath = "./cluster.yaml"
 
 // NewCommand returns a new cobra.Command for cluster deletion
 func NewCommand(logger log.Logger, streams cmd.IOStreams) *cobra.Command {
@@ -61,17 +64,29 @@ func NewCommand(logger log.Logger, streams cmd.IOStreams) *cobra.Command {
 		"",
 		"sets kubeconfig path instead of $KUBECONFIG or $HOME/.kube/config",
 	)
+	cmd.Flags().StringVarP(
+		&flags.DescriptorPath,
+		"descriptor",
+		"d",
+		"",
+		"allows you to indicate the name of the descriptor located in current or other directory. Default: cluster.yaml",
+	)
 	return cmd
 }
 
 func deleteCluster(logger log.Logger, flags *flagpole) error {
+
+	if flags.DescriptorPath == "" {
+		flags.DescriptorPath = clusterDefaultPath
+	}
+
 	provider := cluster.NewProvider(
 		cluster.ProviderWithLogger(logger),
 		runtime.GetDefault(logger),
 	)
 	// Delete individual cluster
 	logger.V(0).Infof("Deleting cluster %q ...", flags.Name)
-	if err := provider.Delete(flags.Name, flags.Kubeconfig); err != nil {
+	if err := provider.Delete(flags.Name, flags.Kubeconfig, flags.DescriptorPath); err != nil {
 		return errors.Wrapf(err, "failed to delete cluster %q", flags.Name)
 	}
 	return nil
