@@ -52,7 +52,6 @@ type Metadata struct {
 
 // DescriptorFile represents the YAML structure in the spec field of the descriptor file
 type DescriptorFile struct {
-	// ClusterID        string `yaml:"cluster_id" validate:"required,min=3,max=100"`
 	DeployAutoscaler bool `yaml:"deploy_autoscaler" validate:"boolean"`
 
 	Bastion Bastion `yaml:"bastion"`

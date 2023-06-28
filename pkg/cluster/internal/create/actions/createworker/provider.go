@@ -315,21 +315,21 @@ func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace 
 	return nil
 }
 
-func generateMHCManifest(n nodes.Node, clusterID string, namespace string, manifestPath string, machineRole string) error {
+func generateMHCManifest(n nodes.Node, clusterName string, namespace string, manifestPath string, machineRole string) error {
 	var c string
 	var err error
 	var machineHealthCheck = `
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
-  name: ` + clusterID + machineRole + `-unhealthy
-  namespace: cluster-` + clusterID + `
+  name: ` + clusterName + machineRole + `-unhealthy
+  namespace: cluster-` + clusterName + `
 spec:
-  clusterName: ` + clusterID + `
+  clusterName: ` + clusterName + `
   nodeStartupTimeout: 300s
   selector:
     matchLabels:
-      keos.stratio.com/machine-role: ` + clusterID + machineRole + `
+      keos.stratio.com/machine-role: ` + clusterName + machineRole + `
   unhealthyConditions:
     - type: Ready
       status: Unknown
