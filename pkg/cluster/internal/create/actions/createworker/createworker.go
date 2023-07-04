@@ -196,7 +196,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	capiClustersNamespace := "cluster-" + keosCluster.Metadata.Name
 
 	templateParams := commons.TemplateParams{
-		Descriptor:       keosCluster.Spec,
+		KeosCluster:      *keosCluster,
 		Credentials:      credentialsMap,
 		DockerRegistries: dockerRegistries,
 	}

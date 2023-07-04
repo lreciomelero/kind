@@ -223,7 +223,7 @@ type DockerRegistry struct {
 }
 
 type TemplateParams struct {
-	Descriptor       Spec
+	KeosCluster      KeosCluster
 	Credentials      map[string]string
 	DockerRegistries []map[string]interface{}
 }
