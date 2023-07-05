@@ -545,6 +545,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Creating cloud-provisioner Objects backup 🗄️")
 		defer ctx.Status.End(false)
 
+		c = "kubectl wait --for=condition=Ready -n " + capiClustersNamespace + " cluster " + keosCluster.Metadata.Name + " --timeout 15m"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "timeout to cluster condition ready")
+		}
+
 		if _, err := os.Stat(localBackupPath); os.IsNotExist(err) {
 			if err := os.MkdirAll(localBackupPath, 0755); err != nil {
 				return errors.Wrap(err, "failed to create local backup directory")
