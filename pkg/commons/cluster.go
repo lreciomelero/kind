@@ -49,7 +49,7 @@ type DescriptorFile struct {
 
 	Bastion Bastion `yaml:"bastion"`
 
-	StorageClass StorageClass `yaml:"storage_class" validate:"dive"`
+	StorageClass StorageClass `yaml:"storageclass" validate:"dive"`
 
 	Credentials Credentials `yaml:"credentials" validate:"dive"`
 
@@ -275,7 +275,7 @@ type SCParameters struct {
 	Labels                  string `yaml:"labels,omitempty"  validate:"omitempty"`
 
 	IopsPerGB                  string `yaml:"iopsPerGB,omitempty" validate:"omitempty,excluded_with=Iops"`
-	FsType                     string `yaml:"fstype,omitempty"  validate:"omitempty"`
+	FsType                     string `yaml:"fsType,omitempty"  validate:"omitempty"`
 	KmsKeyId                   string `yaml:"kmsKeyId,omitempty"  validate:"omitempty"`
 	AllowAutoIOPSPerGBIncrease string `yaml:"allowAutoIOPSPerGBIncrease,omitempty" validate:"omitempty,oneof='true' 'false'"`
 	Iops                       string `yaml:"iops,omitempty" validate:"omitempty,excluded_with=IopsPerGB"`

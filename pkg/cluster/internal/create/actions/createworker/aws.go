@@ -19,6 +19,7 @@ package createworker
 import (
 	"context"
 	"encoding/base64"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -49,9 +50,10 @@ var storageClassAWSTemplate = StorageClassDef{
 		},
 		Name: "keos",
 	},
-	Provisioner:       "ebs.csi.aws.com",
-	Parameters:        make(map[string]interface{}),
-	VolumeBindingMode: "WaitForFirstConsumer",
+	AllowVolumeExpansion: true,
+	Provisioner:          "ebs.csi.aws.com",
+	Parameters:           make(map[string]interface{}),
+	VolumeBindingMode:    "WaitForFirstConsumer",
 }
 
 var standardAWSParameters = commons.SCParameters{
@@ -60,6 +62,7 @@ var standardAWSParameters = commons.SCParameters{
 
 var premiumAWSParameters = commons.SCParameters{
 	Type: "io2",
+	Iops: "64000",
 }
 
 type AWSBuilder struct {
@@ -257,9 +260,12 @@ func filterPrivateSubnet(svc *ec2.EC2, subnetID *string) (string, error) {
 	var isPublic bool
 	for _, associatedRouteTable := range drto.RouteTables {
 		for i := range associatedRouteTable.Routes {
-			if *associatedRouteTable.Routes[i].DestinationCidrBlock == "0.0.0.0/0" &&
-				associatedRouteTable.Routes[i].GatewayId != nil &&
-				strings.Contains(*associatedRouteTable.Routes[i].GatewayId, "igw") {
+			route := associatedRouteTable.Routes[i]
+
+			if route.DestinationCidrBlock != nil &&
+				route.GatewayId != nil &&
+				*route.DestinationCidrBlock == "0.0.0.0/0" &&
+				strings.Contains(*route.GatewayId, "igw") {
 				isPublic = true
 			}
 		}
@@ -287,9 +293,12 @@ func filterPublicSubnet(svc *ec2.EC2, subnetID *string) (string, error) {
 	var isPublic bool
 	for _, associatedRouteTable := range drto.RouteTables {
 		for i := range associatedRouteTable.Routes {
-			if *associatedRouteTable.Routes[i].DestinationCidrBlock == "0.0.0.0/0" &&
-				associatedRouteTable.Routes[i].GatewayId != nil &&
-				strings.Contains(*associatedRouteTable.Routes[i].GatewayId, "igw") {
+			route := associatedRouteTable.Routes[i]
+
+			if route.DestinationCidrBlock != nil &&
+				route.GatewayId != nil &&
+				*route.DestinationCidrBlock == "0.0.0.0/0" &&
+				strings.Contains(*route.GatewayId, "igw") {
 				isPublic = true
 			}
 		}
@@ -366,4 +375,50 @@ func (b *AWSBuilder) getParameters(sc commons.StorageClass) commons.SCParameters
 	default:
 		return mergeSCParameters(sc.Parameters, standardAWSParameters)
 	}
+}
+
+func (b *AWSBuilder) getOverrideVars(descriptor commons.DescriptorFile, credentialsMap map[string]string) (map[string][]byte, error) {
+	overrideVars := map[string][]byte{}
+	InternalNginxOVPath, InternalNginxOVValue, err := b.getInternalNginxOverrideVars(descriptor.Networks, credentialsMap, descriptor.ClusterID)
+	if err != nil {
+		return nil, err
+	}
+	pvcSizeOVPath, pvcSizeOVValue, err := b.getPvcSizeOverrideVars(descriptor.StorageClass)
+	if err != nil {
+		return nil, err
+	}
+	overrideVars = addOverrideVar(InternalNginxOVPath, InternalNginxOVValue, overrideVars)
+	overrideVars = addOverrideVar(pvcSizeOVPath, pvcSizeOVValue, overrideVars)
+
+	return overrideVars, nil
+}
+
+func (b *AWSBuilder) getPvcSizeOverrideVars(sc commons.StorageClass) (string, []byte, error) {
+	if (sc.Class == "premium" && sc.Parameters.Type == "") || sc.Parameters.Type == "io2" || sc.Parameters.Type == "io1" {
+		return "storage-class.yaml", []byte("storage_class_pvc_size: 4Gi"), nil
+	}
+	return "", []byte(""), nil
+}
+
+func (b *AWSBuilder) getInternalNginxOverrideVars(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (string, []byte, error) {
+	requiredInternalNginx, err := b.internalNginx(networks, credentialsMap, ClusterID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if requiredInternalNginx {
+		internalIngressFilePath := "files/" + b.capxProvider + "/internal-ingress-nginx.yaml"
+		internalIngressFile, err := internalIngressFiles.Open(internalIngressFilePath)
+		if err != nil {
+			return "", nil, errors.Wrap(err, "error opening the internal ingress nginx file")
+		}
+		defer internalIngressFile.Close()
+
+		internalIngressContent, err := ioutil.ReadAll(internalIngressFile)
+		if err != nil {
+			return "", nil, errors.Wrap(err, "error reading the internal ingress nginx file")
+		}
+		return "ingress-nginx.yaml", internalIngressContent, nil
+	}
+	return "", []byte(""), nil
 }

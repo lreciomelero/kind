@@ -57,6 +57,7 @@ type PBuilder interface {
 	getParameters(sc commons.StorageClass) commons.SCParameters
 	getAzs(networks commons.Networks) ([]string, error)
 	internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterID string) (bool, error)
+	getOverrideVars(descriptor commons.DescriptorFile, credentialsMap map[string]string) (map[string][]byte, error)
 }
 
 type Provider struct {
@@ -88,9 +89,10 @@ type StorageClassDef struct {
 		Annotations map[string]string `yaml:"annotations,omitempty"`
 		Name        string            `yaml:"name"`
 	} `yaml:"metadata"`
-	Provisioner       string                 `yaml:"provisioner"`
-	Parameters        map[string]interface{} `yaml:"parameters"`
-	VolumeBindingMode string                 `yaml:"volumeBindingMode"`
+	AllowVolumeExpansion bool                   `yaml:"allowVolumeExpansion"`
+	Provisioner          string                 `yaml:"provisioner"`
+	Parameters           map[string]interface{} `yaml:"parameters"`
+	VolumeBindingMode    string                 `yaml:"volumeBindingMode"`
 }
 
 func getBuilder(builderType string) PBuilder {
@@ -134,6 +136,14 @@ func (i *Infra) internalNginx(networks commons.Networks, credentialsMap map[stri
 		return false, err
 	}
 	return requiredIntenalNginx, nil
+}
+
+func (i *Infra) getOverrideVars(descriptor commons.DescriptorFile, credentialsMap map[string]string) (map[string][]byte, error) {
+	overrideVars, err := i.builder.getOverrideVars(descriptor, credentialsMap)
+	if err != nil {
+		return nil, err
+	}
+	return overrideVars, nil
 }
 
 func (i *Infra) getAzs(networks commons.Networks) ([]string, error) {
