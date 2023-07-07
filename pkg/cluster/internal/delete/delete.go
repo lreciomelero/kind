@@ -20,6 +20,8 @@ import (
 	"sigs.k8s.io/kind/pkg/errors"
 	"sigs.k8s.io/kind/pkg/log"
 
+	"sigs.k8s.io/kind/pkg/cluster/internal/delete/actions"
+	"sigs.k8s.io/kind/pkg/cluster/internal/delete/actions/workloadcluster"
 	"sigs.k8s.io/kind/pkg/cluster/internal/kubeconfig"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers"
 )
@@ -27,7 +29,7 @@ import (
 // Cluster deletes the cluster identified by ctx
 // explicitKubeconfigPath is --kubeconfig, following the rules from
 // https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands
-func Cluster(logger log.Logger, p providers.Provider, name, explicitKubeconfigPath string, descriptorPath string) error {
+func Cluster(logger log.Logger, p providers.Provider, name, explicitKubeconfigPath string) error {
 	n, err := p.ListNodes(name)
 	if err != nil {
 		return errors.Wrap(err, "error listing nodes")
@@ -46,4 +48,21 @@ func Cluster(logger log.Logger, p providers.Provider, name, explicitKubeconfigPa
 		return err
 	}
 	return nil
+}
+
+func KeosCluster(logger log.Logger, p providers.Provider, opts *actions.ClusterOptions) error {
+	// setup a status object to show progress to the user
+	actionsToRun := []actions.Action{
+		workloadcluster.NewAction(logger, opts.DescriptorPath, opts.ExplicitKubeconfigPath, opts.WorkloadKubeconfigPath),
+	}
+
+	for _, action := range actionsToRun {
+		if err := action.Execute(*opts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+	//return Cluster(logger, p, opts.NameOverride, opts.ExplicitKubeconfigPath)
 }

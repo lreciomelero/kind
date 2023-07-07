@@ -32,6 +32,7 @@ import (
 
 	internalcreate "sigs.k8s.io/kind/pkg/cluster/internal/create"
 	internaldelete "sigs.k8s.io/kind/pkg/cluster/internal/delete"
+	"sigs.k8s.io/kind/pkg/cluster/internal/delete/actions"
 	"sigs.k8s.io/kind/pkg/cluster/internal/kubeconfig"
 	internalproviders "sigs.k8s.io/kind/pkg/cluster/internal/providers"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/docker"
@@ -187,8 +188,15 @@ func (p *Provider) Create(name string, vaultPassword string, descriptorPath stri
 }
 
 // Delete tears down a kubernetes-in-docker cluster
-func (p *Provider) Delete(name, explicitKubeconfigPath string, descriptorPath string) error {
-	return internaldelete.Cluster(p.logger, p.provider, defaultName(name), explicitKubeconfigPath, descriptorPath)
+func (p *Provider) Delete(name, explicitKubeconfigPath string, descriptorPath string, workloadKubeconfigPath string) error {
+	opts := &actions.ClusterOptions{
+		NameOverride:           defaultName(name),
+		DescriptorPath:         descriptorPath,
+		ExplicitKubeconfigPath: explicitKubeconfigPath,
+		WorkloadKubeconfigPath: workloadKubeconfigPath,
+	}
+
+	return internaldelete.KeosCluster(p.logger, p.provider, opts)
 }
 
 // List returns a list of clusters for which nodes exist

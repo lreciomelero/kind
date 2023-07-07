@@ -18,6 +18,8 @@ limitations under the License.
 package cluster
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"sigs.k8s.io/kind/pkg/cluster"
@@ -30,9 +32,10 @@ import (
 )
 
 type flagpole struct {
-	Name           string
-	Kubeconfig     string
-	DescriptorPath string
+	Name               string
+	Kubeconfig         string
+	DescriptorPath     string
+	WorkloadKubeconfig string
 }
 
 const clusterDefaultPath = "./cluster.yaml"
@@ -58,9 +61,10 @@ func NewCommand(logger log.Logger, streams cmd.IOStreams) *cobra.Command {
 		cluster.DefaultName,
 		"the cluster name",
 	)
-	cmd.Flags().StringVar(
+	cmd.Flags().StringVarP(
 		&flags.Kubeconfig,
 		"kubeconfig",
+		"k",
 		"",
 		"sets kubeconfig path instead of $KUBECONFIG or $HOME/.kube/config",
 	)
@@ -71,6 +75,13 @@ func NewCommand(logger log.Logger, streams cmd.IOStreams) *cobra.Command {
 		"",
 		"allows you to indicate the name of the descriptor located in current or other directory. Default: cluster.yaml",
 	)
+	cmd.Flags().StringVarP(
+		&flags.WorkloadKubeconfig,
+		"workload-kubeconfig",
+		"w",
+		"",
+		"sets workload-kubeconfig path instead of .kube/config",
+	)
 	return cmd
 }
 
@@ -80,13 +91,25 @@ func deleteCluster(logger log.Logger, flags *flagpole) error {
 		flags.DescriptorPath = clusterDefaultPath
 	}
 
+	if flags.Kubeconfig == "" {
+		userDir, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		flags.Kubeconfig = userDir + "/.kube/config"
+	}
+
+	if flags.WorkloadKubeconfig == "" {
+		flags.WorkloadKubeconfig = ".kube/config"
+	}
+
 	provider := cluster.NewProvider(
 		cluster.ProviderWithLogger(logger),
 		runtime.GetDefault(logger),
 	)
 	// Delete individual cluster
 	logger.V(0).Infof("Deleting cluster %q ...", flags.Name)
-	if err := provider.Delete(flags.Name, flags.Kubeconfig, flags.DescriptorPath); err != nil {
+	if err := provider.Delete(flags.Name, flags.Kubeconfig, flags.DescriptorPath, flags.WorkloadKubeconfig); err != nil {
 		return errors.Wrapf(err, "failed to delete cluster %q", flags.Name)
 	}
 	return nil
