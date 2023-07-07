@@ -98,7 +98,6 @@ func (a *Action) Execute(opts actions.ClusterOptions) error {
 		if err != nil {
 			return errors.Wrap(err, "Failed to delete cluster object in workload cluster: ")
 		}
-		//fmt.Println(string(output))
 		a.ctx.Status.End(true) //Moving cluster object from workload cluster to local cluster
 
 	} else {

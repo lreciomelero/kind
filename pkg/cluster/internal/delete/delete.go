@@ -67,7 +67,6 @@ func KeosCluster(logger log.Logger, p providers.Provider, opts *actions.ClusterO
 		}
 	}
 
-	//return nil
 	actionsContext.Status.Start("Deleting cluster " + opts.NameOverride + " 💥")
 	defer actionsContext.Status.End(false)
 	err := Cluster(logger, p, opts.NameOverride, opts.ExplicitKubeconfigPath)
