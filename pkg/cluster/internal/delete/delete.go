@@ -18,6 +18,7 @@ package delete
 
 import (
 	"sigs.k8s.io/kind/pkg/errors"
+	"sigs.k8s.io/kind/pkg/internal/cli"
 	"sigs.k8s.io/kind/pkg/log"
 
 	"sigs.k8s.io/kind/pkg/cluster/internal/delete/actions"
@@ -51,9 +52,13 @@ func Cluster(logger log.Logger, p providers.Provider, name, explicitKubeconfigPa
 }
 
 func KeosCluster(logger log.Logger, p providers.Provider, opts *actions.ClusterOptions) error {
+
+	status := cli.StatusForLogger(logger)
+
+	actionsContext := actions.NewActionContext(logger, status, p, opts.Config)
 	// setup a status object to show progress to the user
 	actionsToRun := []actions.Action{
-		workloadcluster.NewAction(logger, opts.DescriptorPath, opts.ExplicitKubeconfigPath, opts.WorkloadKubeconfigPath),
+		workloadcluster.NewAction(logger, opts.DescriptorPath, opts.ExplicitKubeconfigPath, opts.WorkloadKubeconfigPath, actionsContext),
 	}
 
 	for _, action := range actionsToRun {
@@ -62,7 +67,14 @@ func KeosCluster(logger log.Logger, p providers.Provider, opts *actions.ClusterO
 		}
 	}
 
-	return nil
+	//return nil
+	actionsContext.Status.Start("Deleting cluster " + opts.NameOverride + " 💥")
+	defer actionsContext.Status.End(false)
+	err := Cluster(logger, p, opts.NameOverride, opts.ExplicitKubeconfigPath)
+	if err != nil {
+		return err
+	}
+	actionsContext.Status.End(true) // Deleting cluster
 
-	//return Cluster(logger, p, opts.NameOverride, opts.ExplicitKubeconfigPath)
+	return nil
 }
