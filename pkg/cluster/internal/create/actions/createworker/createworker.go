@@ -56,14 +56,6 @@ var allowCommonEgressNetPol string
 //go:embed files/gcp/rbac-loadbalancing.yaml
 var rbacInternalLoadBalancing string
 
-// // In common with keos installer
-// //
-// //go:embed files/aws/deny-all-egress-imds_gnetpol.yaml
-// var denyallEgressIMDSGNetPol string
-
-// //go:embed files/aws/allow-capa-egress-imds_gnetpol.yaml
-// var allowCAPAEgressIMDSGNetPol string
-
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool) actions.Action {
 	return &action{
@@ -491,7 +483,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		c = "echo \"" + denyEgressIMDSGNetPol + "\" > " + denyallEgressIMDSGNetPolPath
-		// c = "echo \"" + denyallEgressIMDSGNetPol + "\" > " + denyallEgressIMDSGNetPolPath
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to write the deny-all-traffic-to-aws-imds global network policy")
@@ -502,7 +493,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		c = "echo \"" + allowEgressIMDSGNetPol + "\" > " + allowCAPXEgressIMDSGNetPolPath
-		// c = "echo \"" + allowCAPAEgressIMDSGNetPol + "\" > " + allowCAPAEgressIMDSGNetPolPath
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds-capa global network policy")

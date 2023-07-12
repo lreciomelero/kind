@@ -138,13 +138,6 @@ func (b *GCPBuilder) installCSI(n nodes.Node, k string) error {
 	var err error
 	var cmd exec.Cmd
 
-	// Create CSI namespace
-	// c = "kubectl --kubeconfig " + k + " create namespace " + b.csiNamespace
-	// _, err = commons.ExecuteCommand(n, c)
-	// if err != nil {
-	// 	return errors.Wrap(err, "failed to create CSI namespace")
-	// }
-
 	// Create CSI secret in CSI namespace
 	secret, _ := b64.StdEncoding.DecodeString(strings.Split(b.capxEnvVars[0], "GCP_B64ENCODED_CREDENTIALS=")[1])
 	c = "kubectl --kubeconfig " + k + " -n kube-system create secret generic cloud-sa --from-literal=cloud-sa.json='" + string(secret) + "'"
