@@ -245,11 +245,22 @@ func getAcrToken(p commons.ProviderParams, acrService string) (string, error) {
 }
 
 func (b *AzureBuilder) configureStorageClass(n nodes.Node, k string, sc commons.StorageClass) error {
+	var c string
+	var err error
 	var cmd exec.Cmd
 
-	cmd = n.Command("kubectl", "--kubeconfig", k, "annotate", "sc", "default", defaultScAnnotation+"-")
-	if err := cmd.SetStdin(strings.NewReader(azureStorageClasses)).Run(); err != nil {
-		return errors.Wrap(err, "failed to unannotate default Azure Storage Classes")
+	// Remove annotation from default storage class
+	c = "kubectl --kubeconfig " + k + " get sc | grep '(default)' | awk '{print $1}'"
+	output, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to get default storage class")
+	}
+	if strings.TrimSpace(output) != "" && strings.TrimSpace(output) != "No resources found" {
+		c = "kubectl --kubeconfig " + k + " annotate sc " + strings.TrimSpace(output) + " " + defaultScAnnotation + "-"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to remove annotation from default storage class")
+		}
 	}
 
 	params := b.getParameters(sc)
@@ -258,12 +269,14 @@ func (b *AzureBuilder) configureStorageClass(n nodes.Node, k string, sc commons.
 		return err
 	}
 
+	storageClass = strings.ReplaceAll(storageClass, "fsType", "csi.storage.k8s.io/fstype")
+
 	cmd = n.Command("kubectl", "--kubeconfig", k, "apply", "-f", "-")
 	if err = cmd.SetStdin(strings.NewReader(storageClass)).Run(); err != nil {
-		return errors.Wrap(err, "failed to create StorageClass")
+		return errors.Wrap(err, "failed to create default storage class")
 	}
-	return nil
 
+	return nil
 }
 
 func (b *AzureBuilder) getParameters(sc commons.StorageClass) commons.SCParameters {

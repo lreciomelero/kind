@@ -36,8 +36,6 @@ import (
 	"sigs.k8s.io/kind/pkg/exec"
 )
 
-var defaultAWSSc = "gp2"
-
 var storageClassAWSTemplate = StorageClassDef{
 	APIVersion: "storage.k8s.io/v1",
 	Kind:       "StorageClass",
@@ -338,11 +336,22 @@ func getEcrToken(p commons.ProviderParams) (string, error) {
 }
 
 func (b *AWSBuilder) configureStorageClass(n nodes.Node, k string, sc commons.StorageClass) error {
+	var c string
+	var err error
 	var cmd exec.Cmd
 
-	cmd = n.Command("kubectl", "--kubeconfig", k, "delete", "storageclass", defaultAWSSc)
-	if err := cmd.Run(); err != nil {
-		return errors.Wrap(err, "failed to delete default StorageClass")
+	// Remove annotation from default storage class
+	c = "kubectl --kubeconfig " + k + " get sc | grep '(default)' | awk '{print $1}'"
+	output, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to get default storage class")
+	}
+	if strings.TrimSpace(output) != "" && strings.TrimSpace(output) != "No resources found" {
+		c = "kubectl --kubeconfig " + k + " annotate sc " + strings.TrimSpace(output) + " " + defaultScAnnotation + "-"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to remove annotation from default storage class")
+		}
 	}
 
 	params := b.getParameters(sc)
@@ -356,10 +365,10 @@ func (b *AWSBuilder) configureStorageClass(n nodes.Node, k string, sc commons.St
 
 	cmd = n.Command("kubectl", "--kubeconfig", k, "apply", "-f", "-")
 	if err = cmd.SetStdin(strings.NewReader(storageClass)).Run(); err != nil {
-		return errors.Wrap(err, "failed to create StorageClass")
+		return errors.Wrap(err, "failed to create default storage class")
 	}
-	return nil
 
+	return nil
 }
 
 func (b *AWSBuilder) getParameters(sc commons.StorageClass) commons.SCParameters {
@@ -396,6 +405,9 @@ func (b *AWSBuilder) getOverrideVars(descriptor commons.DescriptorFile, credenti
 func (b *AWSBuilder) getPvcSizeOverrideVars(sc commons.StorageClass) (string, []byte, error) {
 	if (sc.Class == "premium" && sc.Parameters.Type == "") || sc.Parameters.Type == "io2" || sc.Parameters.Type == "io1" {
 		return "storage-class.yaml", []byte("storage_class_pvc_size: 4Gi"), nil
+	}
+	if sc.Parameters.Type == "st1" || sc.Parameters.Type == "sc1" {
+		return "storage-class.yaml", []byte("storage_class_pvc_size: 125Gi"), nil
 	}
 	return "", []byte(""), nil
 }

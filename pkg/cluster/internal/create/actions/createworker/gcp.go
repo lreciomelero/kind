@@ -207,12 +207,14 @@ func (b *GCPBuilder) configureStorageClass(n nodes.Node, k string, sc commons.St
 		return err
 	}
 
+	storageClass = strings.ReplaceAll(storageClass, "fsType", "csi.storage.k8s.io/fstype")
+
 	cmd = n.Command("kubectl", "--kubeconfig", k, "apply", "-f", "-")
 	if err = cmd.SetStdin(strings.NewReader(storageClass)).Run(); err != nil {
-		return errors.Wrap(err, "failed to create StorageClass")
+		return errors.Wrap(err, "failed to create storage class")
 	}
-	return nil
 
+	return nil
 }
 
 func (b *GCPBuilder) getParameters(sc commons.StorageClass) commons.SCParameters {
