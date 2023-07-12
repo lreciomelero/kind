@@ -110,7 +110,7 @@ func (v *GCPValidator) storageClassParametersValidation(descriptorFile commons.D
 	sc := descriptorFile.StorageClass
 	k8s_version := descriptorFile.K8SVersion
 	minor, _ := strconv.Atoi(strings.Split(k8s_version, ".")[1])
-	fstypes := []string{"ext4", "ext3", "ext2", "xfs", "btrfs", "ntfs"}
+	fstypes := []string{"ext4", "ext3", "ext2", "xfs", "ntfs"}
 	err := verifyFields(descriptorFile)
 	if err != nil {
 		return err
