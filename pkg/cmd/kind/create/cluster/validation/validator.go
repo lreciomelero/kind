@@ -99,7 +99,7 @@ func verifyFields(descriptor commons.DescriptorFile) error {
 	supportedFields := []string{}
 	switch descriptor.InfraProvider {
 	case "gcp":
-		supportedFields = []string{"type", "provisioned_iops_on_create", "replication_type", "labels"}
+		supportedFields = []string{"type", "provisioned-iops-on-create", "replication-type", "labels"}
 		err := verifyAdditionalFields(params, []string{"Type", "ProvisionedIopsOnCreate", "ReplicationType", "Labels"})
 		if err != nil {
 			return errors.New(err.Error() + "Supported fields for " + descriptor.InfraProvider + ": " + strings.Join(supportedFields, ", "))

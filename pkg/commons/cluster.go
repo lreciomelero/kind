@@ -269,9 +269,9 @@ type StorageClass struct {
 type SCParameters struct {
 	Type string `yaml:"type,omitempty" validate:"omitempty"`
 
-	ProvisionedIopsOnCreate string `yaml:"provisioned_iops_on_create,omitempty"  validate:"omitempty"`
-	ReplicationType         string `yaml:"replication_type,omitempty" validate:"omitempty,oneof='none' 'regional-pd'"`
-	DiskEncryptionKmsKey    string `yaml:"disk_encryption_kms_key,omitempty"  validate:"omitempty"`
+	ProvisionedIopsOnCreate string `yaml:"provisioned-iops-on-create,omitempty"  validate:"omitempty"`
+	ReplicationType         string `yaml:"replication-type,omitempty" validate:"omitempty,oneof='none' 'regional-pd'"`
+	DiskEncryptionKmsKey    string `yaml:"disk-encryption-kms-key,omitempty"  validate:"omitempty"`
 	Labels                  string `yaml:"labels,omitempty"  validate:"omitempty"`
 
 	IopsPerGB                  string `yaml:"iopsPerGB,omitempty" validate:"omitempty,excluded_with=Iops"`
