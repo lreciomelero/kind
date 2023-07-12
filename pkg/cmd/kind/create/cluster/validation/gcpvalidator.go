@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -109,6 +110,8 @@ func (v *GCPValidator) storageClassParametersValidation(spec commons.Spec) error
 	sc := spec.StorageClass
 	k8s_version := spec.K8SVersion
 	minor, _ := strconv.Atoi(strings.Split(k8s_version, ".")[1])
+	fstypes := []string{"ext4", "ext3", "ext2", "xfs", "btrfs", "ntfs"}
+
 	err := verifyFields(spec)
 	if err != nil {
 		return err
@@ -125,6 +128,9 @@ func (v *GCPValidator) storageClassParametersValidation(spec commons.Spec) error
 	}
 	if sc.Parameters.Type != "pd-extreme" && sc.Parameters.ProvisionedIopsOnCreate != "" {
 		return errors.New("Parameter provisioned_iops_on_create only can be supported for type pd-extreme")
+	}
+	if sc.Parameters.FsType != "" && !slices.Contains(fstypes, sc.Parameters.FsType) {
+		return errors.New("Unsupported fsType: " + sc.Parameters.FsType + ". Supported types: " + fmt.Sprint(strings.Join(fstypes, ", ")))
 	}
 
 	if sc.Parameters.ProvisionedIopsOnCreate != "" {
