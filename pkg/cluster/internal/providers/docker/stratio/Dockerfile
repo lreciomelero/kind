@@ -18,7 +18,7 @@ ENV CAPA=v2.0.2
 
 # Cluster-operator envs
 ENV NEXUS_STRATIO_REPO=helm-devel
-ENV CLUSTER_OPERATOR_VERSION=0.1.0-PR8-SNAPSHOT
+ENV CLUSTER_OPERATOR_VERSION=0.1.0-PR9-SNAPSHOT
 
 # Download clusterctl (61.5M)
 RUN curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/${CLUSTERCTL}/clusterctl-linux-amd64 -o /usr/local/bin/clusterctl \
