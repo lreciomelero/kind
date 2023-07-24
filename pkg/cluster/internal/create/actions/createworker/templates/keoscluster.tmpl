@@ -1,0 +1,202 @@
+apiVersion: installer.stratio.com/v1beta1
+kind: KeosCluster
+metadata:
+    name: {{ $.Metadata.Name }}
+    namespace: cluster-{{ $.Metadata.Name }}
+spec:
+    deploy_autoscaler: {{ $.Spec.DeployAutoscaler }}
+    {{- if checkReference $.Spec.Bastion }}
+    bastion:
+    {{- if ne $.Spec.Bastion.NodeImage "" }}
+      node_image: {{ $.Spec.Bastion.NodeImage }}
+    {{- end }}
+    {{- if ne $.Spec.Bastion.VMSize "" }}
+      vm_size: {{ $.Spec.Bastion.VMSize }}
+    {{- end }}
+    {{- if ne $.Spec.Bastion.AllowedCIDRBlocks "" }}
+      allowedCIDRBlocks: {{ $.Spec.Bastion.AllowedCIDRBlocks }}
+    {{- end }}
+    {{- if ne $.Spec.Bastion.SSHKey "" }}
+      ssh_key: {{ $.Spec.Bastion.SSHKey }}
+    {{- end }}
+    {{- end }}
+    {{- if or ( ne $.Spec.Credentials.GithubToken "") ( ne $.Spec.Credentials.AWS.AccessKey) ( ne $.Spec.Credentials.GCP.project_id) ( isNotEmpty  $.Spec.Credentials.DockerRegistries) }}
+    credentials:
+      {{- if checkReference $.Spec.Credentials.AWS }}
+      aws:
+        aws_access_key_id: {{ $.Spec.Credentials.AWS.AccessKey }}
+        aws_secret_access_key: {{ $.Spec.Credentials.AWS.SecretKey }}
+        region: {{ $.Spec.Credentials.AWS.Region }}
+        aws_account_id: {{ $.Spec.Credentials.AWS.Account }}
+      {{- end }}
+      {{- if checkReference $.Spec.Credentials.GCP }}
+      gcp:
+        project_id: {{ $.Spec.Credentials.GCP.ProjectID }}
+        private_key_id: {{ $.Spec.Credentials.GCP.PrivateKeyID }}
+        private_key: {{ $.Spec.Credentials.GCP.PrivateKey }}
+        client_email: {{ $.Spec.Credentials.GCP.ClientEmail }}
+        client_id: {{ $.Spec.Credentials.GCP.ClientID }}
+      {{- end }}
+      {{- if ne $.Spec.Credentials.GithubToken "" }}
+      github_token: {{ $.Spec.Credentials.GithubToken }}
+      {{- end }}
+      {{- if isNotEmpty  $.Spec.Credentials.DockerRegistries }}
+      docker_registries:
+      {{- range $.Spec.Credentials.DockerRegistries }}
+      - url: {{ .URL }}
+        user:  {{ .User }}
+        pass: {{ .Pass }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    infra_provider: {{ $.Spec.InfraProvider }}
+    k8s_version:  {{ $.Spec.K8SVersion }}
+    region: {{ $.Spec.Region }}
+    {{- if checkReference $.Spec.Networks }}
+    networks:
+      {{- if ne $.Spec.Networks.VPCID "" }}
+      vpc_id: {{ $.Spec.Networks.VPCID }}
+      {{- end }}
+      {{- if ne $.Spec.Networks.CidrBlock "" }}
+      cidr: {{ $.Spec.Networks.CidrBlock }}
+      {{- end }}
+      {{- if ne $.Spec.Networks.AvailabilityZoneUsageLimit 0 }}
+      az_usage_limit: {{ $.Spec.Networks.AvailabilityZoneUsageLimit }}
+      {{- end }}
+      {{- if ne $.Spec.Networks.AvailabilityZoneSelection "" }}
+      az_selection: {{ $.Spec.Networks.AvailabilityZoneSelection }}
+      {{- end }}
+      {{- if isNotEmpty $.Spec.Networks.Tags }}
+      tags:
+      {{- range $key,$value := $.Spec.Networks.Tags }}
+       {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if isNotEmpty $.Spec.Networks.Subnets }}
+      subnets:
+      {{- range $.Spec.Networks.subnets }}
+      - subnet_id: {{ .SubnetId }}
+        {{- if ne .AvailabilityZone "" }}
+        az: {{ .AvailabilityZone }}
+        {{- end }}
+        {{- if checkReference .IsPublic }}
+        isPublic: {{ .IsPublic }}
+        {{- end }}
+        {{- if ne .RouteTableId "" }}
+        routeTableId:  {{ .RouteTableId }} 
+        {{- end }}
+        {{- if ne .NatGatewayId "" }}
+        natGatewayId:  {{ .NatGatewayId }} 
+        {{- end }}
+        {{- if ne .CidrBlock "" }}
+        cidrBlock:  {{ .CidrBlock }} 
+        {{- end }}
+        {{- if isNotEmpty .Tags }}
+        tags:
+        {{- range $key,$value := .Tags }}
+         {{ $key }}: {{ $value }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if checkReference $.Spec.Dns.ManageZone }}
+    dns:
+      manage_zone: {{ $.Spec.Dns.ManageZone }}
+    {{- end }}
+    {{- if isNotEmpty $.Spec.DockerRegistries }}
+    docker_registries:
+    {{- range $.Spec.DockerRegistries }}
+    - url: {{ .URL }}
+      auth_required: {{ .AuthRequired }} 
+      type: {{ .Type }}
+      keos_registry: {{ .KeosRegistry }}
+    {{- end }}
+    {{- end }}
+    {{- if ne $.Spec.ExternalDomain "" }}
+    external_domain: {{ $.Spec.ExternalDomain }}
+    {{- end }}
+    control_plane:
+      managed: {{ $.Spec.ControlPlane.Managed }}
+      {{- if ne $.Spec.ControlPlane.Name "" }}
+      name: {{ $.Spec.ControlPlane.Name }}
+      {{- end }}
+      {{- if ne $.Spec.ControlPlane.NodeImage "" }}
+      node_image: {{ $.Spec.ControlPlane.NodeImage }}
+      {{- end }}
+      {{- if not $.Spec.ControlPlane.Managed }}
+      highly_available: {{ $.Spec.ControlPlane.HighlyAvailable }}
+      size: {{ $.Spec.ControlPlane.Size }}
+      {{- if ne $.Spec.ControlPlane.RootVolume.Type "" }}
+      root_volume: 
+        size: {{ $.Spec.ControlPlane.RootVolume.Size }}
+        type: {{ $.Spec.ControlPlane.RootVolume.Type }}
+        encrypted: {{ $.Spec.ControlPlane.RootVolume.Encrypted }}
+      {{- end }}
+      {{- end }}
+      {{- if $.Spec.ControlPlane.AWS.AssociateOIDCProvider }}
+      aws:
+        associate_oidc_provider: {{ $.Spec.ControlPlane.AWS.AssociateOIDCProvider }}
+        logging:
+          api_server: {{ $.Spec.ControlPlane.AWS.Logging.ApiServer }}
+          audit: {{ $.Spec.ControlPlane.AWS.Logging.Audit }}
+          authenticator: {{ $.Spec.ControlPlane.AWS.Logging.Authenticator }}
+          controller_manager: {{ $.Spec.ControlPlane.AWS.Logging.ControllerManager }}
+          scheduler: {{ $.Spec.ControlPlane.AWS.Logging.Scheduler }}
+      {{- end }}
+      {{- if isNotEmpty $.Spec.ControlPlane.ExtraVolumes }}
+      extra_volumes:
+      {{- range $.Spec.ControlPlane.ExtraVolumes }}
+      -  device_name: {{ $.Spec.DeviceName }}
+         size: {{ .Size }}
+         type: {{ .Type }}
+         mount_path: {{ .MountPath }}
+         encrypted: {{ .Encrypted }}
+         label: {{ .Label }}
+      {{- end }}
+      {{- end }}
+    {{- if isNotEmpty $.Spec.WorkerNodes }}
+    worker_nodes:
+    {{- range $.Spec.WorkerNodes }}
+    - name: {{ .Name }}
+      {{- if ne .NodeImage "" }}
+      node_image: {{ .NodeImage }}
+      {{- end }}
+      quantity: {{ .Quantity }}
+      {{- if ne .Size "" }}
+      size: {{ .Size }}
+      {{- end }}
+      zone_distribution: {{ .ZoneDistribution }}
+      {{- if ne .AZ "" }}
+      az: {{ .AZ }}
+      {{- end }}
+      ssh_key: {{ .SSHKey }}
+      spot: {{ .Spot }}
+      max_size: {{ .NodeGroupMaxSize }}
+      min_size: {{ .NodeGroupMinSize }}
+      {{- if checkReference .RootVolume }}
+      root_volume: 
+        size: {{ .RootVolume.Size }}
+        type: {{ .RootVolume.Type }}
+        encrypted: {{ .RootVolume.Encrypted }}
+      {{- end }}
+      {{- if isNotEmpty .ExtraVolumes }}
+      extra_volumes:
+      {{- range .ExtraVolumes }}
+      -  device_name: {{ .DeviceName }}
+         size: {{ .Size }}
+         type: {{ .Type }}
+         mount_path: {{ .MountPath }}
+         encrypted: {{ .Encrypted }}
+         label: {{ .Label }}
+      {{- end }}
+      {{- end }}
+      {{- if isNotEmpty .Labels }}
+      labels:
+      {{- range $key,$value := .Labels }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+    

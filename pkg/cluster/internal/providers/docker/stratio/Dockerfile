@@ -24,7 +24,7 @@ ENV CAPZ=v1.9.3
 
 # Cluster-operator envs
 ENV NEXUS_STRATIO_REPO=helm-devel
-ENV CLUSTER_OPERATOR_VERSION=0.1.0-PR9-SNAPSHOT
+ENV CLUSTER_OPERATOR_VERSION=0.1.0-PR10-SNAPSHOT
 
 # Install vim
 RUN apt-get update && apt-get install -y \

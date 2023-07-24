@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/cluster/internal/create/actions"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -314,9 +313,17 @@ app:
 			return errors.Wrap(err, "failed to apply manifests")
 		}
 
-		keosClusterYaml, err := yaml.Marshal(keosCluster)
+		// keosClusterYaml, err := yaml.Marshal(keosCluster)
+		// raw = bytes.Buffer{}
+		// cmd = n.Command("sh", "-c", "echo '"+string(keosClusterYaml)+"' > "+"/kind/keoscluster.yaml")
+
+		keosClusterYaml, err := getKeosClusterManifest(keosCluster)
+		if err != nil {
+			return errors.Wrap(err, "failed to generate keosCluster Manifest")
+		}
+
 		raw = bytes.Buffer{}
-		cmd = n.Command("sh", "-c", "echo '"+string(keosClusterYaml)+"' > "+"/kind/keoscluster.yaml")
+		cmd = n.Command("sh", "-c", "echo '"+keosClusterYaml+"' > "+"/kind/keoscluster.yaml")
 		if err := cmd.SetStdout(&raw).Run(); err != nil {
 			return errors.Wrap(err, "failed to apply manifests")
 		}
@@ -638,6 +645,19 @@ app:
 		ctx.Status.End(true)
 
 		if !a.moveManagement {
+
+			ctx.Status.Start("Prepare cluster to move the cluster-operator 🗝️")
+
+			if !keosCluster.Spec.ControlPlane.Managed {
+				command = "sed -i '/^\\s*imagePullSecrets:/,/^\\(\\s*enable:\\)/ s/^\\(\\s*enable:\\).*/\\1 false/' " + clusterOperatorValuesPath
+				_, err = commons.ExecuteCommand(n, command)
+				if err != nil {
+					return errors.Wrap(err, "failed to change repository in "+clusterOperatorValuesPath)
+				}
+			}
+
+			ctx.Status.End(true)
+
 			ctx.Status.Start("Moving the management role 🗝️")
 			defer ctx.Status.End(false)
 
@@ -653,6 +673,49 @@ app:
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
 				return errors.Wrap(err, "failed to pivot management role to worker cluster")
+			}
+
+			ctx.Status.End(true)
+
+			ctx.Status.Start("Moving the cluster-operator 🗝️")
+
+			if keosCluster.Spec.ControlPlane.Managed {
+
+				command = "kubectl get secret --namespace=kube-system " + regcredKeos + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
+				_, err = commons.ExecuteCommand(n, command)
+				if err != nil {
+					return errors.Wrap(err, "failed to move regcred repository")
+				}
+			}
+
+			cmd = n.Command("sh", "-c", "helm install cluster-operator /stratio/helm/cluster-operator --kubeconfig "+kubeconfigPath+" --values "+clusterOperatorValuesPath)
+			if err := cmd.SetStdout(&raw).Run(); err != nil {
+				return errors.Wrap(err, "failed to install cluster-operator")
+			}
+
+			kubesystemns := "kube-system"
+			raw = bytes.Buffer{}
+			cmd = n.Command("kubectl", "rollout", "status", "deployment/keoscluster-controller-manager", "--kubeconfig", kubeconfigPath, "-n", kubesystemns, "--timeout=300s")
+			if err := cmd.SetStdout(&raw).Run(); err != nil {
+				return errors.Wrap(err, "failed to create the worker Cluster")
+			}
+
+			time.Sleep(10 * time.Second)
+
+			command = "kubectl get keoscluster -n " + capiClustersNamespace + " " + keosCluster.Metadata.Name + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
+			_, err = commons.ExecuteCommand(n, command)
+			if err != nil {
+				return errors.Wrap(err, "failed to create docker-registry secret")
+			}
+
+			cmd = n.Command("sh", "-c", "kubectl delete keoscluster -n "+capiClustersNamespace+" "+keosCluster.Metadata.Name)
+			if err := cmd.SetStdout(&raw).Run(); err != nil {
+				return errors.Wrap(err, "failed to uninstall cluster-operator")
+			}
+
+			cmd = n.Command("sh", "-c", "helm uninstall cluster-operator ")
+			if err := cmd.SetStdout(&raw).Run(); err != nil {
+				return errors.Wrap(err, "failed to uninstall cluster-operator")
 			}
 
 			ctx.Status.End(true)
