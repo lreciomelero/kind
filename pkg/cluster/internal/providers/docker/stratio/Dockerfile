@@ -22,6 +22,10 @@ ENV CAPA=v2.1.4
 ENV CAPG=v1.3.1
 ENV CAPZ=v1.9.3
 
+# Cluster-operator envs
+ENV NEXUS_STRATIO_REPO=helm-devel
+ENV CLUSTER_OPERATOR_VERSION=0.1.0-PR9-SNAPSHOT
+
 # Install vim
 RUN apt-get update && apt-get install -y \
   vim \
@@ -69,3 +73,7 @@ RUN for i in metadata.yaml infrastructure-components.yaml; do \
       curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/${CAPA}/${i} -o ${CAPI_REPO}/infrastructure-aws/${CAPA}/${i} \
       && curl -L https://github.com/kubernetes-sigs/cluster-api-provider-gcp/releases/download/${CAPG}/${i} -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/${i} \
       && curl -L https://github.com/kubernetes-sigs/cluster-api-provider-azure/releases/download/${CAPZ}/${i} -o ${CAPI_REPO}/infrastructure-azure/${CAPZ}/${i}; done
+
+# Download cluster-operator artifacts
+RUN curl -L http://qa.int.stratio.com/repository/${NEXUS_STRATIO_REPO}/cluster-operator-${CLUSTER_OPERATOR_VERSION}.tgz -o /stratio/helm/cluster-operator.tgz \
+  && tar -xf /stratio/helm/cluster-operator.tgz -C /stratio/helm
