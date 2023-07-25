@@ -20,7 +20,7 @@ spec:
       ssh_key: {{ $.Spec.Bastion.SSHKey }}
     {{- end }}
     {{- end }}
-    {{- if checkReference $.Spec.StorageClass }}
+    {{- if or ( checkReference $.Spec.StorageClass.Parameters ) ( ne $.Spec.StorageClass.Class "" ) ( ne $.Spec.StorageClass.EncryptionKey "") ( checkReference $.Spec.StorageClass.EFS ) }}
     storageclass:
       {{- if checkReference $.Spec.StorageClass.EFS }}
       efs:
@@ -164,13 +164,16 @@ spec:
         size: {{ $.Spec.ControlPlane.RootVolume.Size }}
         type: {{ $.Spec.ControlPlane.RootVolume.Type }}
         encrypted: {{ $.Spec.ControlPlane.RootVolume.Encrypted }}
+        {{- if ne $.Spec.ControlPlane.RootVolume.EncryptionKey "" }}
         encryption_key: {{ $.Spec.ControlPlane.RootVolume.EncryptionKey }}
+        {{- end }}
       {{- end }}
       {{- end }}
-      {{- if ne $.Spec.ControlPlane.Azure.Tier "" }}
+      {{- if checkReference $.Spec.Credentials.AZURE }}
       azure:
         tier: {{ $.Spec.ControlPlane.Azure.Tier }}
       {{- end }}
+      {{- if checkProvider "aws" $.Spec.InfraProvider}}
       {{- if $.Spec.ControlPlane.AWS.AssociateOIDCProvider }}
       aws:
         associate_oidc_provider: {{ $.Spec.ControlPlane.AWS.AssociateOIDCProvider }}
@@ -180,6 +183,7 @@ spec:
           authenticator: {{ $.Spec.ControlPlane.AWS.Logging.Authenticator }}
           controller_manager: {{ $.Spec.ControlPlane.AWS.Logging.ControllerManager }}
           scheduler: {{ $.Spec.ControlPlane.AWS.Logging.Scheduler }}
+      {{- end }}
       {{- end }}
       {{- if isNotEmpty $.Spec.ControlPlane.Tags}}
       tags:
@@ -217,15 +221,20 @@ spec:
       {{- if ne .AZ "" }}
       az: {{ .AZ }}
       {{- end }}
+      {{- if ne .SSHKey "" }}
       ssh_key: {{ .SSHKey }}
+      {{- end }}
       spot: {{ .Spot }}
       max_size: {{ .NodeGroupMaxSize }}
       min_size: {{ .NodeGroupMinSize }}
-      {{- if checkReference .RootVolume }}
+      {{- if ne .RootVolume.Type "" }}
       root_volume: 
         size: {{ .RootVolume.Size }}
         type: {{ .RootVolume.Type }}
         encrypted: {{ .RootVolume.Encrypted }}
+        {{- if ne .RootVolume.EncryptionKey "" }}
+        encryption_key: {{ .RootVolume.EncryptionKey }}
+        {{- end }}
       {{- end }}
       {{- if isNotEmpty .ExtraVolumes }}
       extra_volumes:

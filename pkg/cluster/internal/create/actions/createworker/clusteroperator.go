@@ -36,6 +36,9 @@ func getKeosClusterManifest(keosCluster commons.KeosCluster) (string, error) {
 		"isNotEmpty": func(v interface{}) bool {
 			return !reflect.ValueOf(v).IsZero()
 		},
+		"checkProvider": func(expected string, current string) bool {
+			return expected == current
+		},
 	}
 	t, err := template.New("").Funcs(funcMap).ParseFS(ctel, "templates/"+helmValuesFilename)
 	if err != nil {
