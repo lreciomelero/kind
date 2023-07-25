@@ -63,49 +63,55 @@ type Spec struct {
 	InfraProvider string `yaml:"infra_provider" validate:"required,oneof='aws' 'gcp' 'azure'"`
 
 	K8SVersion string `yaml:"k8s_version" validate:"required,startswith=v,min=7,max=8"`
-	Region     string `yaml:"region" validate:"required"`
+
+	Region string `yaml:"region" validate:"required"`
 
 	Networks Networks `yaml:"networks" validate:"omitempty,dive"`
 
-	Dns struct {
-		ManageZone bool `yaml:"manage_zone" validate:"boolean"`
-	} `yaml:"dns"`
+	Dns DNS `yaml:"dns"`
 
 	DockerRegistries []DockerRegistry `yaml:"docker_registries" validate:"dive"`
 
 	ExternalDomain string `yaml:"external_domain" validate:"omitempty,hostname"`
 
-	Security struct {
-		NodesIdentity string `yaml:"nodes_identity"`
-		AWS           struct {
-			CreateIAM bool `yaml:"create_iam" validate:"boolean"`
-		} `yaml:"aws" validate:"dive"`
-	} `yaml:"security" validate:"dive"`
+	Security Security `yaml:"security" validate:"dive"`
 
-	Keos struct {
-		Flavour string `yaml:"flavour"`
-		Version string `yaml:"version"`
-	} `yaml:"keos"`
+	Keos Keos `yaml:"keos"`
 
-	ControlPlane struct {
-		Managed         bool   `yaml:"managed" validate:"boolean"`
-		Name            string `yaml:"name"`
-		NodeImage       string `yaml:"node_image" validate:"required_if=InfraProvider gcp"`
-		HighlyAvailable bool   `yaml:"highly_available" validate:"boolean"`
-		Size            string `yaml:"size" validate:"required_if=Managed false"`
-		RootVolume      struct {
-			Size          int    `yaml:"size" validate:"numeric"`
-			Type          string `yaml:"type"`
-			Encrypted     bool   `yaml:"encrypted" validate:"boolean"`
-			EncryptionKey string `yaml:"encryption_key"`
-		} `yaml:"root_volume"`
-		Tags         []map[string]string `yaml:"tags"`
-		AWS          AWSCP               `yaml:"aws"`
-		Azure        AzureCP             `yaml:"azure"`
-		ExtraVolumes []ExtraVolume       `yaml:"extra_volumes"`
-	} `yaml:"control_plane"`
+	ControlPlane ControlPlane `yaml:"control_plane"`
 
 	WorkerNodes WorkerNodes `yaml:"worker_nodes" validate:"required,dive"`
+}
+
+type DNS struct {
+	ManageZone bool `yaml:"manage_zone" validate:"boolean"`
+}
+
+type Security struct {
+	NodesIdentity string      `yaml:"nodes_identity"`
+	AWS           AWSSecurity `yaml:"aws" validate:"dive"`
+}
+
+type AWSSecurity struct {
+	CreateIAM bool `yaml:"create_iam" validate:"boolean"`
+}
+
+type Keos struct {
+	Flavour string `yaml:"flavour"`
+	Version string `yaml:"version"`
+}
+
+type ControlPlane struct {
+	Managed         bool                `yaml:"managed" validate:"boolean"`
+	Name            string              `yaml:"name"`
+	NodeImage       string              `yaml:"node_image" validate:"required_if=InfraProvider gcp"`
+	HighlyAvailable bool                `yaml:"highly_available" validate:"boolean"`
+	Size            string              `yaml:"size" validate:"required_if=Managed false"`
+	RootVolume      RootVolume          `yaml:"root_volume"`
+	Tags            []map[string]string `yaml:"tags"`
+	AWS             AWSCP               `yaml:"aws"`
+	Azure           AzureCP             `yaml:"azure"`
+	ExtraVolumes    []ExtraVolume       `yaml:"extra_volumes"`
 }
 
 type Networks struct {
@@ -124,15 +130,17 @@ type Subnets struct {
 }
 
 type AWSCP struct {
-	AssociateOIDCProvider bool   `yaml:"associate_oidc_provider" validate:"boolean"`
-	EncryptionKey         string `yaml:"encryption_key"`
-	Logging               struct {
-		ApiServer         bool `yaml:"api_server" validate:"boolean"`
-		Audit             bool `yaml:"audit" validate:"boolean"`
-		Authenticator     bool `yaml:"authenticator" validate:"boolean"`
-		ControllerManager bool `yaml:"controller_manager" validate:"boolean"`
-		Scheduler         bool `yaml:"scheduler" validate:"boolean"`
-	} `yaml:"logging"`
+	AssociateOIDCProvider bool    `yaml:"associate_oidc_provider" validate:"boolean"`
+	EncryptionKey         string  `yaml:"encryption_key"`
+	Logging               Logging `yaml:"logging"`
+}
+
+type Logging struct {
+	ApiServer         bool `yaml:"api_server" validate:"boolean"`
+	Audit             bool `yaml:"audit" validate:"boolean"`
+	Authenticator     bool `yaml:"authenticator" validate:"boolean"`
+	ControllerManager bool `yaml:"controller_manager" validate:"boolean"`
+	Scheduler         bool `yaml:"scheduler" validate:"boolean"`
 }
 
 type AzureCP struct {
@@ -152,13 +160,15 @@ type WorkerNodes []struct {
 	Taints           []string          `yaml:"taints" validate:"omitempty,dive"`
 	NodeGroupMaxSize int               `yaml:"max_size" validate:"required_with=NodeGroupMinSize,numeric,omitempty"`
 	NodeGroupMinSize int               `yaml:"min_size" validate:"required_with=NodeGroupMaxSize,numeric,omitempty"`
-	RootVolume       struct {
-		Size          int    `yaml:"size" validate:"numeric"`
-		Type          string `yaml:"type"`
-		Encrypted     bool   `yaml:"encrypted" validate:"boolean"`
-		EncryptionKey string `yaml:"encryption_key"`
-	} `yaml:"root_volume"`
-	ExtraVolumes []ExtraVolume `yaml:"extra_volumes"`
+	RootVolume       RootVolume        `yaml:"root_volume"`
+	ExtraVolumes     []ExtraVolume     `yaml:"extra_volumes"`
+}
+
+type RootVolume struct {
+	Size          int    `yaml:"size" validate:"numeric"`
+	Type          string `yaml:"type"`
+	Encrypted     bool   `yaml:"encrypted" validate:"boolean"`
+	EncryptionKey string `yaml:"encryption_key"`
 }
 
 // Bastion represents the bastion VM

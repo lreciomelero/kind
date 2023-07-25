@@ -20,8 +20,39 @@ spec:
       ssh_key: {{ $.Spec.Bastion.SSHKey }}
     {{- end }}
     {{- end }}
+    {{- if checkReference $.Spec.StorageClass }}
+    storageclass:
+      {{- if checkReference $.Spec.StorageClass.EFS }}
+      efs:
+        {{- if ne $.Spec.StorageClass.EFS.Name "" }}
+        name: {{ $.Spec.StorageClass.EFS.Name }}
+        {{- end }}
+        {{- if ne $.Spec.StorageClass.EFS.ID "" }}
+        id: {{ $.Spec.StorageClass.EFS.ID }}
+        {{- end }}
+        {{- if ne $.Spec.StorageClass.EFS.Permissions "" }}
+        permissions: {{ $.Spec.StorageClass.EFS.Permissions }}
+        {{- end }}
+      {{- end }}
+      {{- if ne $.Spec.StorageClass.EncryptionKey "" }}
+      encryptionKey: {{ $.Spec.StorageClass.EncryptionKey }}
+      {{- end }}
+      {{- if ne $.Spec.StorageClass.Class "" }}
+      class: {{ $.Spec.StorageClass.Class }}
+      {{- end }}
+      {{- if checkReference $.Spec.StorageClass.Parameters }}
+      parameters:
+      {{- end }}
+    {{- end }}
     {{- if or ( ne $.Spec.Credentials.GithubToken "") ( ne $.Spec.Credentials.AWS.AccessKey) ( ne $.Spec.Credentials.GCP.project_id) ( isNotEmpty  $.Spec.Credentials.DockerRegistries) }}
     credentials:
+      {{- if checkReference $.Spec.Credentials.AZURE }}
+      azure:
+        subscription_id: {{ $.Spec.Credentials.AZURE.SubscriptionID }}
+        tenant_id: {{ $.Spec.Credentials.AZURE.TenantID }}
+        client_id: {{ $.Spec.Credentials.AZURE.ClientID }}
+        client_secret: {{ $.Spec.Credentials.AZURE.ClientSecret }}
+      {{- end }}
       {{- if checkReference $.Spec.Credentials.AWS }}
       aws:
         aws_access_key_id: {{ $.Spec.Credentials.AWS.AccessKey }}
@@ -57,45 +88,36 @@ spec:
       {{- if ne $.Spec.Networks.VPCID "" }}
       vpc_id: {{ $.Spec.Networks.VPCID }}
       {{- end }}
-      {{- if ne $.Spec.Networks.CidrBlock "" }}
-      cidr: {{ $.Spec.Networks.CidrBlock }}
+      {{- if ne $.Spec.Networks.VPCCidrBlock "" }}
+      vpc_cidr: {{ $.Spec.Networks.VPCCidrBlock }}
       {{- end }}
-      {{- if ne $.Spec.Networks.AvailabilityZoneUsageLimit 0 }}
-      az_usage_limit: {{ $.Spec.Networks.AvailabilityZoneUsageLimit }}
+      {{- if ne $.Spec.Networks.PodsCidrBlock "" }}
+      pods_cidr: {{ $.Spec.Networks.PodsCidrBlock }}
       {{- end }}
-      {{- if ne $.Spec.Networks.AvailabilityZoneSelection "" }}
-      az_selection: {{ $.Spec.Networks.AvailabilityZoneSelection }}
+      {{- if ne $.Spec.Networks.ResourceGroup "" }}
+      resource_group: {{ $.Spec.Networks.ResourceGroup }}
       {{- end }}
-      {{- if isNotEmpty $.Spec.Networks.Tags }}
-      tags:
-      {{- range $key,$value := $.Spec.Networks.Tags }}
-       {{ $key }}: {{ $value }}
+      {{- if isNotEmpty $.Spec.Networks.PodsSubnets }}
+      pods_subnets:
+      {{- range $.Spec.Networks.PodsSubnets }}
+      - subnet_id: {{ .SubnetId }}
+        {{- if ne .CidrBlock "" }}
+        cidrBlock:  {{ .CidrBlock }} 
+        {{- end }}
+        {{- if ne .Role "" }}
+        role:  {{ .Role }} 
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if isNotEmpty $.Spec.Networks.Subnets }}
       subnets:
       {{- range $.Spec.Networks.subnets }}
       - subnet_id: {{ .SubnetId }}
-        {{- if ne .AvailabilityZone "" }}
-        az: {{ .AvailabilityZone }}
-        {{- end }}
-        {{- if checkReference .IsPublic }}
-        isPublic: {{ .IsPublic }}
-        {{- end }}
-        {{- if ne .RouteTableId "" }}
-        routeTableId:  {{ .RouteTableId }} 
-        {{- end }}
-        {{- if ne .NatGatewayId "" }}
-        natGatewayId:  {{ .NatGatewayId }} 
-        {{- end }}
         {{- if ne .CidrBlock "" }}
         cidrBlock:  {{ .CidrBlock }} 
         {{- end }}
-        {{- if isNotEmpty .Tags }}
-        tags:
-        {{- range $key,$value := .Tags }}
-         {{ $key }}: {{ $value }}
-        {{- end }}
+        {{- if ne .Role "" }}
+        role:  {{ .Role }} 
         {{- end }}
       {{- end }}
       {{- end }}
@@ -116,6 +138,16 @@ spec:
     {{- if ne $.Spec.ExternalDomain "" }}
     external_domain: {{ $.Spec.ExternalDomain }}
     {{- end }}
+    {{- if checkReference $.Spec.Security }}
+    security:
+      {{- if ne $.Spec.Security.NodesIdentity "" }}
+      nodes_identity: {{ $.Spec.Security.NodesIdentity }}
+      {{- end }}
+      {{- if checkReference $.Spec.Security.AWS }}
+      aws:
+        create_iam: {{ $.Spec.Security.AWS.CreateIAM }}
+      {{- end }}
+    {{- end }}
     control_plane:
       managed: {{ $.Spec.ControlPlane.Managed }}
       {{- if ne $.Spec.ControlPlane.Name "" }}
@@ -132,7 +164,12 @@ spec:
         size: {{ $.Spec.ControlPlane.RootVolume.Size }}
         type: {{ $.Spec.ControlPlane.RootVolume.Type }}
         encrypted: {{ $.Spec.ControlPlane.RootVolume.Encrypted }}
+        encryption_key: {{ $.Spec.ControlPlane.RootVolume.EncryptionKey }}
       {{- end }}
+      {{- end }}
+      {{- if ne $.Spec.ControlPlane.Azure.Tier "" }}
+      azure:
+        tier: {{ $.Spec.ControlPlane.Azure.Tier }}
       {{- end }}
       {{- if $.Spec.ControlPlane.AWS.AssociateOIDCProvider }}
       aws:
@@ -144,15 +181,25 @@ spec:
           controller_manager: {{ $.Spec.ControlPlane.AWS.Logging.ControllerManager }}
           scheduler: {{ $.Spec.ControlPlane.AWS.Logging.Scheduler }}
       {{- end }}
+      {{- if isNotEmpty $.Spec.ControlPlane.Tags}}
+      tags:
+      {{- range $.Spec.ControlPlane.Tags }}
+      {{- range $key,$value := . }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
       {{- if isNotEmpty $.Spec.ControlPlane.ExtraVolumes }}
       extra_volumes:
       {{- range $.Spec.ControlPlane.ExtraVolumes }}
-      -  device_name: {{ $.Spec.DeviceName }}
+      -  device_name: {{ .DeviceName }}
+         name:  {{ .Name }}
          size: {{ .Size }}
          type: {{ .Type }}
          mount_path: {{ .MountPath }}
          encrypted: {{ .Encrypted }}
          label: {{ .Label }}
+         encryption_key: {{ .EncryptionKey }}
       {{- end }}
       {{- end }}
     {{- if isNotEmpty $.Spec.WorkerNodes }}
