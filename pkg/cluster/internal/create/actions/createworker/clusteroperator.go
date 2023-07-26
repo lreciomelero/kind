@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"text/template"
 
+	"gopkg.in/yaml.v2"
 	"sigs.k8s.io/kind/pkg/commons"
 )
 
@@ -38,6 +39,32 @@ func getKeosClusterManifest(keosCluster commons.KeosCluster) (string, error) {
 		},
 		"checkProvider": func(expected string, current string) bool {
 			return expected == current
+		},
+		"getSCParameters": func(v interface{}) map[string]interface{} {
+			i := reflect.ValueOf(v)
+			if i.Kind() != reflect.Struct {
+				return map[string]interface{}{}
+			}
+			var scParams commons.SCParameters
+			if reflect.TypeOf(v).ConvertibleTo(reflect.TypeOf(scParams)) {
+				scParams = i.Interface().(commons.SCParameters)
+			} else {
+				return map[string]interface{}{}
+			}
+
+			// Generar el YAML a partir de scParams
+			yamlData, err := yaml.Marshal(scParams)
+			if err != nil {
+				return map[string]interface{}{}
+			}
+
+			// Convertir el YAML a un map[string]interface{}
+			var SCmap map[string]interface{}
+			if err := yaml.Unmarshal(yamlData, &SCmap); err != nil {
+				return map[string]interface{}{}
+			}
+
+			return SCmap
 		},
 	}
 	t, err := template.New("").Funcs(funcMap).ParseFS(ctel, "templates/"+helmValuesFilename)

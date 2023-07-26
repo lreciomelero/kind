@@ -40,8 +40,11 @@ spec:
       {{- if ne $.Spec.StorageClass.Class "" }}
       class: {{ $.Spec.StorageClass.Class }}
       {{- end }}
-      {{- if checkReference $.Spec.StorageClass.Parameters }}
+      {{- if isNotEmpty $.Spec.StorageClass.Parameters }}
       parameters:
+      {{- range $key,$value := getSCParameters $.Spec.StorageClass.Parameters  }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
       {{- end }}
     {{- end }}
     {{- if or ( ne $.Spec.Credentials.GithubToken "") ( ne $.Spec.Credentials.AWS.AccessKey) ( ne $.Spec.Credentials.GCP.project_id) ( isNotEmpty  $.Spec.Credentials.DockerRegistries) }}
