@@ -251,7 +251,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Generating KeosCluster file 📝")
 	defer ctx.Status.End(false)
 
-	keosClusterFilled, err := fillCredentials(*keosCluster, githubToken, dockerRegistries)
+	keosClusterFilled, err := fillCredentials(*keosCluster, githubToken, dockerRegistries, credentialsMap)
 	if err != nil {
 		return err
 	}
@@ -289,10 +289,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			" --namespace=kube-system"
 
 		for _, creds := range keosClusterFilled.Spec.Credentials.DockerRegistries {
-			command = command +
-				" --docker-server=" + creds.URL +
-				" --docker-username=" + creds.User +
-				" --docker-password=" + creds.Pass
+			if creds.URL != "" && creds.User != "" && creds.Pass != "" {
+				command = command +
+					" --docker-server=" + creds.URL +
+					" --docker-username=" + creds.User +
+					" --docker-password=" + creds.Pass
+			}
 		}
 
 		_, err = commons.ExecuteCommand(n, command)
@@ -302,7 +304,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		registry := "eosregistry.azurecr.io"
 		repository := "keos/stratio/cluster-operator"
-		version := "0.1.0-SNAPSHOT"
+		version := "0.1.0-PR14-SNAPSHOT"
 
 		var clusterOperatorValues = `---
 app:
@@ -743,7 +745,32 @@ app:
 	return nil
 }
 
-func fillCredentials(keosCluster commons.KeosCluster, githubToken string, dockerRegistries []map[string]interface{}) (commons.KeosCluster, error) {
+func fillCredentials(keosCluster commons.KeosCluster, githubToken string, dockerRegistries []map[string]interface{}, credentials map[string]string) (commons.KeosCluster, error) {
+
+	switch keosCluster.Spec.InfraProvider {
+	case "aws":
+		keosCluster.Spec.Credentials.AWS = commons.AWSCredentials{
+			AccessKey: credentials["AccessKey"],
+			SecretKey: credentials["SecretKey"],
+			Region:    credentials["Region"],
+			AccountID: credentials["AccountID"],
+		}
+	case "azure":
+		keosCluster.Spec.Credentials.AZURE = commons.AzureCredentials{
+			SubscriptionID: credentials["SubscriptionID"],
+			TenantID:       credentials["TenantID"],
+			ClientID:       credentials["ClientID"],
+			ClientSecret:   credentials["ClientSecret"],
+		}
+	case "gcp":
+		keosCluster.Spec.Credentials.GCP = commons.GCPCredentials{
+			ProjectID:    credentials["ProjectID"],
+			PrivateKeyID: credentials["PrivateKeyID"],
+			PrivateKey:   credentials["PrivateKey"],
+			ClientEmail:  credentials["ClientEmail"],
+			ClientID:     credentials["ClientID"],
+		}
+	}
 
 	keosCluster.Spec.Credentials.GithubToken = githubToken
 	if len(dockerRegistries) > 0 {

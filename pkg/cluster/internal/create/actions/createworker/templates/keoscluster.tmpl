@@ -49,21 +49,21 @@ spec:
     {{- end }}
     {{- if or ( ne $.Spec.Credentials.GithubToken "") ( ne $.Spec.Credentials.AWS.AccessKey) ( ne $.Spec.Credentials.GCP.project_id) ( isNotEmpty  $.Spec.Credentials.DockerRegistries) }}
     credentials:
-      {{- if checkReference $.Spec.Credentials.AZURE }}
+      {{- if ne $.Spec.Credentials.AZURE.ClientID "" }}
       azure:
         subscription_id: {{ $.Spec.Credentials.AZURE.SubscriptionID }}
         tenant_id: {{ $.Spec.Credentials.AZURE.TenantID }}
         client_id: {{ $.Spec.Credentials.AZURE.ClientID }}
         client_secret: {{ $.Spec.Credentials.AZURE.ClientSecret }}
       {{- end }}
-      {{- if checkReference $.Spec.Credentials.AWS }}
+      {{- if ne $.Spec.Credentials.AWS.AccessKey "" }}
       aws:
         aws_access_key_id: {{ $.Spec.Credentials.AWS.AccessKey }}
         aws_secret_access_key: {{ $.Spec.Credentials.AWS.SecretKey }}
         region: {{ $.Spec.Credentials.AWS.Region }}
         aws_account_id: {{ $.Spec.Credentials.AWS.Account }}
       {{- end }}
-      {{- if checkReference $.Spec.Credentials.GCP }}
+      {{- if ne $.Spec.Credentials.GCP.ClientID "" }}
       gcp:
         project_id: {{ $.Spec.Credentials.GCP.ProjectID }}
         private_key_id: {{ $.Spec.Credentials.GCP.PrivateKeyID }}
@@ -141,12 +141,12 @@ spec:
     {{- if ne $.Spec.ExternalDomain "" }}
     external_domain: {{ $.Spec.ExternalDomain }}
     {{- end }}
-    {{- if checkReference $.Spec.Security }}
+    {{- if or (ne $.Spec.Security.NodesIdentity "") ($.Spec.Security.AWS.CreateIAM) }}
     security:
       {{- if ne $.Spec.Security.NodesIdentity "" }}
       nodes_identity: {{ $.Spec.Security.NodesIdentity }}
       {{- end }}
-      {{- if checkReference $.Spec.Security.AWS }}
+      {{- if $.Spec.Security.AWS.CreateIAM }}
       aws:
         create_iam: {{ $.Spec.Security.AWS.CreateIAM }}
       {{- end }}
@@ -172,7 +172,7 @@ spec:
         {{- end }}
       {{- end }}
       {{- end }}
-      {{- if checkReference $.Spec.Credentials.AZURE }}
+      {{- if checkProvider "azure" $.Spec.InfraProvider }}
       azure:
         tier: {{ $.Spec.ControlPlane.Azure.Tier }}
       {{- end }}
@@ -253,7 +253,7 @@ spec:
       {{- if isNotEmpty .Labels }}
       labels:
       {{- range $key,$value := .Labels }}
-        {{ $key }}: {{ $value }}
+        {{ $key }}: "{{ $value }}"
       {{- end }}
       {{- end }}
     {{- end }}
