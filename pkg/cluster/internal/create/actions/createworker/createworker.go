@@ -304,7 +304,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		registry := "eosregistry.azurecr.io"
 		repository := "keos/stratio/cluster-operator"
-		version := "0.1.0-PR14-SNAPSHOT"
+		version := "0.1.0-PR15-SNAPSHOT"
 
 		var clusterOperatorValues = `---
 app:
