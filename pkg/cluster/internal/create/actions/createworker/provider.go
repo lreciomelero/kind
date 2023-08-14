@@ -20,18 +20,30 @@ import (
 	"bytes"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
+	"io/ioutil"
+	"path/filepath"
+	"time"
+
 	"reflect"
 	"strings"
 	"text/template"
 
+	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
 	"sigs.k8s.io/kind/pkg/exec"
 )
 
-//go:embed templates/*
+//go:embed templates/*/*
 var ctel embed.FS
+
+//go:embed files/*/deny-all-egress-imds_gnetpol.yaml
+var denyAllEgressIMDSgnpFiles embed.FS
+
+//go:embed files/*/allow-egress-imds_gnetpol.yaml
+var allowEgressIMDSgnpFiles embed.FS
 
 const (
 	CAPICoreProvider         = "cluster-api:v1.4.3"
@@ -45,7 +57,7 @@ const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckwork
 const machineHealthCheckControlPlaneNodePath = "/kind/manifests/machinehealthcheckcontrolplane.yaml"
 const defaultScAnnotation = "storageclass.kubernetes.io/is-default-class"
 
-//go:embed files/calico-metrics.yaml
+//go:embed files/common/calico-metrics.yaml
 var calicoMetrics string
 
 type PBuilder interface {
@@ -55,9 +67,9 @@ type PBuilder interface {
 	installCSI(n nodes.Node, k string) error
 	getProvider() Provider
 	configureStorageClass(n nodes.Node, k string) error
-	getAzs(networks commons.Networks) ([]string, error)
-	internalNginx(networks commons.Networks, credentialsMap map[string]string, clusterID string) (bool, error)
-	getOverrideVars(keosCluster commons.KeosCluster, credentialsMap map[string]string) (map[string][]byte, error)
+	getAzs(p ProviderParams, networks commons.Networks) ([]string, error)
+	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
+	getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error)
 }
 
 type Provider struct {
@@ -85,6 +97,7 @@ type Infra struct {
 }
 
 type ProviderParams struct {
+	ClusterName  string
 	Region       string
 	Managed      bool
 	Credentials  map[string]string
@@ -103,6 +116,13 @@ type DefaultStorageClass struct {
 	Provisioner          string               `yaml:"provisioner"`
 	Parameters           commons.SCParameters `yaml:"parameters"`
 	VolumeBindingMode    string               `yaml:"volumeBindingMode"`
+}
+
+type helmRepository struct {
+	url          string
+	user         string
+	pass         string
+	authRequired bool
 }
 
 var scTemplate = DefaultStorageClass{
@@ -157,28 +177,154 @@ func (i *Infra) configureStorageClass(n nodes.Node, k string) error {
 	return i.builder.configureStorageClass(n, k)
 }
 
-func (i *Infra) internalNginx(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (bool, error) {
-	requiredIntenalNginx, err := i.builder.internalNginx(networks, credentialsMap, ClusterID)
-	if err != nil {
-		return false, err
-	}
-	return requiredIntenalNginx, nil
+func (i *Infra) internalNginx(p ProviderParams, networks commons.Networks) (bool, error) {
+	return i.builder.internalNginx(p, networks)
 }
 
-func (i *Infra) getOverrideVars(keosCluster commons.KeosCluster, credentialsMap map[string]string) (map[string][]byte, error) {
-	overrideVars, err := i.builder.getOverrideVars(keosCluster, credentialsMap)
-	if err != nil {
-		return nil, err
-	}
-	return overrideVars, nil
+func (i *Infra) getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error) {
+	return i.builder.getOverrideVars(p, networks)
 }
 
-func (i *Infra) getAzs(networks commons.Networks) ([]string, error) {
-	azs, err := i.builder.getAzs(networks)
+func (i *Infra) getAzs(p ProviderParams, networks commons.Networks) ([]string, error) {
+	return i.builder.getAzs(p, networks)
+}
+
+func (p *Provider) getDenyAllEgressIMDSGNetPol() (string, error) {
+	denyAllEgressIMDSGNetPolLocalPath := "files/" + p.capxProvider + "/deny-all-egress-imds_gnetpol.yaml"
+	denyAllEgressIMDSgnpFile, err := denyAllEgressIMDSgnpFiles.Open(denyAllEgressIMDSGNetPolLocalPath)
 	if err != nil {
-		return nil, err
+		return "", errors.Wrap(err, "error opening the deny all egress IMDS file")
 	}
-	return azs, nil
+	defer denyAllEgressIMDSgnpFile.Close()
+	denyAllEgressIMDSgnpContent, err := ioutil.ReadAll(denyAllEgressIMDSgnpFile)
+	if err != nil {
+		return "", err
+	}
+
+	return string(denyAllEgressIMDSgnpContent), nil
+}
+
+func (p *Provider) getAllowCAPXEgressIMDSGNetPol() (string, error) {
+	allowEgressIMDSGNetPolLocalPath := "files/" + p.capxProvider + "/allow-egress-imds_gnetpol.yaml"
+	allowEgressIMDSgnpFile, err := allowEgressIMDSgnpFiles.Open(allowEgressIMDSGNetPolLocalPath)
+	if err != nil {
+		return "", errors.Wrap(err, "error opening the allow egress IMDS file")
+	}
+	defer allowEgressIMDSgnpFile.Close()
+	allowEgressIMDSgnpContent, err := ioutil.ReadAll(allowEgressIMDSgnpFile)
+	if err != nil {
+		return "", err
+	}
+
+	return string(allowEgressIMDSgnpContent), nil
+}
+
+func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry) error {
+	var c string
+	var helmRepository helmRepository
+
+	// Clean keos cluster file
+	keosCluster.Spec.Credentials = commons.Credentials{}
+	keosCluster.Spec.StorageClass = commons.StorageClass{}
+	keosCluster.Spec.Security.AWS = struct {
+		CreateIAM bool "yaml:\"create_iam\" validate:\"boolean\""
+	}{}
+	keosCluster.Spec.Keos = struct {
+		Flavour string `yaml:"flavour,omitempty"`
+		Version string `yaml:"version,omitempty"`
+	}{}
+
+	keosClusterYAML, err := yaml.Marshal(keosCluster)
+	if err != nil {
+		return err
+	}
+	c = "echo '" + string(keosClusterYAML) + "' > " + manifestsPath + "/keoscluster.yaml"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to write the keoscluster file")
+	}
+
+	// Create the docker registries credentials secret for keoscluster-controller-manager
+	if clusterCredentials.DockerRegistriesCredentials != nil {
+		jsonDockerRegistriesCredentials, err := json.Marshal(clusterCredentials.DockerRegistriesCredentials)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal docker registries credentials")
+		}
+		c = "kubectl -n kube-system create secret generic keoscluster-registries --from-literal=credentials='" + string(jsonDockerRegistriesCredentials) + "'"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create keoscluster-registries secret")
+		}
+	}
+
+	helmRepository.url = keosCluster.Spec.HelmRepository.URL
+	helmRepository.authRequired = keosCluster.Spec.HelmRepository.AuthRequired
+	clusterOperatorHelmVersion := "0.1.0-SNAPSHOT"
+
+	if helmRepository.authRequired {
+		helmRepository.user = clusterCredentials.HelmRepositoryCredentials["User"]
+		helmRepository.pass = clusterCredentials.HelmRepositoryCredentials["Pass"]
+	}
+
+	// Add helm repo
+	if helmRepository.authRequired {
+		helmRepository.user = clusterCredentials.HelmRepositoryCredentials["User"]
+		helmRepository.pass = clusterCredentials.HelmRepositoryCredentials["Pass"]
+
+		c = "helm repo add stratio-helm-repo " + helmRepository.url +
+			" --username " + helmRepository.user + " --password " + helmRepository.pass
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to add and authenticate to helm repo: "+helmRepository.url)
+		}
+	} else {
+		c = "helm repo add stratio-helm-repo " + helmRepository.url
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to authenticate to helm repo: "+helmRepository.url)
+		}
+	}
+
+	// Update helm repo
+	c = "helm repo update"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to update helm repo: "+helmRepository.url)
+	}
+
+	// Pull cluster operator helm chart
+	c = "helm pull cluster-operator --repo " + helmRepository.url +
+		" --version " + clusterOperatorHelmVersion +
+		" --untar --untardir /stratio/helm"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to pull cluster operator helm chart")
+	}
+
+	// Deploy keoscluster-controller-manager chart
+	c = "helm install --wait cluster-operator /stratio/helm/cluster-operator" +
+		" --namespace kube-system" +
+		" --set app.containers.controllerManager.image.registry=" + keosRegistry.url +
+		" --set app.containers.controllerManager.image.repository=stratio/cluster-operator" +
+		" --set app.containers.controllerManager.image.tag=" + keosClusterVersion +
+		" --set app.containers.controllerManager.imagePullSecrets.enabled=true" +
+		" --set app.containers.controllerManager.imagePullSecrets.name=regcred"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to deploy keoscluster-controller-manager chart")
+	}
+
+	// Wait for keoscluster-controller-manager deployment
+	c = "kubectl -n kube-system rollout status deploy/keoscluster-controller-manager --timeout=3m"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to wait for keoscluster-controller-manager deployment")
+	}
+
+	// TODO: Change this when status is available in keoscluster-controller-manager
+	time.Sleep(10 * time.Second)
+
+	return nil
 }
 
 func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, allowCommonEgressNetPolPath string) error {
@@ -189,7 +335,7 @@ func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, allo
 	calicoTemplate := "/kind/calico-helm-values.yaml"
 
 	// Generate the calico helm values
-	calicoHelmValues, err := getManifest("calico-helm-values.tmpl", keosCluster.Spec)
+	calicoHelmValues, err := getManifest("common", "calico-helm-values.tmpl", keosCluster.Spec)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate calico helm values")
 	}
@@ -235,6 +381,54 @@ func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, allo
 	cmd = n.Command("kubectl", "--kubeconfig", k, "apply", "-f", "-")
 	if err = cmd.SetStdin(strings.NewReader(calicoMetrics)).Run(); err != nil {
 		return errors.Wrap(err, "failed to create calico metrics services")
+	}
+
+	return nil
+}
+
+func customCoreDNS(n nodes.Node, k string, keosCluster commons.KeosCluster) error {
+	var c string
+	var err error
+
+	coreDNSPatchFile := "coredns"
+	coreDNSTemplate := "/kind/coredns-configmap.yaml"
+	coreDNSSuffix := ""
+
+	if keosCluster.Spec.InfraProvider == "azure" && keosCluster.Spec.ControlPlane.Managed {
+		coreDNSPatchFile = "coredns-custom"
+		coreDNSSuffix = "-aks"
+	}
+
+	coreDNSConfigmap, err := getManifest(keosCluster.Spec.InfraProvider, "coredns_configmap"+coreDNSSuffix+".tmpl", keosCluster.Spec)
+	if err != nil {
+		return errors.Wrap(err, "failed to get CoreDNS file")
+	}
+
+	c = "echo '" + coreDNSConfigmap + "' > " + coreDNSTemplate
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create CoreDNS configmap file")
+	}
+
+	// Patch configmap
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system patch cm " + coreDNSPatchFile + " --patch-file " + coreDNSTemplate
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to customize coreDNS patching ConfigMap")
+	}
+
+	// Rollout restart to catch the made changes
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deploy coredns"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to redeploy coreDNS")
+	}
+
+	// Wait until CoreDNS completely rollout
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deploy coredns --timeout=3m"
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to wait for the customatization of CoreDNS configmap")
 	}
 
 	return nil
@@ -393,7 +587,7 @@ func resto(n int, i int, azs int) int {
 	return r
 }
 
-func GetClusterManifest(flavor string, params commons.TemplateParams, azs []string) (string, error) {
+func GetClusterManifest(params commons.TemplateParams) (string, error) {
 	funcMap := template.FuncMap{
 		"loop": func(az string, zd string, qa int, maxsize int, minsize int) <-chan Node {
 			ch := make(chan Node)
@@ -404,14 +598,14 @@ func GetClusterManifest(flavor string, params commons.TemplateParams, azs []stri
 				if az != "" {
 					ch <- Node{AZ: az, QA: qa, MaxSize: maxsize, MinSize: minsize}
 				} else {
-					for i, a := range azs {
+					for i, a := range params.AZs {
 						if zd == "unbalanced" {
-							q = qa/len(azs) + resto(qa, i, len(azs))
-							mx = maxsize/len(azs) + resto(maxsize, i, len(azs))
-							mn = minsize/len(azs) + resto(minsize, i, len(azs))
+							q = qa/len(params.AZs) + resto(qa, i, len(params.AZs))
+							mx = maxsize/len(params.AZs) + resto(maxsize, i, len(params.AZs))
+							mn = minsize/len(params.AZs) + resto(minsize, i, len(params.AZs))
 							ch <- Node{AZ: a, QA: q, MaxSize: mx, MinSize: mn}
 						} else {
-							ch <- Node{AZ: a, QA: qa / len(azs), MaxSize: maxsize / len(azs), MinSize: minsize / len(azs)}
+							ch <- Node{AZ: a, QA: qa / len(params.AZs), MaxSize: maxsize / len(params.AZs), MinSize: minsize / len(params.AZs)}
 						}
 					}
 				}
@@ -438,14 +632,15 @@ func GetClusterManifest(flavor string, params commons.TemplateParams, azs []stri
 		"sub":   func(a, b int) int { return a - b },
 		"split": strings.Split,
 	}
+	templatePath := filepath.Join("templates", params.KeosCluster.Spec.InfraProvider, params.Flavor)
 
 	var tpl bytes.Buffer
-	t, err := template.New("").Funcs(funcMap).ParseFS(ctel, "templates/"+flavor)
+	t, err := template.New("").Funcs(funcMap).ParseFS(ctel, templatePath)
 	if err != nil {
 		return "", err
 	}
 
-	err = t.ExecuteTemplate(&tpl, flavor, params)
+	err = t.ExecuteTemplate(&tpl, params.Flavor, params)
 	if err != nil {
 		return "", err
 	}
@@ -453,9 +648,11 @@ func GetClusterManifest(flavor string, params commons.TemplateParams, azs []stri
 	return tpl.String(), nil
 }
 
-func getManifest(name string, params interface{}) (string, error) {
+func getManifest(parentPath string, name string, params interface{}) (string, error) {
+	templatePath := filepath.Join("templates", parentPath, name)
+
 	var tpl bytes.Buffer
-	t, err := template.New("").ParseFS(ctel, "templates/"+name)
+	t, err := template.New("").ParseFS(ctel, templatePath)
 	if err != nil {
 		return "", err
 	}

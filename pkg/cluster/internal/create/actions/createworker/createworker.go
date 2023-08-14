@@ -23,6 +23,7 @@ import (
 	_ "embed"
 	"os"
 	"strings"
+	"time"
 
 	"sigs.k8s.io/kind/pkg/cluster/internal/create/actions"
 	"sigs.k8s.io/kind/pkg/commons"
@@ -31,10 +32,19 @@ import (
 )
 
 type action struct {
-	vaultPassword  string
-	descriptorPath string
-	moveManagement bool
-	avoidCreation  bool
+	vaultPassword      string
+	descriptorPath     string
+	moveManagement     bool
+	avoidCreation      bool
+	keosCluster        commons.KeosCluster
+	clusterCredentials commons.ClusterCredentials
+}
+
+type keosRegistry struct {
+	url          string
+	user         string
+	pass         string
+	registryType string
 }
 
 const (
@@ -43,6 +53,9 @@ const (
 	CAPILocalRepository     = "/root/.cluster-api/local-repository"
 	cloudProviderBackupPath = "/kind/backup/objects"
 	localBackupPath         = "backup"
+	manifestsPath           = "/kind/manifests"
+
+	keosClusterVersion = "0.1.0-SNAPSHOT"
 )
 
 var PathsToBackupLocally = []string{
@@ -50,27 +63,21 @@ var PathsToBackupLocally = []string{
 	"/kind/manifests",
 }
 
-//go:embed files/all/allow-all-egress_netpol.yaml
+//go:embed files/common/allow-all-egress_netpol.yaml
 var allowCommonEgressNetPol string
 
 //go:embed files/gcp/rbac-loadbalancing.yaml
 var rbacInternalLoadBalancing string
 
-// In common with keos installer
-//
-//go:embed files/aws/deny-all-egress-imds_gnetpol.yaml
-var denyallEgressIMDSGNetPol string
-
-//go:embed files/aws/allow-capa-egress-imds_gnetpol.yaml
-var allowCAPAEgressIMDSGNetPol string
-
 // NewAction returns a new action for installing default CAPI
-func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool) actions.Action {
+func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials) actions.Action {
 	return &action{
-		vaultPassword:  vaultPassword,
-		descriptorPath: descriptorPath,
-		moveManagement: moveManagement,
-		avoidCreation:  avoidCreation,
+		vaultPassword:      vaultPassword,
+		descriptorPath:     descriptorPath,
+		moveManagement:     moveManagement,
+		avoidCreation:      avoidCreation,
+		keosCluster:        keosCluster,
+		clusterCredentials: clusterCredentials,
 	}
 }
 
@@ -78,6 +85,8 @@ func NewAction(vaultPassword string, descriptorPath string, moveManagement bool,
 func (a *action) Execute(ctx *actions.ActionContext) error {
 	var c string
 	var err error
+	var keosRegistry keosRegistry
+	var jsonDockerRegistriesCredentials []byte
 
 	// Get the target node
 	n, err := ctx.GetNode()
@@ -85,77 +94,66 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return err
 	}
 
-	// Parse the cluster descriptor
-	keosCluster, err := commons.GetClusterDescriptor(a.descriptorPath)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse cluster descriptor")
-	}
-	//spec := keosCluster.Spec
-
-	// Get the secrets
-
-	credentialsMap, keosRegistry, githubToken, dockerRegistries, err := commons.GetSecrets(keosCluster.Spec, a.vaultPassword)
-	if err != nil {
-		return err
-	}
-
 	providerParams := ProviderParams{
-		Region:       keosCluster.Spec.Region,
-		Managed:      keosCluster.Spec.ControlPlane.Managed,
-		Credentials:  credentialsMap,
-		GithubToken:  githubToken,
-		StorageClass: keosCluster.Spec.StorageClass,
+		ClusterName:  a.keosCluster.Metadata.Name,
+		Region:       a.keosCluster.Spec.Region,
+		Managed:      a.keosCluster.Spec.ControlPlane.Managed,
+		Credentials:  a.clusterCredentials.ProviderCredentials,
+		GithubToken:  a.clusterCredentials.GithubToken,
+		StorageClass: a.keosCluster.Spec.StorageClass,
 	}
 
-	providerBuilder := getBuilder(keosCluster.Spec.InfraProvider)
+	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)
 	infra := newInfra(providerBuilder)
 	provider := infra.buildProvider(providerParams)
+
+	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
+	azureAKSEnabled := a.keosCluster.Spec.InfraProvider == "azure" && a.keosCluster.Spec.ControlPlane.Managed
 
 	ctx.Status.Start("Installing CAPx 🎖️")
 	defer ctx.Status.End(false)
 
-	if provider.capxVersion != provider.capxImageVersion {
-		var registryUrl string
-		var registryType string
-		var registryUser string
-		var registryPass string
-
-		for _, registry := range keosCluster.Spec.DockerRegistries {
-			if registry.KeosRegistry {
-				registryUrl = registry.URL
-				registryType = registry.Type
-				continue
-			}
+	for _, registry := range a.keosCluster.Spec.DockerRegistries {
+		if registry.KeosRegistry {
+			keosRegistry.url = registry.URL
+			keosRegistry.registryType = registry.Type
+			continue
 		}
+	}
 
-		if registryType == "ecr" {
-			ecrToken, err := getEcrToken(providerParams)
-			if err != nil {
-				return errors.Wrap(err, "failed to get ECR auth token")
-			}
-			registryUser = "AWS"
-			registryPass = ecrToken
-		} else if registryType == "acr" {
-			acrService := strings.Split(registryUrl, "/")[0]
-			acrToken, err := getAcrToken(providerParams, acrService)
-			if err != nil {
-				return errors.Wrap(err, "failed to get ACR auth token")
-			}
-			registryUser = "00000000-0000-0000-0000-000000000000"
-			registryPass = acrToken
-		} else {
-			registryUser = keosRegistry["User"]
-			registryPass = keosRegistry["Pass"]
-		}
-
-		// Change image in infrastructure-components.yaml
-		infraComponents := CAPILocalRepository + "/infrastructure-" + provider.capxProvider + "/" + provider.capxVersion + "/infrastructure-components.yaml"
-		infraImage := registryUrl + "/stratio/cluster-api-provider-" + provider.capxProvider + ":" + provider.capxImageVersion
-		c = "sed -i 's%image:.*%image: " + infraImage + "%' " + infraComponents
-		_, err = commons.ExecuteCommand(n, c)
+	if keosRegistry.registryType == "ecr" {
+		ecrToken, err := getEcrToken(providerParams)
 		if err != nil {
-			return errors.Wrap(err, "failed to change image in infrastructure-components.yaml")
+			return errors.Wrap(err, "failed to get ECR auth token")
 		}
+		keosRegistry.user = "AWS"
+		keosRegistry.pass = ecrToken
+	} else if keosRegistry.registryType == "acr" {
+		acrService := strings.Split(keosRegistry.url, "/")[0]
+		acrToken, err := getAcrToken(providerParams, acrService)
+		if err != nil {
+			return errors.Wrap(err, "failed to get ACR auth token")
+		}
+		keosRegistry.user = "00000000-0000-0000-0000-000000000000"
+		keosRegistry.pass = acrToken
+	} else {
+		keosRegistry.user = a.clusterCredentials.KeosRegistryCredentials["User"]
+		keosRegistry.pass = a.clusterCredentials.KeosRegistryCredentials["Pass"]
+	}
+
+	// Create docker-registry secret for keos cluster
+	c = "kubectl -n kube-system create secret docker-registry regcred" +
+		" --docker-server=" + keosRegistry.url +
+		" --docker-username=" + keosRegistry.user +
+		" --docker-password=" + keosRegistry.pass
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create docker-registry secret")
+	}
+
+	if provider.capxVersion != provider.capxImageVersion {
+
+		infraComponents := CAPILocalRepository + "/infrastructure-" + provider.capxProvider + "/" + provider.capxVersion + "/infrastructure-components.yaml"
 
 		// Create provider-system namespace
 		c = "kubectl create namespace " + provider.capxName + "-system"
@@ -164,11 +162,11 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return errors.Wrap(err, "failed to create "+provider.capxName+"-system namespace")
 		}
 
-		// Create docker-registry secret
+		// Create docker-registry secret in provider-system namespace
 		c = "kubectl create secret docker-registry regcred" +
-			" --docker-server=" + registryUrl +
-			" --docker-username=" + registryUser +
-			" --docker-password=" + registryPass +
+			" --docker-server=" + keosRegistry.url +
+			" --docker-username=" + keosRegistry.user +
+			" --docker-password=" + keosRegistry.pass +
 			" --namespace=" + provider.capxName + "-system"
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
@@ -194,27 +192,29 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Generating workload cluster manifests 📝")
 	defer ctx.Status.End(false)
 
-	capiClustersNamespace := "cluster-" + keosCluster.Metadata.Name
+	capiClustersNamespace := "cluster-" + a.keosCluster.Metadata.Name
 
-	templateParams := commons.TemplateParams{
-		KeosCluster:      *keosCluster,
-		Credentials:      credentialsMap,
-		DockerRegistries: dockerRegistries,
-	}
-
-	azs, err := infra.getAzs(keosCluster.Spec.Networks)
+	azs, err := infra.getAzs(providerParams, a.keosCluster.Spec.Networks)
 	if err != nil {
 		return errors.Wrap(err, "failed to get AZs")
 	}
-	// Generate the cluster manifest
 
-	descriptorData, err := GetClusterManifest(provider.capxTemplate, templateParams, azs)
+	templateParams := commons.TemplateParams{
+		KeosCluster:      a.keosCluster,
+		Credentials:      a.clusterCredentials.ProviderCredentials,
+		DockerRegistries: a.clusterCredentials.DockerRegistriesCredentials,
+		AZs:              azs,
+		Flavor:           provider.capxTemplate,
+	}
+
+	// Generate the cluster manifest
+	descriptorData, err := GetClusterManifest(templateParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate cluster manifests")
 	}
 
 	// Create the cluster manifests file in the container
-	descriptorPath := "/kind/manifests/cluster_" + keosCluster.Metadata.Name + ".yaml"
+	descriptorPath := manifestsPath + "/cluster_" + a.keosCluster.Metadata.Name + ".yaml"
 	c = "echo \"" + descriptorData + "\" > " + descriptorPath
 	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
@@ -226,7 +226,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Generating secrets file 📝🗝️")
 	defer ctx.Status.End(false)
 
-	commons.EnsureSecretsFile(keosCluster.Spec, a.vaultPassword)
+	commons.EnsureSecretsFile(a.keosCluster.Spec, a.vaultPassword, a.clusterCredentials)
 
 	commons.RewriteDescriptorFile(a.descriptorPath)
 
@@ -247,8 +247,18 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return errors.Wrap(err, "failed to write the allow-all-egress network policy")
 	}
 
+	ctx.Status.Start("Installing keos cluster operator 💻")
+	defer ctx.Status.End(false)
+
+	err = deployClusterOperator(n, a.keosCluster, a.clusterCredentials, keosRegistry)
+	if err != nil {
+		return errors.Wrap(err, "failed to deploy cluster operator")
+	}
+
+	defer ctx.Status.End(true) // End installing keos cluster operator
+
 	if !a.avoidCreation {
-		if keosCluster.Spec.InfraProvider == "aws" && keosCluster.Spec.Security.AWS.CreateIAM {
+		if a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.Security.AWS.CreateIAM {
 			ctx.Status.Start("[CAPA] Ensuring IAM security 👮")
 			defer ctx.Status.End(false)
 
@@ -263,17 +273,20 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		defer ctx.Status.End(false)
 
 		// Apply cluster manifests
-		c = "kubectl apply -n " + capiClustersNamespace + " -f " + descriptorPath
+		//c = "kubectl apply -n " + capiClustersNamespace + " -f " + descriptorPath
+		c = "kubectl apply -f " + manifestsPath + "/keoscluster.yaml"
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to apply manifests")
 		}
 
+		time.Sleep(10 * time.Second)
+
 		// Wait for the control plane initialization
-		c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneInitialized --timeout=25m cluster " + keosCluster.Metadata.Name
+		c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneInitialized --timeout=25m cluster " + a.keosCluster.Metadata.Name
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
-			return errors.Wrap(err, "failed to create the worker Cluster")
+			return errors.Wrap(err, "failed to create the workload cluster")
 		}
 
 		ctx.Status.End(true) // End Creating the workload cluster
@@ -282,7 +295,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		defer ctx.Status.End(false)
 
 		// Get the workload cluster kubeconfig
-		c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + keosCluster.Metadata.Name + " | tee " + kubeconfigPath
+		c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + a.keosCluster.Metadata.Name + " | tee " + kubeconfigPath
 		kubeconfig, err := commons.ExecuteCommand(n, c)
 		if err != nil || kubeconfig == "" {
 			return errors.Wrap(err, "failed to get workload cluster kubeconfig")
@@ -304,13 +317,13 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Saving the workload cluster kubeconfig
 
 		// Install unmanaged cluster addons
-		if !keosCluster.Spec.ControlPlane.Managed {
+		if !a.keosCluster.Spec.ControlPlane.Managed {
 
-			if keosCluster.Spec.InfraProvider == "azure" {
+			if a.keosCluster.Spec.InfraProvider == "azure" {
 				ctx.Status.Start("Installing cloud-provider in workload cluster ☁️")
 				defer ctx.Status.End(false)
 
-				err = installCloudProvider(n, *keosCluster, kubeconfigPath, keosCluster.Metadata.Name)
+				err = installCloudProvider(n, a.keosCluster, kubeconfigPath, a.keosCluster.Metadata.Name)
 				if err != nil {
 					return errors.Wrap(err, "failed to install external cloud-provider in workload cluster")
 				}
@@ -320,7 +333,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, *keosCluster, allowCommonEgressNetPolPath)
+			err = installCalico(n, kubeconfigPath, a.keosCluster, allowCommonEgressNetPolPath)
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
@@ -342,7 +355,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Creating Kubernetes RBAC for internal loadbalancing 🔐")
 			defer ctx.Status.End(false)
 
-			requiredInternalNginx, err := infra.internalNginx(keosCluster.Spec.Networks, credentialsMap, keosCluster.Metadata.Name)
+			requiredInternalNginx, err := infra.internalNginx(providerParams, a.keosCluster.Spec.Networks)
 			if err != nil {
 				return err
 			}
@@ -370,7 +383,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Preparing nodes in workload cluster 📦")
 		defer ctx.Status.End(false)
 
-		if provider.capxProvider == "aws" && keosCluster.Spec.ControlPlane.Managed {
+		if awsEKSEnabled {
 			c = "kubectl -n capa-system rollout restart deployment capa-controller-manager"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
@@ -378,7 +391,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 		}
 
-		if provider.capxProvider != "azure" || !keosCluster.Spec.ControlPlane.Managed {
+		if provider.capxProvider != "azure" || !a.keosCluster.Spec.ControlPlane.Managed {
 			// Wait for all the machine deployments to be ready
 			c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=Ready --timeout=15m --all md"
 			_, err = commons.ExecuteCommand(n, c)
@@ -387,23 +400,31 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 		}
 
-		if !keosCluster.Spec.ControlPlane.Managed && keosCluster.Spec.ControlPlane.HighlyAvailable {
+		if !a.keosCluster.Spec.ControlPlane.Managed && a.keosCluster.Spec.ControlPlane.HighlyAvailable {
 			// Wait for all control planes to be ready
-			c = "kubectl -n " + capiClustersNamespace + " wait --for=jsonpath=\"{.status.readyReplicas}\"=3 --timeout 10m kubeadmcontrolplanes " + keosCluster.Metadata.Name + "-control-plane"
+			c = "kubectl -n " + capiClustersNamespace + " wait --for=jsonpath=\"{.status.readyReplicas}\"=3 --timeout 10m kubeadmcontrolplanes " + a.keosCluster.Metadata.Name + "-control-plane"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
 				return errors.Wrap(err, "failed to create the worker Cluster")
 			}
 		}
 
-		if provider.capxProvider == "azure" && keosCluster.Spec.ControlPlane.Managed && keosCluster.Spec.Security.NodesIdentity != "" {
+		if azureAKSEnabled && a.keosCluster.Spec.Security.NodesIdentity != "" {
 			// Update AKS cluster with the user kubelet identity until the provider supports it
-			err := assignUserIdentity(keosCluster.Spec.Security.NodesIdentity, keosCluster.Metadata.Name, keosCluster.Spec.Region, credentialsMap)
+			err := assignUserIdentity(providerParams, a.keosCluster.Spec.Security.NodesIdentity)
 			if err != nil {
 				return errors.Wrap(err, "failed to assign user identity to the workload Cluster")
 			}
 		}
 
+		// Wait for metrics-server deployment to be ready
+		if azureAKSEnabled {
+			c = "kubectl --kubeconfig " + kubeconfigPath + " rollout status deploy metrics-server -n kube-system --timeout=5m"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to create the worker Cluster")
+			}
+		}
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
 
 		ctx.Status.Start("Installing StorageClass in workload cluster 💾")
@@ -411,14 +432,14 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		err = infra.configureStorageClass(n, kubeconfigPath)
 		if err != nil {
-			return errors.Wrap(err, "failed to configuring StorageClass in workload cluster")
+			return errors.Wrap(err, "failed to configure StorageClass in workload cluster")
 		}
 		ctx.Status.End(true) // End Installing StorageClass in workload cluster
 
 		ctx.Status.Start("Enabling workload cluster's self-healing 🏥")
 		defer ctx.Status.End(false)
 
-		err = enableSelfHealing(n, *keosCluster, capiClustersNamespace)
+		err = enableSelfHealing(n, a.keosCluster, capiClustersNamespace)
 		if err != nil {
 			return errors.Wrap(err, "failed to enable workload cluster's self-healing")
 		}
@@ -467,67 +488,79 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Installing CAPx in workload cluster
 
 		// Use Calico as network policy engine in managed systems
-		if provider.capxProvider != "azure" && keosCluster.Spec.ControlPlane.Managed {
-			ctx.Status.Start("Installing Network Policy Engine in workload cluster 🚧")
+		if provider.capxProvider != "azure" {
+			ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, *keosCluster, allowCommonEgressNetPolPath)
-			if err != nil {
-				return errors.Wrap(err, "failed to install Network Policy Engine in workload cluster")
+			// Use Calico as network policy engine in managed systems
+			if a.keosCluster.Spec.ControlPlane.Managed {
+
+				err = installCalico(n, kubeconfigPath, a.keosCluster, allowCommonEgressNetPolPath)
+				if err != nil {
+					return errors.Wrap(err, "failed to install Network Policy Engine in workload cluster")
+				}
 			}
 
 			// Create the allow and deny (global) network policy file in the container
-			if keosCluster.Spec.InfraProvider == "aws" {
-				denyallEgressIMDSGNetPolPath := "/kind/deny-all-egress-imds_gnetpol.yaml"
-				allowCAPAEgressIMDSGNetPolPath := "/kind/allow-capa-egress-imds_gnetpol.yaml"
+			denyallEgressIMDSGNetPolPath := "/kind/deny-all-egress-imds_gnetpol.yaml"
+			allowCAPXEgressIMDSGNetPolPath := "/kind/allow-egress-imds_gnetpol.yaml"
 
-				// Allow egress in kube-system Namespace
-				c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system apply -f " + allowCommonEgressNetPolPath
-				_, err = commons.ExecuteCommand(n, c)
-				if err != nil {
-					return errors.Wrap(err, "failed to apply kube-system egress NetworkPolicy")
-				}
+			// Allow egress in kube-system Namespace
+			c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system apply -f " + allowCommonEgressNetPolPath
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply kube-system egress NetworkPolicy")
+			}
+			denyEgressIMDSGNetPol, err := provider.getDenyAllEgressIMDSGNetPol()
+			if err != nil {
+				return err
+			}
 
-				c = "echo \"" + denyallEgressIMDSGNetPol + "\" > " + denyallEgressIMDSGNetPolPath
-				_, err = commons.ExecuteCommand(n, c)
-				if err != nil {
-					return errors.Wrap(err, "failed to write the deny-all-traffic-to-aws-imds global network policy")
-				}
-				c = "echo \"" + allowCAPAEgressIMDSGNetPol + "\" > " + allowCAPAEgressIMDSGNetPolPath
-				_, err = commons.ExecuteCommand(n, c)
-				if err != nil {
-					return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds-capa global network policy")
-				}
+			c = "echo \"" + denyEgressIMDSGNetPol + "\" > " + denyallEgressIMDSGNetPolPath
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to write the deny-all-traffic-to-aws-imds global network policy")
+			}
+			allowEgressIMDSGNetPol, err := provider.getAllowCAPXEgressIMDSGNetPol()
+			if err != nil {
+				return err
+			}
 
-				// Deny CAPA egress to AWS IMDS
-				c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + denyallEgressIMDSGNetPolPath
-				_, err = commons.ExecuteCommand(n, c)
-				if err != nil {
-					return errors.Wrap(err, "failed to apply deny IMDS traffic GlobalNetworkPolicy")
-				}
+			c = "echo \"" + allowEgressIMDSGNetPol + "\" > " + allowCAPXEgressIMDSGNetPolPath
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds-capa global network policy")
+			}
 
-				// Allow CAPA egress to AWS IMDS
-				c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + allowCAPAEgressIMDSGNetPolPath
-				_, err = commons.ExecuteCommand(n, c)
-				if err != nil {
-					return errors.Wrap(err, "failed to apply allow CAPA as egress GlobalNetworkPolicy")
-				}
+			// Deny CAPA egress to AWS IMDS
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + denyallEgressIMDSGNetPolPath
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply deny IMDS traffic GlobalNetworkPolicy")
+			}
+
+			// Allow CAPA egress to AWS IMDS
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + allowCAPXEgressIMDSGNetPolPath
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply allow CAPX as egress GlobalNetworkPolicy")
 			}
 
 			ctx.Status.End(true) // End Installing Network Policy Engine in workload cluster
 		}
 
-		if keosCluster.Spec.DeployAutoscaler && !(keosCluster.Spec.InfraProvider == "azure" && keosCluster.Spec.ControlPlane.Managed) {
+		if a.keosCluster.Spec.DeployAutoscaler && !azureAKSEnabled {
 			ctx.Status.Start("Adding Cluster-Autoescaler 🗚")
 			defer ctx.Status.End(false)
 
 			c = "helm install cluster-autoscaler /stratio/helm/cluster-autoscaler" +
 				" --kubeconfig " + kubeconfigPath +
 				" --namespace kube-system" +
-				" --set autoDiscovery.clusterName=" + keosCluster.Metadata.Name +
-				" --set autoDiscovery.labels[0].namespace=cluster-" + keosCluster.Metadata.Name +
+				" --set autoDiscovery.clusterName=" + a.keosCluster.Metadata.Name +
+				" --set autoDiscovery.labels[0].namespace=cluster-" + a.keosCluster.Metadata.Name +
 				" --set cloudProvider=clusterapi" +
-				" --set clusterAPIMode=incluster-incluster"
+				" --set clusterAPIMode=incluster-incluster" +
+				" --set replicaCount=2"
 
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
@@ -535,6 +568,19 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			ctx.Status.End(true)
+		}
+
+		// Apply custom CoreDNS configuration
+		if a.keosCluster.Spec.Dns.Forwarders != nil && len(a.keosCluster.Spec.Dns.Forwarders) > 0 && !awsEKSEnabled {
+			ctx.Status.Start("Customizing CoreDNS configuration 🪡")
+			defer ctx.Status.End(false)
+
+			err = customCoreDNS(n, kubeconfigPath, a.keosCluster)
+			if err != nil {
+				return errors.Wrap(err, "failed to customized CoreDNS configuration")
+			}
+
+			ctx.Status.End(true) // End Customizing CoreDNS configuration
 		}
 
 		// Create cloud-provisioner Objects backup
@@ -587,20 +633,67 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to pivot management role to worker cluster")
 			}
 
-			ctx.Status.End(true)
-		}
+			ctx.Status.End(true) // End Moving the management role
 
+			ctx.Status.Start("Moving the cluster-operator 🗝️")
+
+			// Create the docker registries credentials secret for keoscluster-controller-manager
+			if a.clusterCredentials.DockerRegistriesCredentials != nil {
+				c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system create secret generic keoscluster-registries --from-literal=credentials='" + string(jsonDockerRegistriesCredentials) + "'"
+				_, err = commons.ExecuteCommand(n, c)
+				if err != nil {
+					return errors.Wrap(err, "failed to create keoscluster-registries secret")
+				}
+			}
+
+			// Deploy cluster-operator chart in workload cluster
+			c = "helm install cluster-operator /stratio/helm/cluster-operator" +
+				" --kubeconfig " + kubeconfigPath +
+				" --namespace kube-system" +
+				" --set app.containers.controllerManager.image.registry=" + keosRegistry.url +
+				" --set app.containers.controllerManager.image.repository=stratio/cluster-operator" +
+				" --set app.containers.controllerManager.image.tag=" + keosClusterVersion
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to deploy cluster-operator chart in workload cluster")
+			}
+
+			// Wait for keoscluster-controller-manager deployment
+			c = "kubectl --kubekubeconfig " + kubeconfigPath + " -n kube-system rollout status deploy/keoscluster-controller-manager --timeout=3m"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to wait for keoscluster-controller-manager deployment in workload cluster")
+			}
+
+			time.Sleep(10 * time.Second)
+
+			//
+			c = "kubectl -n " + capiClustersNamespace + " get keoscluster " + a.keosCluster.Metadata.Name + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to move keoscluster to workload cluster")
+			}
+
+			// Delete keoscluster in management cluster
+			c = "kubectl -n " + capiClustersNamespace + " delete keoscluster " + a.keosCluster.Metadata.Name
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to delete keoscluster in management cluster")
+			}
+
+			ctx.Status.End(true) // End Moving the cluster-operator
+		}
 	}
 
 	ctx.Status.Start("Generating the KEOS descriptor 📝")
 	defer ctx.Status.End(false)
 
-	err = createKEOSDescriptor(*keosCluster, scName)
+	err = createKEOSDescriptor(a.keosCluster, scName)
 	if err != nil {
 		return err
 	}
 
-	err = override_vars(*keosCluster, credentialsMap, ctx, infra, provider)
+	err = override_vars(ctx, providerParams, a.keosCluster.Spec.Networks, infra)
 	if err != nil {
 		return err
 	}

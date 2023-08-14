@@ -17,8 +17,6 @@ limitations under the License.
 package createworker
 
 import (
-	"embed"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -28,12 +26,9 @@ import (
 	"sigs.k8s.io/kind/pkg/errors"
 )
 
-//go:embed files/*/internal-ingress-nginx.yaml
-var internalIngressFiles embed.FS
+func override_vars(ctx *actions.ActionContext, p ProviderParams, networks commons.Networks, infra *Infra) error {
 
-func override_vars(keosCluster commons.KeosCluster, credentialsMap map[string]string, ctx *actions.ActionContext, infra *Infra, provider Provider) error {
-
-	override_vars, err := infra.getOverrideVars(keosCluster, credentialsMap)
+	override_vars, err := infra.getOverrideVars(p, networks)
 	if err != nil {
 		return err
 	}
@@ -54,7 +49,7 @@ func override_vars(keosCluster commons.KeosCluster, credentialsMap map[string]st
 				return errors.Wrap(err, "error creating override_vars directory")
 			}
 
-			err = ioutil.WriteFile(originalFilePath, overrideValue, os.ModePerm)
+			err = os.WriteFile(originalFilePath, overrideValue, os.ModePerm)
 			if err != nil {
 				return errors.Wrap(err, "error writing corresponding '"+originalFilePath+"'")
 			}

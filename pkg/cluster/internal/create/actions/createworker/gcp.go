@@ -21,7 +21,6 @@ import (
 	_ "embed"
 	b64 "encoding/base64"
 	"encoding/json"
-	"io/ioutil"
 	"net/url"
 	"strings"
 
@@ -34,8 +33,11 @@ import (
 	"sigs.k8s.io/kind/pkg/exec"
 )
 
-//go:embed files/gcp-compute-persistent-disk-csi-driver.yaml
+//go:embed files/gcp/gcp-compute-persistent-disk-csi-driver.yaml
 var csiManifest string
+
+//go:embed files/gcp/internal-ingress-nginx.yaml
+var gcpInternalIngress []byte
 
 type GCPBuilder struct {
 	capxProvider     string
@@ -48,8 +50,6 @@ type GCPBuilder struct {
 	scParameters     commons.SCParameters
 	scProvisioner    string
 	csiNamespace     string
-	dataCreds        map[string]interface{}
-	region           string
 }
 
 func newGCPBuilder() *GCPBuilder {
@@ -58,18 +58,16 @@ func newGCPBuilder() *GCPBuilder {
 
 func (b *GCPBuilder) setCapx(managed bool) {
 	b.capxProvider = "gcp"
-	b.capxVersion = "v1.3.1"
-	b.capxImageVersion = "v1.3.1"
+	b.capxVersion = "v1.4.0"
+	b.capxImageVersion = "v1.4.0"
 	b.capxName = "capg"
-
+	b.capxManaged = managed
 	if managed {
-		b.capxManaged = true
 		b.capxTemplate = "gcp.gke.tmpl"
 		b.csiNamespace = ""
 	} else {
-		b.capxManaged = false
 		b.capxTemplate = "gcp.tmpl"
-		b.csiNamespace = "gce-pd-csi-driver"
+		b.csiNamespace = "kube-system"
 	}
 }
 
@@ -86,8 +84,6 @@ func (b *GCPBuilder) setCapxEnvVars(p ProviderParams) {
 		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
 		"client_x509_cert_url":        "https://www.googleapis.com/robot/v1/metadata/x509/" + url.QueryEscape(p.Credentials["ClientEmail"]),
 	}
-	b.dataCreds = data
-	b.region = p.Region
 	jsonData, _ := json.Marshal(data)
 	b.capxEnvVars = []string{
 		"GCP_B64ENCODED_CREDENTIALS=" + b64.StdEncoding.EncodeToString([]byte(jsonData)),
@@ -136,13 +132,6 @@ func (b *GCPBuilder) installCSI(n nodes.Node, k string) error {
 	var err error
 	var cmd exec.Cmd
 
-	// Create CSI namespace
-	c = "kubectl --kubeconfig " + k + " create namespace " + b.csiNamespace
-	_, err = commons.ExecuteCommand(n, c)
-	if err != nil {
-		return errors.Wrap(err, "failed to create CSI namespace")
-	}
-
 	// Create CSI secret in CSI namespace
 	secret, _ := b64.StdEncoding.DecodeString(strings.Split(b.capxEnvVars[0], "GCP_B64ENCODED_CREDENTIALS=")[1])
 	c = "kubectl --kubeconfig " + k + " -n " + b.csiNamespace + " create secret generic cloud-sa --from-literal=cloud-sa.json='" + string(secret) + "'"
@@ -160,40 +149,30 @@ func (b *GCPBuilder) installCSI(n nodes.Node, k string) error {
 	return nil
 }
 
-func (b *GCPBuilder) getAzs(networks commons.Networks) ([]string, error) {
-	if len(b.dataCreds) == 0 {
-		return nil, errors.New("Insufficient credentials.")
-	}
+func (b *GCPBuilder) getAzs(p ProviderParams, networks commons.Networks) ([]string, error) {
+	var azs []string
+	var ctx = context.Background()
 
-	ctx := context.Background()
-	jsonDataCreds, _ := json.Marshal(b.dataCreds)
-	creds := option.WithCredentialsJSON(jsonDataCreds)
-	computeService, err := compute.NewService(ctx, creds)
+	secrets, _ := b64.StdEncoding.DecodeString(strings.Split(b.capxEnvVars[0], "GCP_B64ENCODED_CREDENTIALS=")[1])
+	cfg := option.WithCredentialsJSON(secrets)
+	computeService, err := compute.NewService(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	project := b.dataCreds["project_id"]
-	if project_id, ok := project.(string); ok {
-		zones, err := computeService.Zones.List(project_id).Filter("name=" + b.region + "*").Do()
-		if err != nil {
-			return nil, err
-		}
-		if len(zones.Items) < 3 {
-			return nil, errors.New("Insufficient Availability Zones in this region. Must have at least 3")
-		}
-		azs := make([]string, 3)
-		for i, zone := range zones.Items {
-			if i == 3 {
-				break
-			}
-			azs[i] = zone.Name
-		}
-
-		return azs, nil
+	zones, err := computeService.Zones.List(p.Credentials["ProjectID"]).Filter("name=" + p.Region + "*").Do()
+	if err != nil {
+		return nil, err
 	}
-
-	return nil, errors.New("Error in project id")
+	if len(zones.Items) < 3 {
+		return nil, errors.New("insufficient availability aones in this region. Must have at least 3")
+	}
+	for i, zone := range zones.Items {
+		if i == 3 {
+			break
+		}
+		azs = append(azs, zone.Name)
+	}
+	return azs, nil
 }
 
 func (b *GCPBuilder) configureStorageClass(n nodes.Node, k string) error {
@@ -203,7 +182,7 @@ func (b *GCPBuilder) configureStorageClass(n nodes.Node, k string) error {
 
 	if b.capxManaged {
 		// Remove annotation from default storage class
-		c = "kubectl --kubeconfig " + k + " get sc | grep '(default)' | awk '{print $1}'"
+		c = "kubectl --kubeconfig " + k + ` get sc -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}'`
 		output, err := commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to get default storage class")
@@ -234,25 +213,18 @@ func (b *GCPBuilder) configureStorageClass(n nodes.Node, k string) error {
 	return nil
 }
 
-func (b *GCPBuilder) internalNginx(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (bool, error) {
-	if len(b.dataCreds) == 0 {
-		return false, errors.New("Insufficient credentials.")
-	}
+func (b *GCPBuilder) internalNginx(p ProviderParams, networks commons.Networks) (bool, error) {
+	var ctx = context.Background()
 
-	ctx := context.Background()
-	jsonDataCreds, _ := json.Marshal(b.dataCreds)
-	creds := option.WithCredentialsJSON(jsonDataCreds)
-	computeService, err := compute.NewService(ctx, creds)
+	secrets, _ := b64.StdEncoding.DecodeString(strings.Split(b.capxEnvVars[0], "GCP_B64ENCODED_CREDENTIALS=")[1])
+	cfg := option.WithCredentialsJSON(secrets)
+	computeService, err := compute.NewService(ctx, cfg)
 	if err != nil {
 		return false, err
 	}
-
-	project := b.dataCreds["project_id"].(string)
-	region := b.region
-
-	if networks.Subnets != nil {
-		for _, subnet := range networks.Subnets {
-			publicSubnetID, _ := GCPFilterPublicSubnet(computeService, project, region, subnet.SubnetId)
+	if len(networks.Subnets) > 0 {
+		for _, s := range networks.Subnets {
+			publicSubnetID, _ := GCPFilterPublicSubnet(computeService, p.Credentials["ProjectID"], p.Region, s.SubnetId)
 			if len(publicSubnetID) > 0 {
 				return false, nil
 			}
@@ -267,7 +239,6 @@ func GCPFilterPublicSubnet(computeService *compute.Service, projectID string, re
 	if err != nil {
 		return "", err
 	}
-
 	if subnet.PrivateIpGoogleAccess {
 		return "", nil
 	} else {
@@ -275,36 +246,15 @@ func GCPFilterPublicSubnet(computeService *compute.Service, projectID string, re
 	}
 }
 
-func (b *GCPBuilder) getOverrideVars(keosCluster commons.KeosCluster, credentialsMap map[string]string) (map[string][]byte, error) {
-	overrideVars := map[string][]byte{}
-	InternalNginxOVPath, InternalNginxOVValue, err := b.getInternalNginxOverrideVars(keosCluster.Spec.Networks, credentialsMap, keosCluster.Metadata.Name)
+func (b *GCPBuilder) getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error) {
+	var overrideVars map[string][]byte
+
+	requiredInternalNginx, err := b.internalNginx(p, networks)
 	if err != nil {
 		return nil, err
 	}
-	overrideVars = addOverrideVar(InternalNginxOVPath, InternalNginxOVValue, overrideVars)
-
-	return overrideVars, nil
-}
-
-func (b *GCPBuilder) getInternalNginxOverrideVars(networks commons.Networks, credentialsMap map[string]string, ClusterID string) (string, []byte, error) {
-	requiredInternalNginx, err := b.internalNginx(networks, credentialsMap, ClusterID)
-	if err != nil {
-		return "", nil, err
-	}
-
 	if requiredInternalNginx {
-		internalIngressFilePath := "files/" + b.capxProvider + "/internal-ingress-nginx.yaml"
-		internalIngressFile, err := internalIngressFiles.Open(internalIngressFilePath)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "error opening the internal ingress nginx file")
-		}
-		defer internalIngressFile.Close()
-
-		internalIngressContent, err := ioutil.ReadAll(internalIngressFile)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "error reading the internal ingress nginx file")
-		}
-		return "ingress-nginx.yaml", internalIngressContent, nil
+		overrideVars = addOverrideVar("ingress-nginx.yaml", gcpInternalIngress, overrideVars)
 	}
-	return "", []byte(""), nil
+	return overrideVars, nil
 }
