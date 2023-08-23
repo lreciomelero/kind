@@ -21,6 +21,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"time"
@@ -227,6 +228,7 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 	var jsonDockerRegistriesCredentials []byte
 	var helmRepository helmRepository
 
+	fmt.Println("credenciales clusterCredentials.DockerRegistriesCredentials: " + fmt.Sprint(clusterCredentials.DockerRegistriesCredentials))
 	if kubeconfigPath == "" {
 		// Clean keoscluster file
 		keosCluster.Spec.Credentials = commons.Credentials{}
@@ -284,6 +286,10 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 
 	// Create the docker registries credentials secret for keoscluster-controller-manager
 	if clusterCredentials.DockerRegistriesCredentials != nil {
+		jsonDockerRegistriesCredentials, err = json.Marshal(clusterCredentials.DockerRegistriesCredentials)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal docker registries credentials")
+		}
 		c = "kubectl -n kube-system create secret generic keoscluster-registries --from-literal=credentials='" + string(jsonDockerRegistriesCredentials) + "'"
 		if kubeconfigPath != "" {
 			c = c + " --kubeconfig " + kubeconfigPath
