@@ -21,7 +21,6 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"time"
@@ -228,7 +227,6 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 	var jsonDockerRegistriesCredentials []byte
 	var helmRepository helmRepository
 
-	fmt.Println("credenciales clusterCredentials.DockerRegistriesCredentials: " + fmt.Sprint(clusterCredentials.DockerRegistriesCredentials))
 	if kubeconfigPath == "" {
 		// Clean keoscluster file
 		keosCluster.Spec.Credentials = commons.Credentials{}
