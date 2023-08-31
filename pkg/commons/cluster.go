@@ -71,13 +71,7 @@ type Spec struct {
 
 	ExternalDomain string `yaml:"external_domain" validate:"fqdn"`
 
-	Security struct {
-		ControlPlaneIdentity string `yaml:"control_plane_identity,omitempty"`
-		NodesIdentity        string `yaml:"nodes_identity,omitempty"`
-		AWS                  struct {
-			CreateIAM bool `yaml:"create_iam" validate:"boolean"`
-		} `yaml:"aws,omitempty"`
-	} `yaml:"security,omitempty"`
+	Security Security `yaml:"security,omitempty"`
 
 	Keos struct {
 		Flavour string `yaml:"flavour,omitempty"`
@@ -86,7 +80,6 @@ type Spec struct {
 
 	ControlPlane struct {
 		Managed         bool                `yaml:"managed" validate:"boolean"`
-		Name            string              `yaml:"name,omitempty"`
 		NodeImage       string              `yaml:"node_image,omitempty"`
 		HighlyAvailable bool                `yaml:"highly_available" validate:"boolean"`
 		Size            string              `yaml:"size,omitempty" validate:"required_if=Managed false"`
@@ -131,13 +124,21 @@ type AzureCP struct {
 	Tier string `yaml:"tier" validate:"omitempty,oneof='Free' 'Paid'"`
 }
 
+type Security struct {
+	ControlPlaneIdentity string `yaml:"control_plane_identity,omitempty"`
+	NodesIdentity        string `yaml:"nodes_identity,omitempty"`
+	AWS                  struct {
+		CreateIAM bool `yaml:"create_iam" validate:"boolean"`
+	} `yaml:"aws,omitempty"`
+}
+
 type WorkerNodes []struct {
 	Name             string            `yaml:"name" validate:"required"`
 	NodeImage        string            `yaml:"node_image,omitempty"`
 	Quantity         int               `yaml:"quantity" validate:"required,numeric,gt=0"`
 	Size             string            `yaml:"size" validate:"required"`
 	ZoneDistribution string            `yaml:"zone_distribution,omitempty" validate:"omitempty,oneof='balanced' 'unbalanced'"`
-	AZ               string            `yaml:"az,omitempty" validate:"required_if=ZoneDistribution unbalanced"`
+	AZ               string            `yaml:"az,omitempty"`
 	SSHKey           string            `yaml:"ssh_key,omitempty"`
 	Spot             bool              `yaml:"spot" validate:"boolean"`
 	Labels           map[string]string `yaml:"labels,omitempty"`
@@ -241,7 +242,7 @@ type TemplateParams struct {
 	KeosCluster      KeosCluster
 	Credentials      map[string]string
 	DockerRegistries []map[string]interface{}
-	AZs              []string
+	ProviderAZs      []string
 	Flavor           string
 }
 
@@ -381,19 +382,15 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, error) {
 	}
 
 	// Clean keosCluster data
-	if keosCluster.Spec.InfraProvider != "azure" {
+	if keosCluster.Spec.InfraProvider != "azure" || (keosCluster.Spec.InfraProvider == "azure" && !keosCluster.Spec.ControlPlane.Managed) {
 		keosCluster.Spec.ControlPlane.Azure = AzureCP{}
 	}
-	if keosCluster.Spec.InfraProvider != "aws" {
+	if keosCluster.Spec.InfraProvider != "aws" || (keosCluster.Spec.InfraProvider == "aws" && !keosCluster.Spec.ControlPlane.Managed) {
 		keosCluster.Spec.ControlPlane.AWS = AWSCP{}
 		keosCluster.Spec.Security.AWS = struct {
 			CreateIAM bool `yaml:"create_iam" validate:"boolean"`
 		}{}
 	}
-	if keosCluster.Spec.InfraProvider == "aws" && !keosCluster.Spec.ControlPlane.Managed {
-		keosCluster.Spec.ControlPlane.AWS = AWSCP{}
-	}
-
 	keosCluster.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
 
 	return &keosCluster, nil

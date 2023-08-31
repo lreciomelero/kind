@@ -200,7 +200,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		KeosCluster:      a.keosCluster,
 		Credentials:      a.clusterCredentials.ProviderCredentials,
 		DockerRegistries: a.clusterCredentials.DockerRegistriesCredentials,
-		AZs:              azs,
+		ProviderAZs:      azs,
 		Flavor:           provider.capxTemplate,
 	}
 
@@ -296,6 +296,13 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		kubeconfig, err := commons.ExecuteCommand(n, c)
 		if err != nil || kubeconfig == "" {
 			return errors.Wrap(err, "failed to get workload cluster kubeconfig")
+		}
+
+		// Create worker-kubeconfig secret for keos cluster
+		c = "kubectl -n " + capiClustersNamespace + " create secret generic worker-kubeconfig --from-file " + kubeconfigPath
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create worker-kubeconfig secret")
 		}
 
 		workKubeconfigBasePath := strings.Split(workKubeconfigPath, "/")[0]
@@ -406,16 +413,14 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 		}
 
-		if azureAKSEnabled && a.keosCluster.Spec.Security.NodesIdentity != "" {
+		if azureAKSEnabled {
 			// Update AKS cluster with the user kubelet identity until the provider supports it
-			err := assignUserIdentity(providerParams, a.keosCluster.Spec.Security.NodesIdentity)
+			err := assignUserIdentity(providerParams, a.keosCluster.Spec.Security)
 			if err != nil {
 				return errors.Wrap(err, "failed to assign user identity to the workload Cluster")
 			}
-		}
 
-		// Wait for metrics-server deployment to be ready
-		if azureAKSEnabled {
+			// Wait for metrics-server deployment to be ready
 			c = "kubectl --kubeconfig " + kubeconfigPath + " rollout status deploy metrics-server -n kube-system --timeout=5m"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
@@ -547,7 +552,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		if a.keosCluster.Spec.DeployAutoscaler && !azureAKSEnabled {
-			ctx.Status.Start("Adding Cluster-Autoescaler 🗚")
+			ctx.Status.Start("Installing cluster-autoescaler in workload cluster 🗚")
 			defer ctx.Status.End(false)
 
 			c = "helm install cluster-autoscaler /stratio/helm/cluster-autoscaler" +
@@ -561,11 +566,21 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
-				return errors.Wrap(err, "failed to install chart cluster-autoscaler")
+				return errors.Wrap(err, "failed to deploy cluster-autoscaler in workload cluster")
 			}
 
 			ctx.Status.End(true)
 		}
+
+		ctx.Status.Start("Installing keos cluster operator in workload cluster 💻")
+		defer ctx.Status.End(false)
+
+		err = deployClusterOperator(n, a.keosCluster, a.clusterCredentials, keosRegistry, kubeconfigPath)
+		if err != nil {
+			return errors.Wrap(err, "failed to deploy cluster operator in workload cluster")
+		}
+
+		ctx.Status.End(true)
 
 		// Apply custom CoreDNS configuration
 		if a.keosCluster.Spec.Dns.Forwarders != nil && len(a.keosCluster.Spec.Dns.Forwarders) > 0 && !awsEKSEnabled {
@@ -633,11 +648,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.End(true) // End Moving the management role
 
 			ctx.Status.Start("Moving the cluster-operator 🗝️")
-
-			err = deployClusterOperator(n, a.keosCluster, a.clusterCredentials, keosRegistry, kubeconfigPath)
-			if err != nil {
-				return errors.Wrap(err, "failed to deploy cluster operator in workload cluster")
-			}
 
 			// Move keoscluster to workload cluster
 			c = "kubectl -n " + capiClustersNamespace + " get keoscluster " + a.keosCluster.Metadata.Name + " -o yaml | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"

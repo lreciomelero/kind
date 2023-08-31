@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"reflect"
 	"strings"
 	"text/template"
 
@@ -52,8 +51,8 @@ const (
 
 	scName = "keos"
 
-	keosClusterChart = "0.1.0-SNAPSHOT"
-	keosClusterImage = "0.1.0-SNAPSHOT"
+	keosClusterChart = "0.1.0-M1"
+	keosClusterImage = "0.1.0-M1"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -284,6 +283,10 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 
 	// Create the docker registries credentials secret for keoscluster-controller-manager
 	if clusterCredentials.DockerRegistriesCredentials != nil {
+		jsonDockerRegistriesCredentials, err = json.Marshal(clusterCredentials.DockerRegistriesCredentials)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal docker registries credentials")
+		}
 		c = "kubectl -n kube-system create secret generic keoscluster-registries --from-literal=credentials='" + string(jsonDockerRegistriesCredentials) + "'"
 		if kubeconfigPath != "" {
 			c = c + " --kubeconfig " + kubeconfigPath
@@ -305,7 +308,7 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 			" --set app.containers.controllerManager.imagePullSecrets.enabled=true" +
 			" --set app.containers.controllerManager.imagePullSecrets.name=regcred"
 	} else {
-		c = c + " --kubeconfig " + kubeconfigPath
+		c = c + " --set app.replicas=2" + " --kubeconfig " + kubeconfigPath
 	}
 	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
@@ -596,14 +599,14 @@ func GetClusterManifest(params commons.TemplateParams) (string, error) {
 				if az != "" {
 					ch <- Node{AZ: az, QA: qa, MaxSize: maxsize, MinSize: minsize}
 				} else {
-					for i, a := range params.AZs {
+					for i, a := range params.ProviderAZs {
 						if zd == "unbalanced" {
-							q = qa/len(params.AZs) + resto(qa, i, len(params.AZs))
-							mx = maxsize/len(params.AZs) + resto(maxsize, i, len(params.AZs))
-							mn = minsize/len(params.AZs) + resto(minsize, i, len(params.AZs))
+							q = qa/len(params.ProviderAZs) + resto(qa, i, len(params.ProviderAZs))
+							mx = maxsize/len(params.ProviderAZs) + resto(maxsize, i, len(params.ProviderAZs))
+							mn = minsize/len(params.ProviderAZs) + resto(minsize, i, len(params.ProviderAZs))
 							ch <- Node{AZ: a, QA: q, MaxSize: mx, MinSize: mn}
 						} else {
-							ch <- Node{AZ: a, QA: qa / len(params.AZs), MaxSize: maxsize / len(params.AZs), MinSize: minsize / len(params.AZs)}
+							ch <- Node{AZ: a, QA: qa / len(params.ProviderAZs), MaxSize: maxsize / len(params.ProviderAZs), MinSize: minsize / len(params.ProviderAZs)}
 						}
 					}
 				}
@@ -613,13 +616,6 @@ func GetClusterManifest(params commons.TemplateParams) (string, error) {
 		},
 		"hostname": func(s string) string {
 			return strings.Split(s, "/")[0]
-		},
-		"checkReference": func(v interface{}) bool {
-			defer func() { recover() }()
-			return v != nil && !reflect.ValueOf(v).IsNil() && v != "nil" && v != "<nil>"
-		},
-		"isNotEmpty": func(v interface{}) bool {
-			return !reflect.ValueOf(v).IsZero()
 		},
 		"inc": func(i int) int {
 			return i + 1
