@@ -25,6 +25,8 @@ import (
 	"sigs.k8s.io/kind/pkg/commons"
 )
 
+const stateAnnotation = "cluster-operator.stratio.com/state"
+
 type KEOSDescriptor struct {
 	DockerRegistry struct {
 		AuthRequired bool   `yaml:"auth_required"`
