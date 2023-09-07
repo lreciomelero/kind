@@ -653,7 +653,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 			// Move keoscluster to workload cluster
 			c = "kubectl -n " + capiClustersNamespace + " get keoscluster " + a.keosCluster.Metadata.Name + " -o json | jq 'del(.status)' | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
-			//c = "kubectl -n " + capiClustersNamespace + " get keoscluster " + a.keosCluster.Metadata.Name + " -o json | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
 				return errors.Wrap(err, "failed to move keoscluster to workload cluster")
