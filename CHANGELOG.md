@@ -14,6 +14,8 @@
 * [Core] Bump Calico to v3.26.1
 * [AWS] Bump cluster-api-provider-aws to v1.5.1
 * [AWS] Bump clusterawsadm to v2.2.1
+* [Azure] Bump cluster-api-provider-azure unmanaged to v1.9.8
+* [Azure] Bump cluster-api-provider-azure managed to v1.10.3
 
 ## 0.17.0-0.2.0 (2023-07-03)
 

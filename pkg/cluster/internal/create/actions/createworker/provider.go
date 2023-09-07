@@ -45,14 +45,14 @@ var denyAllEgressIMDSgnpFiles embed.FS
 var allowEgressIMDSgnpFiles embed.FS
 
 const (
-	CAPICoreProvider         = "cluster-api:v1.4.6"
-	CAPIBootstrapProvider    = "kubeadm:v1.4.6"
-	CAPIControlPlaneProvider = "kubeadm:v1.4.6"
+	CAPICoreProvider         = "cluster-api:v1.5.1"
+	CAPIBootstrapProvider    = "kubeadm:v1.5.1"
+	CAPIControlPlaneProvider = "kubeadm:v1.5.1"
 
 	scName = "keos"
 
-	keosClusterChart = "0.1.0-PR50-SNAPSHOT"
-	keosClusterImage = "0.1.0-PR50-SNAPSHOT"
+	keosClusterChart = "0.1.0-M3"
+	keosClusterImage = "0.1.0-M3"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -373,7 +373,7 @@ func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, allo
 	}
 
 	// Wait for calico-system namespace to be created
-	c = "timeout 60s bash -c 'until kubectl --kubeconfig " + kubeconfigPath + " get ns calico-system; do sleep 2s ; done'"
+	c = "timeout 300s bash -c 'until kubectl --kubeconfig " + kubeconfigPath + " get ns calico-system; do sleep 2s ; done'"
 	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
 		return errors.Wrap(err, "failed to wait for calico-system namespace")
