@@ -225,7 +225,7 @@ func (p *Provider) getAllowCAPXEgressIMDSGNetPol() (string, error) {
 	return string(allowEgressIMDSgnpContent), nil
 }
 
-func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry, kubeconfigPath string) error {
+func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry, kubeconfigPath string, firstInstallation bool) error {
 	var c string
 	var err error
 	var jsonDockerRegistriesCredentials []byte
@@ -276,18 +276,21 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 				return errors.Wrap(err, "failed to add helm repository: "+helmRepository.url)
 			}
 		}
-		// Pull cluster operator helm chart
-		c = "helm pull cluster-operator --repo " + helmRepository.url +
-			" --version " + keosClusterChart +
-			" --untar --untardir /stratio/helm"
-		_, err = commons.ExecuteCommand(n, c)
-		if err != nil {
-			return errors.Wrap(err, "failed to pull cluster operator helm chart")
+		if firstInstallation {
+			// Pull cluster operator helm chart
+			c = "helm pull cluster-operator --repo " + helmRepository.url +
+				" --version " + keosClusterChart +
+				" --untar --untardir /stratio/helm"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to pull cluster operator helm chart")
+			}
 		}
+
 	}
 
 	// Create the docker registries credentials secret for keoscluster-controller-manager
-	if clusterCredentials.DockerRegistriesCredentials != nil {
+	if clusterCredentials.DockerRegistriesCredentials != nil && firstInstallation {
 		jsonDockerRegistriesCredentials, err = json.Marshal(clusterCredentials.DockerRegistriesCredentials)
 		if err != nil {
 			return errors.Wrap(err, "failed to marshal docker registries credentials")
