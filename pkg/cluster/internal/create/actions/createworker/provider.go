@@ -278,7 +278,6 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 				return errors.Wrap(err, "failed to pull cluster operator helm chart")
 			}
 		}
-
 	}
 
 	// Create the docker registries credentials secret for keoscluster-controller-manager
