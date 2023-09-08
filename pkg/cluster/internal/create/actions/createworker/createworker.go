@@ -651,7 +651,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to pivot management role to worker cluster")
 			}
 
-			// Wait for metrics-server deployment to be ready
+			// Wait for keoscluster-controller-manager deployment to be ready
 			c = "kubectl --kubeconfig " + kubeconfigPath + " rollout status deploy keoscluster-controller-manager -n kube-system --timeout=5m"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
