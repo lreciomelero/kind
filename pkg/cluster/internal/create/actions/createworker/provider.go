@@ -51,8 +51,8 @@ const (
 
 	scName = "keos"
 
-	keosClusterChart = "0.1.0-PR50-SNAPSHOT"
-	keosClusterImage = "0.1.0-PR50-SNAPSHOT"
+	keosClusterChart = "0.1.0-M4"
+	keosClusterImage = "0.1.0-SNAPSHOT"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -278,7 +278,6 @@ func deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, cluste
 				return errors.Wrap(err, "failed to pull cluster operator helm chart")
 			}
 		}
-
 	}
 
 	// Create the docker registries credentials secret for keoscluster-controller-manager
