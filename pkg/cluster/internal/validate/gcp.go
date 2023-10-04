@@ -40,6 +40,7 @@ var GCPNodeImageFormat = "projects/[PROJECT_ID]/global/images/[IMAGE_NAME]"
 
 func validateGCP(spec commons.Spec, providerSecrets map[string]string) error {
 	var err error
+	var isGKEVersion = regexp.MustCompile(`^v\d.\d{2}.\d{1,2}-gke.\d{3,4}$`).MatchString
 
 	credentialsJson := getGCPCreds(providerSecrets)
 	azs, err := getGoogleAZs(credentialsJson, spec.Region)
@@ -59,12 +60,19 @@ func validateGCP(spec commons.Spec, providerSecrets map[string]string) error {
 	}
 
 	for i, dr := range spec.DockerRegistries {
-		if dr.Type != "generic" {
-			return errors.New("spec.docker_registries[" + strconv.Itoa(i) + "]: Invalid value: \"type\": GCP only supports generic docker registries")
+		if dr.Type != "gar" && dr.Type != "gcr" && spec.ControlPlane.Managed {
+			return errors.New("spec.docker_registries[" + strconv.Itoa(i) + "]: Invalid value: \"type\": only 'gar' and 'gcr' are supported in gcp managed clusters")
+		}
+		if dr.Type != "gar" && dr.Type != "gcr" && dr.Type != "generic" {
+			return errors.New("spec.docker_registries[" + strconv.Itoa(i) + "]: Invalid value: \"type\": only 'gar', 'gcr' and 'generic' are supported in gcp unmanaged clusters")
 		}
 	}
 
-	if !spec.ControlPlane.Managed {
+	if spec.ControlPlane.Managed {
+		if !isGKEVersion(spec.K8SVersion) {
+			return errors.New("spec: Invalid value: \"k8s_version\": must have the format 'v1.27.3-gke-1400'")
+		}
+	} else {
 		if spec.ControlPlane.NodeImage == "" || !isGCPNodeImage(spec.ControlPlane.NodeImage) {
 			return errors.New("spec.control_plane: Invalid value: \"node_image\": is required and have the format " + GCPNodeImageFormat)
 		}
@@ -83,16 +91,19 @@ func validateGCP(spec commons.Spec, providerSecrets map[string]string) error {
 			if err := validateVolumeType(wn.RootVolume.Type, GCPVolumes); err != nil {
 				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
 			}
-			if wn.AZ != "" {
-				if len(azs) > 0 {
-					if !commons.Contains(azs, wn.AZ) {
-						return errors.New(wn.AZ + " does not exist in this region, azs: " + fmt.Sprint(azs))
-					}
-				}
-			}
 			for i, ev := range wn.ExtraVolumes {
 				if err := validateVolumeType(ev.Type, GCPVolumes); err != nil {
 					return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
+				}
+			}
+		}
+	}
+
+	for _, wn := range spec.WorkerNodes {
+		if wn.AZ != "" {
+			if len(azs) > 0 {
+				if !commons.Contains(azs, wn.AZ) {
+					return errors.New(wn.AZ + " does not exist in this region, azs: " + fmt.Sprint(azs))
 				}
 			}
 		}
