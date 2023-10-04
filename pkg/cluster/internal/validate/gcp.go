@@ -46,7 +46,6 @@ func validateGCP(spec commons.Spec, providerSecrets map[string]string) error {
 	if err != nil {
 		return err
 	}
-
 	if (spec.StorageClass != commons.StorageClass{}) {
 		if err = validateGCPStorageClass(spec); err != nil {
 			return errors.Wrap(err, "spec.storageclass: Invalid value")
@@ -77,25 +76,24 @@ func validateGCP(spec commons.Spec, providerSecrets map[string]string) error {
 				return errors.Wrap(err, "spec.control_plane.extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
 			}
 		}
-	}
-	for _, wn := range spec.WorkerNodes {
-
-		if wn.NodeImage == "" || !isGCPNodeImage(wn.NodeImage) {
-			return errors.New("spec.worker_nodes." + wn.Name + ": \"node_image\": is required and have the format " + GCPNodeImageFormat)
-		}
-		if err := validateVolumeType(wn.RootVolume.Type, GCPVolumes); err != nil {
-			return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
-		}
-		if wn.AZ != "" {
-			if len(azs) > 0 {
-				if !commons.Contains(azs, wn.AZ) {
-					return errors.New(wn.AZ + " does not exist in this region, azs: " + fmt.Sprint(azs))
+		for _, wn := range spec.WorkerNodes {
+			if wn.NodeImage == "" || !isGCPNodeImage(wn.NodeImage) {
+				return errors.New("spec.worker_nodes." + wn.Name + ": \"node_image\": is required and have the format " + GCPNodeImageFormat)
+			}
+			if err := validateVolumeType(wn.RootVolume.Type, GCPVolumes); err != nil {
+				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
+			}
+			if wn.AZ != "" {
+				if len(azs) > 0 {
+					if !commons.Contains(azs, wn.AZ) {
+						return errors.New(wn.AZ + " does not exist in this region, azs: " + fmt.Sprint(azs))
+					}
 				}
 			}
-		}
-		for i, ev := range wn.ExtraVolumes {
-			if err := validateVolumeType(ev.Type, GCPVolumes); err != nil {
-				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
+			for i, ev := range wn.ExtraVolumes {
+				if err := validateVolumeType(ev.Type, GCPVolumes); err != nil {
+					return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
+				}
 			}
 		}
 	}

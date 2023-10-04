@@ -50,9 +50,9 @@ func validateCommon(spec commons.Spec) error {
 }
 
 func validateK8SVersion(v string) error {
-	var isVersion = regexp.MustCompile(`^v\d.\d{2}.\d{1,2}$`).MatchString
+	var isVersion = regexp.MustCompile(`^v\d.\d{2}.\d{1,2}(-gke.\d{3,4})?$`).MatchString
 	if !isVersion(v) {
-		return errors.New("spec: Invalid value: \"k8s_version\": must have the format 'v1.24.2'")
+		return errors.New("spec: Invalid value: \"k8s_version\": regex used for validation is '^v\\d.\\d{2}.\\d{1,2}(-gke.\\d{3,4})?$'")
 	}
 	K8sVersionMM := strings.Split(v, ".")
 	a, _ := json.Marshal(k8sVersionSupported)
