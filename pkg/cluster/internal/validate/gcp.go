@@ -190,7 +190,7 @@ func validateGCPNetwork(network commons.Networks, credentialsJson string, region
 			return errors.New("\"vpc_id\": " + network.VPCID + " does not exist")
 		}
 		if len(network.Subnets) != 1 {
-			return errors.New("\"subnet\": when \"vpc_id\" is set" one subnet must be specified")
+			return errors.New("\"subnet\": when \"vpc_id\" is set, one subnet must be specified")
 		}
 		if network.Subnets[0].SubnetId == "" {
 			return errors.New("\"subnet_id\": required")
