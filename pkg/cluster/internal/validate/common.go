@@ -45,6 +45,9 @@ func validateCommon(spec commons.Spec) error {
 	if err = validateVolumes(spec); err != nil {
 		return err
 	}
+	if spec.Offline && !spec.HelmRepository.AuthRequired {
+		return errors.New("spec.helm_repository.auth_required:" + fmt.Sprint(spec.HelmRepository.AuthRequired) + ". Invalid value: if offline " + fmt.Sprint(spec.Offline) + ", spec.helm_repository.auth_required must be true")
+	}
 	return nil
 }
 

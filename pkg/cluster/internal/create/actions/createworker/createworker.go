@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -162,6 +163,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Add imagePullSecrets to infrastructure-components.yaml
 		c = "sed -i '/containers:/i\\      imagePullSecrets:\\n      - name: regcred' " + infraComponents
+		fmt.Println("Add imagePullSecrets to infrastructure-components.yaml. Command: " + c)
 		_, err = commons.ExecuteCommand(n, c)
 
 		if err != nil {

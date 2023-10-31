@@ -40,7 +40,7 @@ var (
 
 // ensureNodeImages ensures that the node images used by the create
 // configuration are present
-func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster) error {
+func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster, helmRepositoryCredentials map[string]string, offline bool) error {
 	// pull each required image
 	for _, image := range common.RequiredNodeImages(cfg).List() {
 		// prints user friendly message
@@ -53,13 +53,13 @@ func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster
 		// build the stratio image
 		status.Start(fmt.Sprintf("Building Stratio image (%s) 📸", "stratio-capi-image:"+strings.Split(friendlyImageName, ":")[1]))
 
-		dockerfileDir, err := ensureStratioImageFiles(logger)
+		dockerfileDir, err := ensureStratioImageFiles(logger, offline)
 		if err != nil {
 			status.End(false)
 			return err
 		}
 
-		err = buildStratioImage(logger, "stratio-capi-image:"+strings.Split(friendlyImageName, ":")[1], dockerfileDir)
+		err = buildStratioImage(logger, "stratio-capi-image:"+strings.Split(friendlyImageName, ":")[1], dockerfileDir, helmRepositoryCredentials, offline)
 		if err != nil {
 			status.End(false)
 			return err
@@ -86,13 +86,16 @@ func pullIfNotPresent(logger log.Logger, image string, retries int) (pulled bool
 
 // ensureStratioImageFiles creates a temporary directory
 // with the Dockerfile required to build the Stratio image
-func ensureStratioImageFiles(logger log.Logger) (dir string, err error) {
+func ensureStratioImageFiles(logger log.Logger, offline bool) (dir string, err error) {
 	dir, err = ioutil.TempDir("", "stratio-")
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create the temp directory")
 	}
-
-	err = os.WriteFile(dir+"/Dockerfile", stratioDockerfile, 0644)
+	if offline {
+		err = os.WriteFile(dir+"/DockerfileOffline", stratioDockerfile, 0644)
+	} else {
+		err = os.WriteFile(dir+"/Dockerfile", stratioDockerfile, 0644)
+	}
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create the Stratio Dockerfile")
 	}
@@ -100,8 +103,14 @@ func ensureStratioImageFiles(logger log.Logger) (dir string, err error) {
 }
 
 // buildStratioImage builds the stratio image
-func buildStratioImage(logger log.Logger, image string, path string) error {
-	cmd := exec.Command("docker", "build", "--tag="+image, path)
+func buildStratioImage(logger log.Logger, image string, path string, helmRepositoryCredentials map[string]string, offline bool) error {
+	cmd := exec.Command("")
+	if offline {
+		cmd = exec.Command("docker", "build", "--tag="+image, "--build-arg HELM_USER_ARG="+helmRepositoryCredentials["User"], "--build-arg HELM_PASS_ARG="+helmRepositoryCredentials["Pass"], "--build-arg HELM_REPO_URL_ARG="+helmRepositoryCredentials["Url"], path)
+	} else {
+		cmd = exec.Command("docker", "build", "--tag="+image, path)
+
+	}
 	if err := cmd.Run(); err != nil {
 		return errors.Wrapf(err, "failed to build image %q", image)
 	}

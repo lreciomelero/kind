@@ -85,6 +85,8 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 	if err := validateProvider(p); err != nil {
 		return err
 	}
+	fmt.Print("opts.KeosCluster.Spec.Offline:  " + fmt.Sprint(opts.KeosCluster.Spec.Offline))
+	fmt.Print("opts.ClusterCredentials.HelmRepositoryCredentials:  " + fmt.Sprint(opts.ClusterCredentials.HelmRepositoryCredentials))
 
 	// default / process options (namely config)
 	if err := fixupOptions(opts); err != nil {
@@ -119,7 +121,7 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 	logger.V(0).Infof("Creating temporary cluster %q ...\n", opts.Config.Name)
 
 	// Create node containers implementing defined config Nodes
-	if err := p.Provision(status, opts.Config); err != nil {
+	if err := p.Provision(status, opts.Config, opts.ClusterCredentials.HelmRepositoryCredentials, opts.KeosCluster.Spec.Offline); err != nil {
 		// In case of errors nodes are deleted (except if retain is explicitly set)
 		if !opts.Retain {
 			_ = delete.Cluster(logger, p, opts.Config.Name, opts.KubeconfigPath)

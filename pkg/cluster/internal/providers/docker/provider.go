@@ -61,10 +61,10 @@ func (p *provider) String() string {
 }
 
 // Provision is part of the providers.Provider interface
-func (p *provider) Provision(status *cli.Status, cfg *config.Cluster) (err error) {
+func (p *provider) Provision(status *cli.Status, cfg *config.Cluster, helmRepositoryCredentials map[string]string, offline bool) (err error) {
 	// TODO: validate cfg
 	// ensure node images are pulled before actually provisioning
-	if err := ensureNodeImages(p.logger, status, cfg); err != nil {
+	if err := ensureNodeImages(p.logger, status, cfg, helmRepositoryCredentials, offline); err != nil {
 		return err
 	}
 
