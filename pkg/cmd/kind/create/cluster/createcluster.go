@@ -187,6 +187,66 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 		return errors.Wrap(err, "failed to validate cluster")
 	}
 
+	if keosCluster.Spec.Offline {
+		// type Params struct {
+		// 	Url  string
+		// 	User string
+		// 	Pass string
+		// }
+		// params := Params{}
+		// var tpl bytes.Buffer
+		// funcMap := template.FuncMap{
+		// 	"hostname": func(s string) string {
+		// 		return strings.Split(s, "/")[0]
+		// 	},
+		// }
+		// templatePath := filepath.Join("offline", "offlineconfig.tmpl")
+		// t, err := template.New("").Funcs(funcMap).ParseFS(clusterConfig, templatePath)
+		// if err != nil {
+		// 	fmt.Println("Error al parsear template:", err)
+		// }
+		// for _, registry := range keosCluster.Spec.DockerRegistries {
+		// 	if registry.KeosRegistry {
+		// 		params = Params{
+		// 			User: clusterCredentials.KeosRegistryCredentials["User"],
+		// 			Pass: clusterCredentials.KeosRegistryCredentials["Pass"],
+		// 			Url:  registry.URL,
+		// 		}
+		// 		break
+		// 	}
+		// }
+		// err = t.ExecuteTemplate(&tpl, "offlineconfig.tmpl", params)
+		// if err != nil {
+		// 	fmt.Println("Error al execute template:", err)
+		// }
+		// content := tpl.String()
+		// // os.Setenv("REGISTRY_NAME", keosCluster.)
+		// tempFile, err := ioutil.TempFile("", "configfile")
+		// if err != nil {
+		// 	fmt.Println("Error al crear el archivo temporal:", err)
+		// }
+		// defer tempFile.Close()
+		// fmt.Println("Nombre del archivo temporal:", tempFile.Name())
+		// // content, _ := clusterConfig.ReadFile("offline/offlineconfig.yaml")
+		// fmt.Println("contenido a escribir: " + string(content))
+		// _, err = tempFile.WriteString(string(content))
+		// if err != nil {
+		// 	fmt.Println("Error al escribir el archivo temporal:", err)
+		// }
+		// contenidoPost, readErr := ioutil.ReadFile(tempFile.Name())
+		// if readErr != nil {
+		// 	fmt.Println("Error al leer el archivo temporal:", readErr)
+		// }
+
+		// // Mostrar el contenido
+		// fmt.Println("Contenido del archivo temporal:" + string(contenidoPost))
+		configFile, err := getConfigFilePath(keosCluster, clusterCredentials)
+		if err != nil {
+			return errors.Wrap(err, "Error getting offline kubeadm config")
+		}
+		flags.Config = configFile
+	}
+
 	if flags.ValidateOnly {
 		fmt.Println("Cluster descriptor is valid")
 		return nil

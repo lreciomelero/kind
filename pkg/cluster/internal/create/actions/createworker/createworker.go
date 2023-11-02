@@ -169,6 +169,17 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 	}
 
+	if a.keosCluster.Spec.Offline {
+
+		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && echo \"  all:\" >> /root/.cluster-api/clusterctl.yaml && echo  \"    repository: " + keosRegistry.url + "\" >> /root/.cluster-api/clusterctl.yaml"
+		_, err = commons.ExecuteCommand(n, c)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to add offline image registry clusterctl config")
+		}
+
+	}
+
 	err = provider.installCAPXLocal(n)
 	if err != nil {
 		return err

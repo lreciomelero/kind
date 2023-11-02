@@ -46,9 +46,10 @@ var denyAllEgressIMDSgnpFiles embed.FS
 var allowEgressIMDSgnpFiles embed.FS
 
 const (
-	CAPICoreProvider         = "cluster-api:v1.5.1"
-	CAPIBootstrapProvider    = "kubeadm:v1.5.1"
-	CAPIControlPlaneProvider = "kubeadm:v1.5.1"
+	CAPICoreProvider         = "cluster-api"
+	CAPIBootstrapProvider    = "kubeadm"
+	CAPIControlPlaneProvider = "kubeadm"
+	CAPIVersion              = "v1.5.1"
 
 	scName = "keos"
 
@@ -312,6 +313,9 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 		" --set app.containers.controllerManager.image.tag=" + clusterOperatorImage +
 		" --set app.containers.controllerManager.image.registry=" + keosRegistry.url +
 		" --set app.containers.controllerManager.image.repository=stratio/cluster-operator"
+	if keosCluster.Spec.Offline {
+		c += " --set app.containers.kubeRbacProxy.image=" + keosRegistry.url + "/kube-rbac-proxy:v0.13.1"
+	}
 	if keosCluster.Spec.InfraProvider == "azure" {
 		c += " --set secrets.azure.clientIDBase64=" + strings.Split(p.capxEnvVars[1], "AZURE_CLIENT_ID_B64=")[1] +
 			" --set secrets.azure.clientSecretBase64=" + strings.Split(p.capxEnvVars[0], "AZURE_CLIENT_SECRET_B64=")[1] +
@@ -483,9 +487,9 @@ func (p *Provider) installCAPXWorker(n nodes.Node, kubeconfigPath string, allowA
 
 	// Install CAPX in worker cluster
 	c = "clusterctl --kubeconfig " + kubeconfigPath + " init --wait-providers" +
-		" --core " + CAPICoreProvider +
-		" --bootstrap " + CAPIBootstrapProvider +
-		" --control-plane " + CAPIControlPlaneProvider +
+		" --core " + CAPICoreProvider + ":" + CAPIVersion +
+		" --bootstrap " + CAPIBootstrapProvider + ":" + CAPIVersion +
+		" --control-plane " + CAPIControlPlaneProvider + ":" + CAPIVersion +
 		" --infrastructure " + p.capxProvider + ":" + p.capxVersion
 	_, err = commons.ExecuteCommand(n, c, p.capxEnvVars)
 	if err != nil {
@@ -537,9 +541,9 @@ func (p *Provider) installCAPXLocal(n nodes.Node) error {
 	}
 
 	c = "clusterctl init --wait-providers" +
-		" --core " + CAPICoreProvider +
-		" --bootstrap " + CAPIBootstrapProvider +
-		" --control-plane " + CAPIControlPlaneProvider +
+		" --core " + CAPICoreProvider + ":" + CAPIVersion +
+		" --bootstrap " + CAPIBootstrapProvider + ":" + CAPIVersion +
+		" --control-plane " + CAPIControlPlaneProvider + ":" + CAPIVersion +
 		" --infrastructure " + p.capxProvider + ":" + p.capxVersion
 	_, err = commons.ExecuteCommand(n, c, p.capxEnvVars)
 	if err != nil {
