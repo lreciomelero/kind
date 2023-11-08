@@ -188,7 +188,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 	}
 
 	if keosCluster.Spec.Offline {
-		configFile, err := getConfigFilePath(keosCluster, clusterCredentials)
+		configFile, err := getConfigFile(keosCluster, clusterCredentials)
 		if err != nil {
 			return errors.Wrap(err, "Error getting offline kubeadm config")
 		}

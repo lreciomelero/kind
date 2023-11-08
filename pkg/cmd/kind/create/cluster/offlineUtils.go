@@ -20,7 +20,7 @@ type RegistryParams struct {
 	Pass string
 }
 
-func getConfigFilePath(keosCluster *commons.KeosCluster, clusterCredentials commons.ClusterCredentials) (string, error) {
+func getConfigFile(keosCluster *commons.KeosCluster, clusterCredentials commons.ClusterCredentials) (string, error) {
 	registryParams := RegistryParams{}
 
 	var tpl bytes.Buffer

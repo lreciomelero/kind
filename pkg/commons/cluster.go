@@ -47,7 +47,7 @@ type Metadata struct {
 type Spec struct {
 	DeployAutoscaler bool `yaml:"deploy_autoscaler" validate:"boolean"`
 
-	Offline bool `yaml:"offline" validate:"boolean"`
+	Offline bool `yaml:"offline,omitempty" validate:"boolean"`
 
 	Bastion Bastion `yaml:"bastion,omitempty"`
 

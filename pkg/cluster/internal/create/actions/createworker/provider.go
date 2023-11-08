@@ -314,7 +314,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 		" --set app.containers.controllerManager.image.registry=" + keosRegistry.url +
 		" --set app.containers.controllerManager.image.repository=stratio/cluster-operator"
 	if keosCluster.Spec.Offline {
-		c += " --set app.containers.kubeRbacProxy.image=" + keosRegistry.url + "/kube-rbac-proxy:v0.13.1"
+		c += " --set app.containers.kubeRbacProxy.image=" + keosRegistry.url + "/stratio/kube-rbac-proxy:v0.13.1"
 	}
 	if keosCluster.Spec.InfraProvider == "azure" {
 		c += " --set secrets.azure.clientIDBase64=" + strings.Split(p.capxEnvVars[1], "AZURE_CLIENT_ID_B64=")[1] +

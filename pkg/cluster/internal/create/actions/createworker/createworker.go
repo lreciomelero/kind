@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -54,6 +55,8 @@ const (
 	cloudProviderBackupPath = "/kind/backup/objects"
 	localBackupPath         = "backup"
 	manifestsPath           = "/kind/manifests"
+	cniDefaultFile          = "/kind/manifests/default-cni.yaml"
+	storageDefaultPath      = "/kind/manifests/default-storage.yaml"
 )
 
 var PathsToBackupLocally = []string{
@@ -107,9 +110,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
 
-	ctx.Status.Start("Installing CAPx 🎖️")
-	defer ctx.Status.End(false)
-
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
 		if registry.KeosRegistry {
 			keosRegistry.url = registry.URL
@@ -117,6 +117,32 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			continue
 		}
 	}
+
+	if a.keosCluster.Spec.Offline {
+		ctx.Status.Start("Installing Offline CNI 🎖️")
+		defer ctx.Status.End(false)
+		c = `sed -i 's/@sha256:[[:alnum:]_-].*$//g' ` + cniDefaultFile
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			fmt.Println("error: " + err.Error())
+		}
+		c = `sed -i 's|docker.io|` + keosRegistry.url + `|g' /kind/manifests/default-cni.yaml`
+		_, err = commons.ExecuteCommand(n, c)
+		c = `sed -i 's/{{ .PodSubnet }}/10.244.0.0\/16/g' /kind/manifests/default-cni.yaml`
+		_, err = commons.ExecuteCommand(n, c)
+		c = `cat /kind/manifests/default-cni.yaml | kubectl apply -f -`
+		_, err = commons.ExecuteCommand(n, c)
+		ctx.Status.End(true)
+
+		ctx.Status.Start("Deleting local storage plugin 🎖️")
+		defer ctx.Status.End(false)
+		c = `kubectl delete -f ` + storageDefaultPath + ` --force`
+		_, err = commons.ExecuteCommand(n, c)
+		ctx.Status.End(true)
+	}
+
+	ctx.Status.Start("Installing CAPx 🎖️")
+	defer ctx.Status.End(false)
 
 	if keosRegistry.registryType != "generic" {
 		keosRegistry.user, keosRegistry.pass, err = infra.getRegistryCredentials(providerParams, keosRegistry.url)
@@ -171,7 +197,22 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	if a.keosCluster.Spec.Offline {
 
-		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && echo \"  all:\" >> /root/.cluster-api/clusterctl.yaml && echo  \"    repository: " + keosRegistry.url + "\" >> /root/.cluster-api/clusterctl.yaml"
+		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  cluster-api:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  bootstrap-kubeadm:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  control-plane-kubeadm:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-aws:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api-aws\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-gcp:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml "
+
 		_, err = commons.ExecuteCommand(n, c)
 
 		if err != nil {

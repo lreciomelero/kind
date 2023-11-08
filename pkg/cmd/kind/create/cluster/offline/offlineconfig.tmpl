@@ -1,5 +1,7 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
 nodes:
 - role: control-plane
 containerdConfigPatches:
@@ -17,4 +19,4 @@ kubeadmConfigPatches:
     - |
       apiVersion: kubeadm.k8s.io/v1beta3
       kind: ClusterConfiguration
-      imageRepository: {{ .Url }}
+      imageRepository: {{ .Url }}/core
