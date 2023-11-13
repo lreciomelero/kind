@@ -64,7 +64,7 @@ Este flavour no permite especificar ninguna imágen custom, y despliega por defe
 
 === Consideraciones para imágenes
 
-Si nos referimos al control-plane, y como es evidente, en EKS y AKS no se podrá indicar una imágen, pero en Azure no-gestionado y en GCP si, siendo obligatorio para este último caso.
+Si nos referimos al control-plane, y como es evidente, en EKS y AKS no se podrá indicar una imagen, pero en Azure no-gestionado y en GCP si, siendo obligatorio para este último caso.
 
 Para los nodos workers, es opcional en todos los casos (al no indicarla, el controller asigna una disponibilizada por el _cloud provider_) menos GCP, donde también será obligatorio especificarla ya que no disponibiliza ninguna imágen.
 
@@ -103,9 +103,28 @@ La cabecera de este descriptor será la misma que la de cualquier objeto de Kube
 ----
 apiVersion: installer.stratio.com/v1beta1
 kind: KeosCluster
+metadata:
 spec:
+status:
 ----
+=== _metadata_
 
+El _metadata_ de KeosCluster está dispuesto por los siguientes campos:
+[cols="1,4,2,1"]
+|===
+^|Nombre ^|Descripción ^|Ejemplo ^|Opcional
+
+|name
+|Nombre del _cluster_.
+|my-cluster
+|No
+
+|namespace
+|namespace donde se despliegarán todos los recursos del _cluster_.  Por defecto, _cluster$$_$$[metadata.name]_.
+|_cluster$$_$$my-cluster_
+|Si
+
+|===
 === _spec_
 
 El _spec_ del _KeosCluster_ está compuesto por los siguientes campos:
@@ -113,11 +132,6 @@ El _spec_ del _KeosCluster_ está compuesto por los siguientes campos:
 [cols="1,4,2,1"]
 |===
 ^|Nombre ^|Descripción ^|Ejemplo ^|Opcional
-
-|cluster$$_$$id
-|Nombre del _cluster_.
-|my-cluster
-|No
 
 |infra$$_$$provider
 |Nombre del _cloud provider_ (AWS o GCP).
@@ -345,6 +359,14 @@ root_volume:
 |Sí
 
 |===
+
+=== _status_
+
+El _status_ de KeosCluster está dispuesto por los siguientes campos:
+
+
+
+
 
 === _Stratio KEOS_
 
