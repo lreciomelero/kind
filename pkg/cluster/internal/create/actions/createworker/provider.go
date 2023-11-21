@@ -53,8 +53,8 @@ const (
 
 	scName = "keos"
 
-	clusterOperatorChart = "0.2.0-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-SNAPSHOT"
+	clusterOperatorChart = "0.2.0-PR138-SNAPSHOT"
+	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT2"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -69,7 +69,7 @@ type PBuilder interface {
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
 	installCloudProvider(n nodes.Node, k string, keosCluster commons.KeosCluster) error
-	installCSI(n nodes.Node, k string) error
+	installCSI(n nodes.Node, k string, CSIParams CSIParams) error
 	getProvider() Provider
 	configureStorageClass(n nodes.Node, k string) error
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
@@ -128,6 +128,11 @@ type helmRepository struct {
 	pass string
 }
 
+type CSIParams struct {
+	Spec       commons.Spec
+	KeosRegUrl string
+}
+
 var scTemplate = DefaultStorageClass{
 	APIVersion: "storage.k8s.io/v1",
 	Kind:       "StorageClass",
@@ -176,8 +181,8 @@ func (i *Infra) installCloudProvider(n nodes.Node, k string, keosCluster commons
 	return i.builder.installCloudProvider(n, k, keosCluster)
 }
 
-func (i *Infra) installCSI(n nodes.Node, k string) error {
-	return i.builder.installCSI(n, k)
+func (i *Infra) installCSI(n nodes.Node, k string, CSIParams CSIParams) error {
+	return i.builder.installCSI(n, k, CSIParams)
 }
 
 func (i *Infra) configureStorageClass(n nodes.Node, k string) error {
@@ -351,15 +356,22 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 	return nil
 }
 
-func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, allowCommonEgressNetPolPath string) error {
+func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, keosRegistryUrl string, allowCommonEgressNetPolPath string) error {
 	var c string
 	var cmd exec.Cmd
 	var err error
 
 	calicoTemplate := "/kind/calico-helm-values.yaml"
 
+	calicoParams := struct {
+		Spec       commons.Spec
+		KeosRegUrl string
+	}{
+		Spec:       keosCluster.Spec,
+		KeosRegUrl: keosRegistryUrl,
+	}
 	// Generate the calico helm values
-	calicoHelmValues, err := getManifest("common", "calico-helm-values.tmpl", keosCluster.Spec)
+	calicoHelmValues, err := getManifest("common", "calico-helm-values.tmpl", calicoParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate calico helm values")
 	}

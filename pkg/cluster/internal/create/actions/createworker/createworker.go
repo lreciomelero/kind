@@ -234,8 +234,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-aws:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-aws\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    tag: v2.2.1\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-gcp:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    tag: v1.4.0\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -245,6 +247,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		if err != nil {
 			return errors.Wrap(err, "failed to add offline image registry clusterctl config")
+		}
+
+		c = `sed -i 's/@sha256:[[:alnum:]_-].*$//g' /root/.cluster-api/local-repository/infrastructure-gcp/v1.4.0/infrastructure-components.yaml`
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			fmt.Println("error: " + err.Error())
 		}
 
 	}
@@ -374,7 +382,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, a.keosCluster, allowCommonEgressNetPolPath)
+			err = installCalico(n, kubeconfigPath, a.keosCluster, keosRegistry.url, allowCommonEgressNetPolPath)
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
@@ -383,7 +391,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing CSI in workload cluster 💾")
 			defer ctx.Status.End(false)
 
-			err = infra.installCSI(n, kubeconfigPath)
+			csiParams := CSIParams{
+				Spec:       a.keosCluster.Spec,
+				KeosRegUrl: keosRegistry.url,
+			}
+
+			err = infra.installCSI(n, kubeconfigPath, csiParams)
 			if err != nil {
 				return errors.Wrap(err, "failed to install CSI in workload cluster")
 			}
@@ -488,6 +501,33 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
 		defer ctx.Status.End(false)
 
+		if a.keosCluster.Spec.Offline {
+			c = "kubectl create --kubeconfig " + kubeconfigPath + " -f " + CAPILocalRepository + "/cert-manager/" + certManagerVersion + "/cert-manager.crds.yaml"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to create cert-manager crds")
+			}
+
+			c = "kubectl create --kubeconfig " + kubeconfigPath + " ns cert-manager"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to create cert-manager namespace")
+			}
+
+			c = "helm install --wait cert-manager /stratio/helm/cert-manager --kubeconfig " + kubeconfigPath +
+				" --set namespace=cert-manager" +
+				" --set cainjector.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-cainjector" +
+				" --set webhook.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-webhook" +
+				" --set acmesolver.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-acmesolver" +
+				" --set startupapicheck.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-ctl" +
+				" --set image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-controller"
+
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
+			}
+		}
+
 		err = provider.installCAPXWorker(n, kubeconfigPath, allowCommonEgressNetPolPath)
 		if err != nil {
 			return err
@@ -534,7 +574,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			// Use Calico as network policy engine in managed systems
 			if a.keosCluster.Spec.ControlPlane.Managed {
 
-				err = installCalico(n, kubeconfigPath, a.keosCluster, allowCommonEgressNetPolPath)
+				err = installCalico(n, kubeconfigPath, a.keosCluster, keosRegistry.url, allowCommonEgressNetPolPath)
 				if err != nil {
 					return errors.Wrap(err, "failed to install Network Policy Engine in workload cluster")
 				}
@@ -600,6 +640,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				" --set cloudProvider=clusterapi" +
 				" --set clusterAPIMode=incluster-incluster" +
 				" --set replicaCount=2"
+
+			if a.keosCluster.Spec.Offline {
+				c += " --set image.repository=" + keosRegistry.url + "/autoscaling/cluster-autoscaler"
+			}
 
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {

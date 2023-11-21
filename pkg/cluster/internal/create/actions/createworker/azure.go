@@ -139,7 +139,7 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, keosCluster 
 	return nil
 }
 
-func (b *AzureBuilder) installCSI(n nodes.Node, k string) error {
+func (b *AzureBuilder) installCSI(n nodes.Node, k string, CSIParams CSIParams) error {
 	var c string
 	var err error
 

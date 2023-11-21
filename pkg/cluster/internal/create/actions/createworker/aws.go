@@ -132,7 +132,7 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, keosCluster co
 	return nil
 }
 
-func (b *AWSBuilder) installCSI(n nodes.Node, k string) error {
+func (b *AWSBuilder) installCSI(n nodes.Node, k string, CSIParams CSIParams) error {
 	c := "helm install aws-ebs-csi-driver /stratio/helm/aws-ebs-csi-driver" +
 		" --kubeconfig " + k +
 		" --namespace " + b.csiNamespace
