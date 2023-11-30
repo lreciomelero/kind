@@ -54,7 +54,7 @@ const (
 	scName = "keos"
 
 	clusterOperatorChart = "0.2.0-PR138-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT2"
+	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT3"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -68,8 +68,8 @@ type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
-	installCloudProvider(n nodes.Node, k string, keosCluster commons.KeosCluster) error
-	installCSI(n nodes.Node, k string, CSIParams CSIParams) error
+	installCloudProvider(n nodes.Node, k string, offlineParams OfflineParams) error
+	installCSI(n nodes.Node, k string, OfflineParams OfflineParams) error
 	getProvider() Provider
 	configureStorageClass(n nodes.Node, k string) error
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
@@ -128,9 +128,9 @@ type helmRepository struct {
 	pass string
 }
 
-type CSIParams struct {
-	Spec       commons.Spec
-	KeosRegUrl string
+type OfflineParams struct {
+	KeosCluster commons.KeosCluster
+	KeosRegUrl  string
 }
 
 var scTemplate = DefaultStorageClass{
@@ -177,12 +177,12 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 	return i.builder.getProvider()
 }
 
-func (i *Infra) installCloudProvider(n nodes.Node, k string, keosCluster commons.KeosCluster) error {
-	return i.builder.installCloudProvider(n, k, keosCluster)
+func (i *Infra) installCloudProvider(n nodes.Node, k string, offlineParams OfflineParams) error {
+	return i.builder.installCloudProvider(n, k, offlineParams)
 }
 
-func (i *Infra) installCSI(n nodes.Node, k string, CSIParams CSIParams) error {
-	return i.builder.installCSI(n, k, CSIParams)
+func (i *Infra) installCSI(n nodes.Node, k string, offlineParams OfflineParams) error {
+	return i.builder.installCSI(n, k, offlineParams)
 }
 
 func (i *Infra) configureStorageClass(n nodes.Node, k string) error {
@@ -236,6 +236,20 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 	var err error
 	var helmRepository helmRepository
 
+	if firstInstallation && keosCluster.Spec.InfraProvider == "aws" {
+		c = "mkdir -p ~/.aws"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create aws config file")
+		}
+		c = "echo [default] > ~/.aws/config && " +
+			"echo region = " + keosCluster.Spec.Region + " >>  ~/.aws/config"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create aws config file")
+		}
+	}
+
 	if kubeconfigPath == "" {
 		// Clean keoscluster file
 		keosCluster.Spec.Credentials = commons.Credentials{}
@@ -285,6 +299,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 		}
 
 		if firstInstallation {
+
 			// Pull cluster-operator helm chart
 			c = "helm pull stratio-helm-repo/cluster-operator --version " + clusterOperatorChart +
 				" --untar --untardir /stratio/helm"
@@ -556,7 +571,8 @@ func (p *Provider) installCAPXLocal(n nodes.Node) error {
 		" --core " + CAPICoreProvider + ":" + CAPIVersion +
 		" --bootstrap " + CAPIBootstrapProvider + ":" + CAPIVersion +
 		" --control-plane " + CAPIControlPlaneProvider + ":" + CAPIVersion +
-		" --infrastructure " + p.capxProvider + ":" + p.capxVersion
+		" --infrastructure " + p.capxProvider + ":" + p.capxVersion +
+		" --v=5"
 	_, err = commons.ExecuteCommand(n, c, p.capxEnvVars)
 	if err != nil {
 		return errors.Wrap(err, "failed to install CAPX in local cluster")

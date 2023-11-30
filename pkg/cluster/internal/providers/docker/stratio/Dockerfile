@@ -1,4 +1,6 @@
-FROM kindest/node:v1.27.0
+ARG DOCKER_REG=docker.io
+ARG IMAGE_VERSION=v1.27.0
+FROM ${DOCKER_REG}/kindest/node:${IMAGE_VERSION}
 
 # Init feature gates
 ENV CLUSTER_TOPOLOGY=true
@@ -27,7 +29,7 @@ ENV CAPZ=v1.11.4
 
 # Install vim
 RUN apt-get update && apt-get install -y \
-  vim \
+  vim python3-pip git \
   && rm -rf /var/lib/apt/lists/*
 
 # Add aliases
@@ -51,7 +53,8 @@ RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases
 RUN curl -L https://get.helm.sh/helm-${HELM}-linux-amd64.tar.gz -o /root/helm.tar.gz \
   && tar -xf /root/helm.tar.gz -C /root && mv /root/linux-amd64/helm /usr/local/bin/helm \
   && rm -rf /root/linux-amd64 /root/helm.tar.gz \
-  && chmod +x /usr/local/bin/helm 
+  && chmod +x /usr/local/bin/helm \
+  && helm plugin install https://github.com/hypnoglow/helm-s3.git
 
 RUN mkdir -p ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION} \
     && curl -LJ -o ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION}/cert-manager.crds.yaml  https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.crds.yaml

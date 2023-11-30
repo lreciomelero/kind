@@ -301,6 +301,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	defer ctx.Status.End(true) // End installing keos cluster operator
 
 	if !a.avoidCreation {
+
+		offlineParams := OfflineParams{
+			KeosCluster: a.keosCluster,
+			KeosRegUrl:  keosRegistry.url,
+		}
+
 		if a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.Security.AWS.CreateIAM {
 			ctx.Status.Start("[CAPA] Ensuring IAM security 👮")
 			defer ctx.Status.End(false)
@@ -372,7 +378,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				ctx.Status.Start("Installing cloud-provider in workload cluster ☁️")
 				defer ctx.Status.End(false)
 
-				err = infra.installCloudProvider(n, kubeconfigPath, a.keosCluster)
+				err = infra.installCloudProvider(n, kubeconfigPath, offlineParams)
 				if err != nil {
 					return errors.Wrap(err, "failed to install external cloud-provider in workload cluster")
 				}
@@ -391,12 +397,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing CSI in workload cluster 💾")
 			defer ctx.Status.End(false)
 
-			csiParams := CSIParams{
-				Spec:       a.keosCluster.Spec,
-				KeosRegUrl: keosRegistry.url,
+			offlineParams := OfflineParams{
+				KeosCluster: a.keosCluster,
+				KeosRegUrl:  keosRegistry.url,
 			}
 
-			err = infra.installCSI(n, kubeconfigPath, csiParams)
+			err = infra.installCSI(n, kubeconfigPath, offlineParams)
 			if err != nil {
 				return errors.Wrap(err, "failed to install CSI in workload cluster")
 			}
