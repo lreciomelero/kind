@@ -793,10 +793,10 @@ func getManifest(parentPath string, name string, params interface{}) (string, er
 }
 
 func patchDeploy(n nodes.Node, k string, ns string, deployName string, patch string) error {
-	c := "kubectl --kubeconfig " + k + " patch deploy -n " + ns + " " + deployName + " -p " + patch
+	c := "kubectl --kubeconfig " + k + " patch deploy -n " + ns + " " + deployName + " -p '" + patch + "'"
 	_, err := commons.ExecuteCommand(n, c)
 	if err != nil {
-		return errors.Wrap(err, "failed to add podAnnotation to coredns")
+		return err
 	}
 	return rolloutStatus(n, k, ns, deployName)
 }

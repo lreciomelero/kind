@@ -136,7 +136,7 @@ func (b *AWSBuilder) installCSI(n nodes.Node, k string) error {
 	c := "helm install aws-ebs-csi-driver /stratio/helm/aws-ebs-csi-driver" +
 		" --kubeconfig " + k +
 		" --namespace " + b.csiNamespace +
-		" --set controller.podAnnotations={\"" + postInstallAnnotation + "\":" + " \"socket-dir\"}"
+		" --set controller.podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict-local-volumes=socket-dir\""
 	_, err := commons.ExecuteCommand(n, c)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy AWS EBS CSI driver Helm Chart")
