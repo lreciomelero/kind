@@ -59,6 +59,8 @@ const (
 
 	keosClusterChart = "0.1.4"
 	keosClusterImage = "0.1.4"
+
+	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -79,6 +81,7 @@ type PBuilder interface {
 	getAzs(p ProviderParams, networks commons.Networks) ([]string, error)
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
 	getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error)
+	postInstallPhase(n nodes.Node, k string) error
 }
 
 type Provider struct {
@@ -131,6 +134,11 @@ type helmRepository struct {
 	url  string
 	user string
 	pass string
+}
+
+type calicoHelmParams struct {
+	Spec        commons.Spec
+	Annotations map[string]string
 }
 
 var scTemplate = DefaultStorageClass{
@@ -199,6 +207,10 @@ func (i *Infra) getOverrideVars(p ProviderParams, networks commons.Networks) (ma
 
 func (i *Infra) getAzs(p ProviderParams, networks commons.Networks) ([]string, error) {
 	return i.builder.getAzs(p, networks)
+}
+
+func (i *Infra) postInstallPhase(n nodes.Node, k string) error {
+	return i.builder.postInstallPhase(n, k)
 }
 
 func (p *Provider) getDenyAllEgressIMDSGNetPol() (string, error) {
@@ -363,8 +375,15 @@ func installCalico(n nodes.Node, k string, keosCluster commons.KeosCluster, allo
 
 	calicoTemplate := "/kind/calico-helm-values.yaml"
 
+	calicoHelmParams := calicoHelmParams{
+		Spec: keosCluster.Spec,
+		Annotations: map[string]string{
+			postInstallAnnotation: "var-lib-calico",
+		},
+	}
+
 	// Generate the calico helm values
-	calicoHelmValues, err := getManifest("common", "calico-helm-values.tmpl", keosCluster.Spec)
+	calicoHelmValues, err := getManifest("common", "calico-helm-values.tmpl", calicoHelmParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate calico helm values")
 	}
@@ -879,4 +898,19 @@ func getManifest(parentPath string, name string, params interface{}) (string, er
 		return "", err
 	}
 	return tpl.String(), nil
+}
+
+func patchDeploy(n nodes.Node, k string, ns string, deployName string, patch string) error {
+	c := "kubectl --kubeconfig " + k + " patch deploy -n " + ns + " " + deployName + " -p '" + patch + "'"
+	_, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		return err
+	}
+	return rolloutStatus(n, k, ns, deployName)
+}
+
+func rolloutStatus(n nodes.Node, k string, ns string, deployName string) error {
+	c := "kubectl --kubeconfig " + k + " rollout status deploy -n " + ns + " " + deployName + " --timeout=5m"
+	_, err := commons.ExecuteCommand(n, c)
+	return err
 }
