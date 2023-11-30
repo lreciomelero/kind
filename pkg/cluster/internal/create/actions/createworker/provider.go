@@ -802,7 +802,7 @@ func patchDeploy(n nodes.Node, k string, ns string, deployName string, patch str
 }
 
 func rolloutStatus(n nodes.Node, k string, ns string, deployName string) error {
-	c := "kubectl --kubeconfig " + k + " rollout status deploy -n " + ns + " " + deployName + " --timeout=1m"
+	c := "kubectl --kubeconfig " + k + " rollout status deploy -n " + ns + " " + deployName + " --timeout=5m"
 	_, err := commons.ExecuteCommand(n, c)
 	return err
 }
