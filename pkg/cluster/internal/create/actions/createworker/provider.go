@@ -922,7 +922,7 @@ func rolloutStatus(n nodes.Node, k string, ns string, deployName string) error {
 func installCorednsPdb(n nodes.Node, k string) error {
 
 	// Define PodDisruptionBudget for coredns service
-	corednsPDBLocalPath := "files/commons/coredns_pdb.yaml"
+	corednsPDBLocalPath := "files/common/coredns_pdb.yaml"
 	corednsPDB, err := getcapxPDB(corednsPDBLocalPath)
 	if err != nil {
 		return err
