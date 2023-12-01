@@ -48,7 +48,7 @@ var denyAllEgressIMDSgnpFiles embed.FS
 var allowEgressIMDSgnpFiles embed.FS
 
 //go:embed files/*/*_pdb.yaml
-var capxPDBFile embed.FS
+var commonsPDBFile embed.FS
 
 const (
 	CAPICoreProvider         = "cluster-api:v1.5.1"
@@ -61,6 +61,7 @@ const (
 	keosClusterImage = "0.1.4"
 
 	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
+	corednsPdbPath        = "/kind/coredns-pdb.yaml"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -210,6 +211,10 @@ func (i *Infra) getAzs(p ProviderParams, networks commons.Networks) ([]string, e
 }
 
 func (i *Infra) postInstallPhase(n nodes.Node, k string) error {
+	err := installCorednsPdb(n, k)
+	if err != nil {
+		return err
+	}
 	return i.builder.postInstallPhase(n, k)
 }
 
@@ -243,14 +248,13 @@ func (p *Provider) getAllowCAPXEgressIMDSGNetPol() (string, error) {
 	return string(allowEgressIMDSgnpContent), nil
 }
 
-func (p *Provider) getcapxPDB() (string, error) {
-	capxPDBLocalPath := "files/" + p.capxProvider + "/" + p.capxName + "_pdb.yaml"
-	capxPDBFile, err := capxPDBFile.Open(capxPDBLocalPath)
+func getcapxPDB(commonsPDBLocalPath string) (string, error) {
+	commonsPDBFile, err := commonsPDBFile.Open(commonsPDBLocalPath)
 	if err != nil {
 		return "", errors.Wrap(err, "error opening the PodDisruptionBudget file")
 	}
-	defer capxPDBFile.Close()
-	capaPDBContent, err := ioutil.ReadAll(capxPDBFile)
+	defer commonsPDBFile.Close()
+	capaPDBContent, err := ioutil.ReadAll(commonsPDBFile)
 	if err != nil {
 		return "", err
 	}
@@ -540,8 +544,8 @@ func (p *Provider) installCAPXWorker(n nodes.Node, kubeconfigPath string, allowA
 	}
 
 	// Define PodDisruptionBudget for capa service
-
-	capxPDB, err := p.getcapxPDB()
+	capxPDBLocalPath := "files/" + p.capxProvider + "/" + p.capxName + "_pdb.yaml"
+	capxPDB, err := getcapxPDB(capxPDBLocalPath)
 	if err != nil {
 		return err
 	}
@@ -913,4 +917,27 @@ func rolloutStatus(n nodes.Node, k string, ns string, deployName string) error {
 	c := "kubectl --kubeconfig " + k + " rollout status deploy -n " + ns + " " + deployName + " --timeout=5m"
 	_, err := commons.ExecuteCommand(n, c)
 	return err
+}
+
+func installCorednsPdb(n nodes.Node, k string) error {
+
+	// Define PodDisruptionBudget for coredns service
+	corednsPDBLocalPath := "files/commons/coredns_pdb.yaml"
+	corednsPDB, err := getcapxPDB(corednsPDBLocalPath)
+	if err != nil {
+		return err
+	}
+
+	c := "echo \"" + corednsPDB + "\" > " + corednsPdbPath
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create coredns PodDisruptionBudget file")
+	}
+
+	c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + corednsPdbPath
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to apply coredns PodDisruptionBudget")
+	}
+	return nil
 }
