@@ -15,8 +15,3 @@ containerdConfigPatches:
           [plugins."io.containerd.grpc.v1.cri".registry.configs."{{ $host }}".auth]
             username = "{{ .User }}"
             password = "{{ .Pass }}"
-kubeadmConfigPatches:
-    - |
-      apiVersion: kubeadm.k8s.io/v1beta3
-      kind: ClusterConfiguration
-      imageRepository: {{ .Url }}/core

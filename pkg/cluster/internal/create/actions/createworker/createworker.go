@@ -197,32 +197,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	if a.keosCluster.Spec.Offline {
-		// Es necesario meter el chart de cert-manager para que no lo instale clusterctl al hacer el init. verá que está y no lo añade
-		// clusterctl descarga por defecto el manifiesto de cert-manager de github y luego le mete el repository para las imagenes pero no se le puede indicar el manifiesto
-		// por ello en el offline, necesita tener descargado el manifest
-		c = "kubectl create -f " + CAPILocalRepository + "/cert-manager/" + certManagerVersion + "/cert-manager.crds.yaml" //cuando sea en cluster workload habrá que meterle el kubeconfig
-		_, err = commons.ExecuteCommand(n, c)
-		if err != nil {
-			return errors.Wrap(err, "failed to create cert-manager crds")
-		}
 
-		c = "kubectl create ns cert-manager"
-		_, err = commons.ExecuteCommand(n, c)
+		err = provider.deployCertManager(n, keosRegistry.url, "")
 		if err != nil {
-			return errors.Wrap(err, "failed to create cert-manager namespace")
-		}
-
-		c = "helm install --wait cert-manager /stratio/helm/cert-manager" + //cuando sea en cluster workload habrá que meterle el kubeconfig
-			" --set namespace=cert-manager" +
-			" --set cainjector.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-cainjector" +
-			" --set webhook.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-webhook" +
-			" --set acmesolver.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-acmesolver" +
-			" --set startupapicheck.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-ctl" +
-			" --set image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-controller"
-
-		_, err = commons.ExecuteCommand(n, c)
-		if err != nil {
-			return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
+			return err
 		}
 
 		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -508,29 +486,9 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		defer ctx.Status.End(false)
 
 		if a.keosCluster.Spec.Offline {
-			c = "kubectl create --kubeconfig " + kubeconfigPath + " -f " + CAPILocalRepository + "/cert-manager/" + certManagerVersion + "/cert-manager.crds.yaml"
-			_, err = commons.ExecuteCommand(n, c)
+			err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath)
 			if err != nil {
-				return errors.Wrap(err, "failed to create cert-manager crds")
-			}
-
-			c = "kubectl create --kubeconfig " + kubeconfigPath + " ns cert-manager"
-			_, err = commons.ExecuteCommand(n, c)
-			if err != nil {
-				return errors.Wrap(err, "failed to create cert-manager namespace")
-			}
-
-			c = "helm install --wait cert-manager /stratio/helm/cert-manager --kubeconfig " + kubeconfigPath +
-				" --set namespace=cert-manager" +
-				" --set cainjector.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-cainjector" +
-				" --set webhook.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-webhook" +
-				" --set acmesolver.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-acmesolver" +
-				" --set startupapicheck.image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-ctl" +
-				" --set image.repository=" + keosRegistry.url + "/cert-manager/cert-manager-controller"
-
-			_, err = commons.ExecuteCommand(n, c)
-			if err != nil {
-				return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
+				return err
 			}
 		}
 

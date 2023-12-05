@@ -54,7 +54,7 @@ const (
 	scName = "keos"
 
 	clusterOperatorChart = "0.2.0-PR138-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT3"
+	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -229,6 +229,44 @@ func (p *Provider) getAllowCAPXEgressIMDSGNetPol() (string, error) {
 	}
 
 	return string(allowEgressIMDSgnpContent), nil
+}
+
+func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string) error {
+	c := "kubectl create -f " + CAPILocalRepository + "/cert-manager/" + certManagerVersion + "/cert-manager.crds.yaml"
+	if kubeconfigPath != "" {
+		c += " --kubeconfig " + kubeconfigPath
+	}
+	_, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cert-manager crds")
+	}
+
+	c = "kubectl create ns cert-manager"
+	if kubeconfigPath != "" {
+		c += " --kubeconfig " + kubeconfigPath
+	}
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cert-manager namespace")
+	}
+
+	c = "helm install --wait cert-manager /stratio/helm/cert-manager" +
+		" --set namespace=cert-manager" +
+		" --set cainjector.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-cainjector" +
+		" --set webhook.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-webhook" +
+		" --set acmesolver.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-acmesolver" +
+		" --set startupapicheck.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-ctl" +
+		" --set image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-controller"
+
+	if kubeconfigPath != "" {
+		c += " --kubeconfig " + kubeconfigPath
+	}
+
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
+	}
+	return nil
 }
 
 func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry, kubeconfigPath string, firstInstallation bool) error {
