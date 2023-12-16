@@ -55,8 +55,8 @@ const (
 
 	scName = "keos"
 
-	clusterOperatorChart = "0.2.0-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-SNAPSHOT"
+	clusterOperatorChart = "0.2.0-PR138-SNAPSHOT"
+	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -254,11 +254,11 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 
 	c = "helm install --wait cert-manager /stratio/helm/cert-manager" +
 		" --set namespace=cert-manager" +
-		" --set cainjector.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-cainjector" +
-		" --set webhook.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-webhook" +
-		" --set acmesolver.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-acmesolver" +
-		" --set startupapicheck.image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-ctl" +
-		" --set image.repository=" + keosRegistryUrl + "/cert-manager/cert-manager-controller"
+		" --set cainjector.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-cainjector" +
+		" --set webhook.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-webhook" +
+		" --set acmesolver.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-acmesolver" +
+		" --set startupapicheck.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-ctl" +
+		" --set image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-controller"
 
 	if kubeconfigPath != "" {
 		c += " --kubeconfig " + kubeconfigPath

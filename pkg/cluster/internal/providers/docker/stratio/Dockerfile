@@ -20,6 +20,7 @@ ENV CLOUD_PROVIDER_AZURE_CHART=v1.28.0
 ENV CLUSTER_AUTOSCALER_CHART=9.29.1
 ENV TIGERA_OPERATOR_CHART=v3.26.1
 ENV CERT_MANAGER_CHART_VERSION=v1.12.3
+ENV CROSSPLANE_CHART=1.14.4
 
 # Cluster-api artifacts
 ENV CAPI_REPO=/root/.cluster-api/local-repository
@@ -31,6 +32,10 @@ ENV CAPZ=v1.11.4
 RUN apt-get update && apt-get install -y \
   vim python3-pip git \
   && rm -rf /var/lib/apt/lists/*
+
+# Install up
+RUN curl -sL "https://cli.upbound.io" | sh \
+    && mv up /usr/bin/
 
 # Add aliases
 RUN echo 'alias k="kubectl"' >> ~/.bash_aliases \
@@ -69,7 +74,8 @@ RUN mkdir -p /stratio/helm \
   && for i in $(seq 1 3); do timeout 5 helm pull cloud-provider-azure --version ${CLOUD_PROVIDER_AZURE_CHART} --repo https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo --untar --untardir /stratio/helm && break; done \
   && for i in $(seq 1 3); do timeout 5 helm pull cluster-autoscaler --version ${CLUSTER_AUTOSCALER_CHART} --repo https://kubernetes.github.io/autoscaler --untar --untardir /stratio/helm && break; done \
   && for i in $(seq 1 3); do timeout 5 helm pull tigera-operator --version ${TIGERA_OPERATOR_CHART} --repo https://docs.projectcalico.org/charts --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull cert-manager --version ${CERT_MANAGER_CHART_VERSION} --repo  https://charts.jetstack.io --untar --untardir /stratio/helm && break; done 
+  && for i in $(seq 1 3); do timeout 5 helm pull cert-manager --version ${CERT_MANAGER_CHART_VERSION} --repo  https://charts.jetstack.io --untar --untardir /stratio/helm && break; done \
+  && for i in $(seq 1 3); do timeout 5 helm pull crossplane --version ${CROSSPLANE_CHART} --repo https://charts.crossplane.io/stable --untar --untardir /stratio/helm && break; done
 
   
 # Prepare cluster-api offline repository

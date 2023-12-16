@@ -140,6 +140,13 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		c = `kubectl delete -f ` + storageDefaultPath + ` --force`
 		_, err = commons.ExecuteCommand(n, c)
 		ctx.Status.End(true)
+
+		ctx.Status.Start("Installing Crossplane 🎖️")
+		err = installCrossplane(n, "", keosRegistry.url)
+		if err != nil {
+			return err
+		}
+		ctx.Status.End(true)
 	}
 
 	ctx.Status.Start("Installing CAPx 🎖️")

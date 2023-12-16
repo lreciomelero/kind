@@ -70,23 +70,16 @@ func ensureNodeImages(logger log.Logger, keosCluster commons.KeosCluster, status
 			return err
 		}
 		stratioImage := "stratio-capi-image:" + strings.Split(friendlyImageName, ":")[1]
-		registry := ""
 		if keosCluster.Spec.Offline {
-			for _, dockReg := range keosCluster.Spec.DockerRegistries {
-				if dockReg.KeosRegistry {
-					registry = dockReg.URL
-					break
-				}
-			}
 			cmd := exec.Command("docker", "inspect", "--type=image", stratioImage)
 			if err := cmd.Run(); err == nil {
 				logger.V(1).Infof("stratioImage: %s present locally", image)
 			} else {
-				err = buildStratioImage(logger, stratioImage, dockerfileDir, stratioImageVersion, registry)
+				err = buildStratioImage(logger, stratioImage, dockerfileDir, stratioImageVersion)
 			}
 
 		} else {
-			err = buildStratioImage(logger, stratioImage, dockerfileDir, stratioImageVersion, registry)
+			err = buildStratioImage(logger, stratioImage, dockerfileDir, stratioImageVersion)
 		}
 		if err != nil {
 			status.End(false)
@@ -129,7 +122,7 @@ func ensureStratioImageFiles(logger log.Logger) (dir string, err error) {
 }
 
 // buildStratioImage builds the stratio image
-func buildStratioImage(logger log.Logger, image string, path string, version string, registry string) error {
+func buildStratioImage(logger log.Logger, image string, path string, version string) error {
 
 	cmd := exec.Command("docker", "build", "--tag="+image, path)
 	if err := cmd.Run(); err != nil {

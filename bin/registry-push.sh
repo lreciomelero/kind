@@ -28,7 +28,7 @@ fi
 new_registry=$(grep -v '^#' "$registry_file" | grep -m 1 .)
 
 # Process all files starting with "images-"
-for images_file in "$directory/images-"*; do
+for images_file in "$directory/imagenes-"*; do
     # Check if the file is readable
     if [ -r "$images_file" ]; then
         echo "Processing file: $images_file with new registry: $new_registry"
@@ -57,7 +57,7 @@ for images_file in "$directory/images-"*; do
             repository_flag_found=false
             ecr_repo="$(echo $new_image | cut -d "/" -f2- | rev | cut -d ":" -f2- | rev)"
             echo "ecr_repo value $ecr_repo"
-            REPO_LIST=$(aws ecr describe-repositories --query "repositories[].repositoryName" --output text --region eu-west-1 --profile clouds);
+            REPO_LIST=$(aws ecr describe-repositories --query "repositories[].repositoryName" --output text --region eu-west-1);
             echo "ok repos"
             for repo in $REPO_LIST; do
                 if [ $ecr_repo = $repo ]; then
@@ -69,7 +69,7 @@ for images_file in "$directory/images-"*; do
 
             if [[ "$repository_flag_found" = false ]]; then
                 echo "Creating repository $ecr_repo"
-                aws ecr create-repository --repository-name $ecr_repo --profile clouds
+                aws ecr create-repository --repository-name $ecr_repo 
             fi
 
             # Push the image to the new registry
