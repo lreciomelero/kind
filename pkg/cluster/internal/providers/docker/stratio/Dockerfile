@@ -28,6 +28,12 @@ ENV CAPA=v2.2.1
 ENV CAPG=v1.4.0
 ENV CAPZ=v1.11.4
 
+# Crossplane artifacts
+ENV CROSSPLANE_CACHE=/kind/cache
+ENV AWS_FAMILY_PROVIDER=provider-family-aws
+ENV AWS_PROVIDER_EC2=provider-aws-ec2
+ENV AWS_EC2_PROVIDER_VERSION=v0.46.0
+
 # Install vim
 RUN apt-get update && apt-get install -y \
   vim python3-pip git \
@@ -79,7 +85,7 @@ RUN mkdir -p /stratio/helm \
 
   
 # Prepare cluster-api offline repository
-RUN mkdir -p ${CAPI_REPO}/infrastructure-aws/${CAPA} ${CAPI_REPO}/infrastructure-gcp/${CAPG} ${CAPI_REPO}/infrastructure-azure/${CAPZ} ${CAPI_REPO}/cluster-api/${CLUSTERCTL} ${CAPI_REPO}/bootstrap-kubeadm/${CLUSTERCTL} ${CAPI_REPO}/control-plane-kubeadm/${CLUSTERCTL} \
+RUN mkdir -p ${CAPI_REPO}/infrastructure-aws/${CAPA} ${CAPI_REPO}/infrastructure-gcp/${CAPG} ${CAPI_REPO}/infrastructure-azure/${CAPZ} ${CAPI_REPO}/cluster-api/${CLUSTERCTL} ${CAPI_REPO}/bootstrap-kubeadm/${CLUSTERCTL} ${CAPI_REPO}/control-plane-kubeadm/${CLUSTERCTL} ${CROSSPLANE_CACHE} \
   && echo "providers:" > /root/.cluster-api/clusterctl.yaml \
   && echo "  - name: aws\n    url: ${CAPI_REPO}/infrastructure-aws/${CAPA}/infrastructure-components.yaml\n    type: InfrastructureProvider" >> /root/.cluster-api/clusterctl.yaml \
   && echo "  - name: gcp\n    url: ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml\n    type: InfrastructureProvider" >> /root/.cluster-api/clusterctl.yaml \
@@ -101,3 +107,11 @@ RUN curl -L  https://github.com/kubernetes-sigs/cluster-api/releases/download/${
     && curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/${CLUSTERCTL}/metadata.yaml -o ${CAPI_REPO}/cluster-api/${CLUSTERCTL}/metadata.yaml \
     && cp ${CAPI_REPO}/cluster-api/${CLUSTERCTL}/metadata.yaml ${CAPI_REPO}/bootstrap-kubeadm/${CLUSTERCTL}/metadata.yaml \
     && cp ${CAPI_REPO}/cluster-api/${CLUSTERCTL}/metadata.yaml ${CAPI_REPO}/control-plane-kubeadm/${CLUSTERCTL}/metadata.yaml
+
+RUN up xpkg xp-extract xpkg.upbound.io/upbound/${AWS_FAMILY_PROVIDER}:${AWS_EC2_PROVIDER_VERSION} \
+    && mv out.gz ${CROSSPLANE_CACHE}/${AWS_FAMILY_PROVIDER}.gz \
+    && chmod 644 ${CROSSPLANE_CACHE}/${AWS_FAMILY_PROVIDER}.gz
+
+RUN up xpkg xp-extract xpkg.upbound.io/upbound/${AWS_PROVIDER_EC2}:${AWS_EC2_PROVIDER_VERSION} \
+    && mv out.gz ${CROSSPLANE_CACHE}/${AWS_PROVIDER_EC2}.gz \
+    && chmod 644 ${CROSSPLANE_CACHE}/${AWS_PROVIDER_EC2}.gz

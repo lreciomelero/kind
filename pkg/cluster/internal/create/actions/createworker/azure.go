@@ -315,3 +315,14 @@ func (b *AzureBuilder) getOverrideVars(p ProviderParams, networks commons.Networ
 	}
 	return overrideVars, nil
 }
+
+func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
+	return "", nil
+}
+func (b *AzureBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
+	return "", nil
+}
+
+func (b *AzureBuilder) addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error) {
+	return keosCluster, nil
+}

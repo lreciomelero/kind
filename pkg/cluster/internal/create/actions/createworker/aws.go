@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -46,6 +47,12 @@ type AWSBuilder struct {
 	scParameters     commons.SCParameters
 	scProvisioner    string
 	csiNamespace     string
+}
+
+type CrossplaneEKSParams struct {
+	Region string
+	VPCId  string
+	CIDR   string
 }
 
 func newAWSBuilder() *AWSBuilder {
@@ -313,4 +320,76 @@ func (b *AWSBuilder) getOverrideVars(p ProviderParams, networks commons.Networks
 		overrideVars = addOverrideVar("storage-class.yaml", []byte("storage_class_pvc_size: 125Gi"), overrideVars)
 	}
 	return overrideVars, nil
+}
+
+func (b *AWSBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
+	awsCredentials := "[default]\naws_access_key_id = " + credentials["AccessKey"] + "\naws_secret_access_key = " + credentials["SecretKey"] + "\n"
+	return awsCredentials, nil
+}
+
+func (b *AWSBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
+
+	if b.capxManaged {
+		return b.getCrossplaneEKSManifests(offlineParams, credentials)
+	}
+	return "", nil
+}
+
+func (b *AWSBuilder) getCrossplaneEKSManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
+	cr_filename := crossplane_cr_basename + "eks.tmpl"
+	cidr, err := getCIDRFromVPC(credentials, offlineParams.KeosCluster.Spec.Region, offlineParams.KeosCluster.Spec.Networks.VPCID)
+	if err != nil {
+		return "", err
+	}
+	params := CrossplaneEKSParams{
+		Region: offlineParams.KeosCluster.Spec.Region,
+		VPCId:  offlineParams.KeosCluster.Spec.Networks.VPCID,
+		CIDR:   cidr,
+	}
+	return getManifest(b.capxProvider, cr_filename, params)
+
+}
+
+func getCIDRFromVPC(credentials map[string]string, region string, vpcId string) (string, error) {
+	ctx := context.Background()
+	cfg, err := commons.AWSGetConfig(ctx, credentials, region)
+	if err != nil {
+		return "", err
+	}
+	svc := ec2.NewFromConfig(cfg)
+	vpc_id_filterName := "vpc-id"
+	DescribeSubnetOpts := &ec2.DescribeVpcsInput{
+		Filters: []types.Filter{
+			{
+				Name:   &vpc_id_filterName,
+				Values: []string{vpcId},
+			},
+		},
+	}
+	output, err := svc.DescribeVpcs(context.Background(), DescribeSubnetOpts)
+	if err != nil {
+		return "", err
+	}
+
+	return *output.Vpcs[0].CidrBlock, err
+}
+
+func (b *AWSBuilder) addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error) {
+	c := "kubectl wait SecurityGroup sg-additional-for-eks --for=condition=ready"
+	if kubeconfigpath != "" {
+		c += " --kubeconfig " + kubeconfigpath
+	}
+	_, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		return keosCluster, errors.Wrap(err, "failed to wait SecurityGroup sg-additional-for-eks")
+	}
+
+	c = "kubectl get securitygroup.ec2.aws.upbound.io/sg-additional-for-eks -o jsonpath=\"{.status.atProvider.id}\" "
+	sgId, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		return keosCluster, errors.Wrap(err, "failed to get SecurityGroup sg-additional-for-eks ID")
+	}
+	keosCluster.Metadata.Annotations = make(map[string]string)
+	keosCluster.Metadata.Annotations["cluster-operator.stratio.com/sg-additional-for-eks"] = sgId
+	return keosCluster, nil
 }

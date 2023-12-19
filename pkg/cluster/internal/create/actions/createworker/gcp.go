@@ -256,3 +256,16 @@ func (b *GCPBuilder) getOverrideVars(p ProviderParams, networks commons.Networks
 	}
 	return overrideVars, nil
 }
+
+func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
+	return "", nil
+}
+
+func (b *GCPBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
+
+	return "", nil
+}
+
+func (b *GCPBuilder) addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error) {
+	return keosCluster, nil
+}

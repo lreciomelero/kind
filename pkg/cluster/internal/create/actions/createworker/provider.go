@@ -55,8 +55,9 @@ const (
 
 	scName = "keos"
 
-	clusterOperatorChart = "0.2.0-PR138-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-PR138-SNAPSHOT"
+	clusterOperatorChart   = "0.2.0-PR138-SNAPSHOT"
+	clusterOperatorImage   = "0.2.0-PR138-SNAPSHOT"
+	crossplane_cr_basename = "crossplane-custom-resources-"
 )
 
 const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
@@ -77,6 +78,9 @@ type PBuilder interface {
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
 	getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error)
 	getRegistryCredentials(p ProviderParams, u string) (string, string, error)
+	getCrossplaneProviderConfigContent(credentials map[string]string) (string, error)
+	getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error)
+	addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error)
 }
 
 type Provider struct {
@@ -203,6 +207,18 @@ func (i *Infra) getRegistryCredentials(p ProviderParams, u string) (string, stri
 	return i.builder.getRegistryCredentials(p, u)
 }
 
+func (i *Infra) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
+	return i.builder.getCrossplaneProviderConfigContent(credentials)
+}
+
+func (i *Infra) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
+	return i.builder.getCrossplaneCRManifests(offlineParams, credentials)
+}
+
+func (i *Infra) addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error) {
+	return i.builder.addCrsReferences(n, kubeconfigpath, keosCluster)
+}
+
 func (p *Provider) getDenyAllEgressIMDSGNetPol() (string, error) {
 	denyAllEgressIMDSGNetPolLocalPath := "files/" + p.capxProvider + "/deny-all-egress-imds_gnetpol.yaml"
 	denyAllEgressIMDSgnpFile, err := denyAllEgressIMDSgnpFiles.Open(denyAllEgressIMDSGNetPolLocalPath)
@@ -310,6 +326,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 			Flavour string `yaml:"flavour,omitempty"`
 			Version string `yaml:"version,omitempty"`
 		}{}
+
 		keosClusterYAML, err := yaml.Marshal(keosCluster)
 		if err != nil {
 			return err

@@ -104,13 +104,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		StorageClass: a.keosCluster.Spec.StorageClass,
 	}
 
-	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)
-	infra := newInfra(providerBuilder)
-	provider := infra.buildProvider(providerParams)
-
-	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
-	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
-
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
 		if registry.KeosRegistry {
 			keosRegistry.url = registry.URL
@@ -119,7 +112,20 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 	}
 
+	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)
+	infra := newInfra(providerBuilder)
+	provider := infra.buildProvider(providerParams)
+
+	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
+	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
+
+	offlineParams := OfflineParams{
+		KeosCluster: a.keosCluster,
+		KeosRegUrl:  keosRegistry.url,
+	}
+
 	if a.keosCluster.Spec.Offline {
+
 		ctx.Status.Start("Installing Offline CNI 🎖️")
 		defer ctx.Status.End(false)
 		c = `sed -i 's/@sha256:[[:alnum:]_-].*$//g' ` + cniDefaultFile
@@ -141,11 +147,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		_, err = commons.ExecuteCommand(n, c)
 		ctx.Status.End(true)
 
-		ctx.Status.Start("Installing Crossplane 🎖️")
-		err = installCrossplane(n, "", keosRegistry.url)
+		ctx.Status.Start("Installing Crossplane and deploying crs🎖️")
+		offlineKeosCluster, err := installCrossplane(n, "", keosRegistry.url, providerParams.Credentials, infra, offlineParams)
 		if err != nil {
 			return err
 		}
+		a.keosCluster = offlineKeosCluster
 		ctx.Status.End(true)
 	}
 
@@ -286,11 +293,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	defer ctx.Status.End(true) // End installing keos cluster operator
 
 	if !a.avoidCreation {
-
-		offlineParams := OfflineParams{
-			KeosCluster: a.keosCluster,
-			KeosRegUrl:  keosRegistry.url,
-		}
 
 		if a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.Security.AWS.CreateIAM {
 			ctx.Status.Start("[CAPA] Ensuring IAM security 👮")
