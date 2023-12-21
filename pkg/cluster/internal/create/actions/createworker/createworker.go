@@ -148,7 +148,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true)
 
 		ctx.Status.Start("Installing Crossplane and deploying crs🎖️")
-		offlineKeosCluster, err := installCrossplane(n, "", keosRegistry.url, providerParams.Credentials, infra, offlineParams)
+		offlineKeosCluster, err := installCrossplane(n, "", keosRegistry.url, providerParams.Credentials, infra, offlineParams, false, allowCommonEgressNetPol)
 		if err != nil {
 			return err
 		}
@@ -656,6 +656,22 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true)
 
 		if !a.moveManagement {
+
+			ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
+
+			c = "kubectl scale deployment crossplane crossplane-rbac-manager provider-aws-ec2 provider-family-aws -n crossplane-system --replicas=0"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to scale to 0 crossplane controllers")
+			}
+
+			offlineKeosCluster, err := installCrossplane(n, kubeconfigPath, keosRegistry.url, providerParams.Credentials, infra, offlineParams, true, allowCommonEgressNetPolPath)
+			if err != nil {
+				return err
+			}
+			a.keosCluster = offlineKeosCluster
+			ctx.Status.End(true)
+
 			ctx.Status.Start("Moving the management role 🗝️")
 			defer ctx.Status.End(false)
 

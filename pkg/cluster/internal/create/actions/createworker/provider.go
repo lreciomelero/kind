@@ -55,7 +55,7 @@ const (
 
 	scName = "keos"
 
-	clusterOperatorChart   = "0.2.0-PR138-SNAPSHOT"
+	clusterOperatorChart   = "0.2.0-PR147-SNAPSHOT"
 	clusterOperatorImage   = "0.2.0-PR138-SNAPSHOT"
 	crossplane_cr_basename = "crossplane-custom-resources-"
 )
@@ -79,7 +79,7 @@ type PBuilder interface {
 	getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error)
 	getRegistryCredentials(p ProviderParams, u string) (string, string, error)
 	getCrossplaneProviderConfigContent(credentials map[string]string) (string, error)
-	getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error)
+	getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string, workloadClusterInstallation bool) (string, error)
 	addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error)
 }
 
@@ -211,8 +211,8 @@ func (i *Infra) getCrossplaneProviderConfigContent(credentials map[string]string
 	return i.builder.getCrossplaneProviderConfigContent(credentials)
 }
 
-func (i *Infra) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
-	return i.builder.getCrossplaneCRManifests(offlineParams, credentials)
+func (i *Infra) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
+	return i.builder.getCrossplaneCRManifests(offlineParams, credentials, workloadClusterInstallation)
 }
 
 func (i *Infra) addCrsReferences(n nodes.Node, kubeconfigpath string, keosCluster commons.KeosCluster) (commons.KeosCluster, error) {
@@ -303,6 +303,14 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to create aws config file")
+		}
+		if !keosCluster.Spec.Offline {
+			awsCredentials := "[default]\naws_access_key_id = " + clusterCredentials.ProviderCredentials["AccessKey"] + "\naws_secret_access_key = " + clusterCredentials.ProviderCredentials["SecretKey"] + "\n"
+			c = "echo '" + awsCredentials + "' > ~/.aws/credentials"
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to create aws credentials file")
+			}
 		}
 	}
 

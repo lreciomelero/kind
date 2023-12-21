@@ -319,7 +319,7 @@ func (b *AzureBuilder) getOverrideVars(p ProviderParams, networks commons.Networ
 func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
 	return "", nil
 }
-func (b *AzureBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
+func (b *AzureBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
 	return "", nil
 }
 

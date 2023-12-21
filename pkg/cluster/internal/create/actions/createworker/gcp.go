@@ -261,8 +261,7 @@ func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]s
 	return "", nil
 }
 
-func (b *GCPBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string) (string, error) {
-
+func (b *GCPBuilder) getCrossplaneCRManifests(offlineParams OfflineParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
 	return "", nil
 }
 
