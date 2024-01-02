@@ -13,7 +13,6 @@ var (
 	crossplane_folder_path          = "/kind/cache"
 	crossplane_provider_creds_file  = "/kind/crossplane-provider-creds.txt"
 	crossplane_provider_config_file = "/kind/crossplane-provider-creds.yaml"
-	crossplane_preflights_file      = "/kind/crossplane-preflights.yaml"
 	crossplane_crs_file             = "/kind/crossplane-crs.yaml"
 	crossplane_crs_file_workload    = "/kind/crossplane-crs-workload.yaml"
 
@@ -22,9 +21,6 @@ var (
 		"provider-aws-ec2":    "v0.46.0",
 	}
 )
-
-//go:embed files/crossplane/crossplane-offline-preflights.yaml
-var crossplane_offline_preflights string
 
 type CrossplaneProviderParams struct {
 	Provider string
