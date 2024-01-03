@@ -20,7 +20,6 @@ package cluster
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"syscall"
@@ -54,6 +53,7 @@ type flagpole struct {
 	AvoidCreation  bool
 	ForceDelete    bool
 	ValidateOnly   bool
+	Offline        bool
 }
 
 const clusterDefaultPath = "./cluster.yaml"
@@ -147,6 +147,12 @@ func NewCommand(logger log.Logger, streams cmd.IOStreams) *cobra.Command {
 		false,
 		"by setting this flag the descriptor will be validated and the cluster won't be created",
 	)
+	cmd.Flags().BoolVar(
+		&flags.Offline,
+		"offline",
+		false,
+		"by setting this flag the cluster will be installed from offline registry",
+	)
 
 	return cmd
 }
@@ -157,6 +163,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 	if err != nil {
 		return err
 	}
+
 	if flags.DescriptorPath == "" {
 		flags.DescriptorPath = clusterDefaultPath
 	}
@@ -187,6 +194,20 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 		return errors.Wrap(err, "failed to validate cluster")
 	}
 
+	dockerRegUrl := ""
+	if flags.Offline {
+		configFile, err := getConfigFile(keosCluster, clusterCredentials)
+		if err != nil {
+			return errors.Wrap(err, "Error getting offline kubeadm config")
+		}
+		flags.Config = configFile
+		for _, dockerReg := range keosCluster.Spec.DockerRegistries {
+			if dockerReg.KeosRegistry {
+				dockerRegUrl = dockerReg.URL
+			}
+		}
+	}
+
 	if flags.ValidateOnly {
 		fmt.Println("Cluster descriptor is valid")
 		return nil
@@ -205,6 +226,8 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 		flags.DescriptorPath,
 		flags.MoveManagement,
 		flags.AvoidCreation,
+		dockerRegUrl,
+		flags.Offline,
 		*keosCluster,
 		clusterCredentials,
 		withConfig,
@@ -232,7 +255,7 @@ func configOption(rawConfigFlag string, stdin io.Reader) (cluster.CreateOption, 
 		return cluster.CreateWithConfigFile(rawConfigFlag), nil
 	}
 	// otherwise read from stdin
-	raw, err := ioutil.ReadAll(stdin)
+	raw, err := io.ReadAll(stdin)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading config from stdin")
 	}

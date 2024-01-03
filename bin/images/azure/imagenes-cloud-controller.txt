@@ -1,0 +1,1 @@
+mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.24.22

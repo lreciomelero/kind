@@ -64,6 +64,8 @@ type ClusterOptions struct {
 	AvoidCreation      bool
 	KeosCluster        commons.KeosCluster
 	ClusterCredentials commons.ClusterCredentials
+	Offline            bool
+	DockerRegUrl       string
 
 	// Force local container delete before creating the cluster if it already exists
 	ForceDelete bool
@@ -119,7 +121,7 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 	logger.V(0).Infof("Creating temporary cluster %q ...\n", opts.Config.Name)
 
 	// Create node containers implementing defined config Nodes
-	if err := p.Provision(status, opts.Config); err != nil {
+	if err := p.Provision(status, opts.Config, opts.DockerRegUrl); err != nil {
 		// In case of errors nodes are deleted (except if retain is explicitly set)
 		if !opts.Retain {
 			_ = delete.Cluster(logger, p, opts.Config.Name, opts.KubeconfigPath)
@@ -151,7 +153,7 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 
 		// add Stratio step
 		actionsToRun = append(actionsToRun,
-			createworker.NewAction(opts.VaultPassword, opts.DescriptorPath, opts.MoveManagement, opts.AvoidCreation, opts.KeosCluster, opts.ClusterCredentials), // create worker k8s cluster
+			createworker.NewAction(opts.VaultPassword, opts.DescriptorPath, opts.MoveManagement, opts.AvoidCreation, opts.KeosCluster, opts.ClusterCredentials, opts.Offline), // create worker k8s cluster
 		)
 	}
 
