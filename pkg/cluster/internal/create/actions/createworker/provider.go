@@ -54,7 +54,7 @@ const (
 
 	scName = "keos"
 
-	clusterOperatorChart = "0.2.0-SNAPSHOT"
+	clusterOperatorChart = "0.2.0-PR149-SNAPSHOT"
 	clusterOperatorImage = "0.2.0-SNAPSHOT"
 )
 
@@ -231,6 +231,26 @@ func (p *Provider) deployClusterOperator(n nodes.Node, keosCluster commons.KeosC
 	var c string
 	var err error
 	var helmRepository helmRepository
+
+	if firstInstallation && keosCluster.Spec.InfraProvider == "aws" && strings.HasPrefix(keosCluster.Spec.HelmRepository.URL, "s3://") {
+		c = "mkdir -p ~/.aws"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create aws config file")
+		}
+		c = "echo [default] > ~/.aws/config && " +
+			"echo region = " + keosCluster.Spec.Region + " >>  ~/.aws/config"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create aws config file")
+		}
+		awsCredentials := "[default]\naws_access_key_id = " + clusterCredentials.ProviderCredentials["AccessKey"] + "\naws_secret_access_key = " + clusterCredentials.ProviderCredentials["SecretKey"] + "\n"
+		c = "echo '" + awsCredentials + "' > ~/.aws/credentials"
+		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return errors.Wrap(err, "failed to create aws credentials file")
+		}
+	}
 
 	if kubeconfigPath == "" {
 		// Clean keoscluster file

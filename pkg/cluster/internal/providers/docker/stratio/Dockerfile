@@ -7,7 +7,7 @@ ENV CLUSTERCTL_DISABLE_VERSIONCHECK=true
 # Tools versions
 ENV CLUSTERCTL=v1.5.3
 ENV CLUSTERAWSADM=v2.2.1
-ENV HELM=v3.11.3
+ENV HELM=v3.13.1
 
 # Helm charts
 ENV CLOUD_PROVIDER_AWS_CHART=0.0.8
@@ -26,7 +26,7 @@ ENV CAPZ=v1.11.4
 
 # Install vim
 RUN apt-get update && apt-get install -y \
-  vim \
+  vim git \
   && rm -rf /var/lib/apt/lists/*
 
 # Add aliases
