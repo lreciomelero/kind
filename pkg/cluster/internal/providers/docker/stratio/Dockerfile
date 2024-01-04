@@ -50,7 +50,8 @@ RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases
 RUN curl -L https://get.helm.sh/helm-${HELM}-linux-amd64.tar.gz -o /root/helm.tar.gz \
   && tar -xf /root/helm.tar.gz -C /root && mv /root/linux-amd64/helm /usr/local/bin/helm \
   && rm -rf /root/linux-amd64 /root/helm.tar.gz \
-  && chmod +x /usr/local/bin/helm
+  && chmod +x /usr/local/bin/helm \
+  && helm plugin install https://github.com/hypnoglow/helm-s3.git
 
 # Download helm charts
 RUN mkdir -p /stratio/helm \
