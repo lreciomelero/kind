@@ -19,7 +19,6 @@ package commons
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"time"
 	"unicode"
 
@@ -195,7 +194,6 @@ func RewriteDescriptorFile(descriptorPath string, keosCluster KeosCluster, resou
 	}
 
 	descriptor := strings.Join(append([]string{string(b)}, r...), "\n---\n")
-	fmt.Println(descriptor)
 
 	err = os.WriteFile(descriptorPath, []byte(descriptor), 0644)
 	if err != nil {
