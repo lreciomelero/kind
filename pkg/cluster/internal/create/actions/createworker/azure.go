@@ -120,9 +120,9 @@ func (b *AzureBuilder) getProvider() Provider {
 	}
 }
 
-func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, offlineParams OfflineParams) error {
+func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error {
 	var podsCidrBlock string
-	keosCluster := offlineParams.KeosCluster
+	keosCluster := privateParams.KeosCluster
 	if keosCluster.Spec.Networks.PodsCidrBlock != "" {
 		podsCidrBlock = keosCluster.Spec.Networks.PodsCidrBlock
 	} else {
@@ -133,9 +133,9 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, offlineParam
 		" --namespace kube-system" +
 		" --set infra.clusterName=" + keosCluster.Metadata.Name +
 		" --set 'cloudControllerManager.clusterCIDR=" + podsCidrBlock + "'"
-	if offlineParams.Offline {
-		c += " --set cloudControllerManager.imageRepository=" + offlineParams.KeosRegUrl + "/oss/kubernetes" +
-			" --set cloudNodeManager.imageRepository=" + offlineParams.KeosRegUrl + "/oss/kubernetes"
+	if privateParams.Private {
+		c += " --set cloudControllerManager.imageRepository=" + privateParams.KeosRegUrl + "/oss/kubernetes" +
+			" --set cloudNodeManager.imageRepository=" + privateParams.KeosRegUrl + "/oss/kubernetes"
 	}
 	_, err := commons.ExecuteCommand(n, c)
 	if err != nil {
@@ -144,7 +144,7 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, offlineParam
 	return nil
 }
 
-func (b *AzureBuilder) installCSI(n nodes.Node, k string, offlineParams OfflineParams) error {
+func (b *AzureBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams) error {
 	var c string
 	var err error
 
@@ -152,8 +152,8 @@ func (b *AzureBuilder) installCSI(n nodes.Node, k string, offlineParams OfflineP
 	c = "helm install azuredisk-csi-driver /stratio/helm/azuredisk-csi-driver " +
 		" --kubeconfig " + k +
 		" --namespace " + b.csiNamespace
-	if offlineParams.Offline {
-		c += " --set image.baseRepo=" + offlineParams.KeosRegUrl
+	if privateParams.Private {
+		c += " --set image.baseRepo=" + privateParams.KeosRegUrl
 	}
 	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
@@ -164,8 +164,8 @@ func (b *AzureBuilder) installCSI(n nodes.Node, k string, offlineParams OfflineP
 	c = "helm install azurefile-csi-driver /stratio/helm/azurefile-csi-driver " +
 		" --kubeconfig " + k +
 		" --namespace " + b.csiNamespace
-	if offlineParams.Offline {
-		c += " --set image.baseRepo=" + offlineParams.KeosRegUrl
+	if privateParams.Private {
+		c += " --set image.baseRepo=" + privateParams.KeosRegUrl
 	}
 	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {

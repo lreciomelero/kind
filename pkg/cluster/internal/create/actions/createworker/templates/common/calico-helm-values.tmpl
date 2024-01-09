@@ -2,7 +2,7 @@
 apiServer:
   enabled: false
 calicoctl:
-{{- if $.Offline }}
+{{- if $.Private }}
   image: {{ $.KeosRegUrl }}/calico/ctl
   tag: v3.26.1
 {{- else }}
@@ -44,7 +44,7 @@ installation:
   enabled: true
   kubernetesProvider: {{- if and ($.Spec.ControlPlane.Managed) (eq $.Spec.InfraProvider "aws") }} EKS {{- else }} "" {{- end }}
   nodeMetricsPort: 9191
-  {{- if $.Offline }}
+  {{- if $.Private }}
   registry: {{ $.KeosRegUrl }}
   {{- else }}
   registry: docker.io
@@ -61,7 +61,7 @@ podLabels: {}
 resources: {}
 # Image and registry configuration for the tigera/operator pod.
 tigeraOperator:
-{{- if $.Offline }}
+{{- if $.Private }}
   registry: {{ $.KeosRegUrl }}
 {{- else }}
   registry: quay.io

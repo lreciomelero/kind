@@ -53,7 +53,6 @@ type flagpole struct {
 	AvoidCreation  bool
 	ForceDelete    bool
 	ValidateOnly   bool
-	Offline        bool
 }
 
 const clusterDefaultPath = "./cluster.yaml"
@@ -147,12 +146,6 @@ func NewCommand(logger log.Logger, streams cmd.IOStreams) *cobra.Command {
 		false,
 		"by setting this flag the descriptor will be validated and the cluster won't be created",
 	)
-	cmd.Flags().BoolVar(
-		&flags.Offline,
-		"offline",
-		false,
-		"by setting this flag the cluster will be installed from offline registry",
-	)
 
 	return cmd
 }
@@ -175,7 +168,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 		}
 	}
 
-	keosCluster, err := commons.GetClusterDescriptor(flags.DescriptorPath)
+	keosCluster, clusterConfig, err := commons.GetClusterDescriptor(flags.DescriptorPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse cluster descriptor")
 	}
@@ -195,10 +188,10 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 	}
 
 	dockerRegUrl := ""
-	if flags.Offline {
+	if clusterConfig.Spec.Private {
 		configFile, err := getConfigFile(keosCluster, clusterCredentials)
 		if err != nil {
-			return errors.Wrap(err, "Error getting offline kubeadm config")
+			return errors.Wrap(err, "Error getting private kubeadm config")
 		}
 		flags.Config = configFile
 		for _, dockerReg := range keosCluster.Spec.DockerRegistries {
@@ -227,7 +220,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 		flags.MoveManagement,
 		flags.AvoidCreation,
 		dockerRegUrl,
-		flags.Offline,
+		*clusterConfig,
 		*keosCluster,
 		clusterCredentials,
 		withConfig,

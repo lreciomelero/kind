@@ -67,18 +67,18 @@ const defaultScAnnotation = "storageclass.kubernetes.io/is-default-class"
 //go:embed files/common/calico-metrics.yaml
 var calicoMetrics string
 
-type OfflineParams struct {
+type PrivateParams struct {
 	KeosCluster commons.KeosCluster
 	KeosRegUrl  string
-	Offline     bool
+	Private     bool
 }
 
 type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
-	installCloudProvider(n nodes.Node, k string, offlineParams OfflineParams) error
-	installCSI(n nodes.Node, k string, OfflineParams OfflineParams) error
+	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
+	installCSI(n nodes.Node, k string, privateParams PrivateParams) error
 	getProvider() Provider
 	configureStorageClass(n nodes.Node, k string) error
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
@@ -181,12 +181,12 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 	return i.builder.getProvider()
 }
 
-func (i *Infra) installCloudProvider(n nodes.Node, k string, offlineParams OfflineParams) error {
-	return i.builder.installCloudProvider(n, k, offlineParams)
+func (i *Infra) installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error {
+	return i.builder.installCloudProvider(n, k, privateParams)
 }
 
-func (i *Infra) installCSI(n nodes.Node, k string, offlineParams OfflineParams) error {
-	return i.builder.installCSI(n, k, offlineParams)
+func (i *Infra) installCSI(n nodes.Node, k string, privateParams PrivateParams) error {
+	return i.builder.installCSI(n, k, privateParams)
 }
 
 func (i *Infra) configureStorageClass(n nodes.Node, k string) error {
@@ -273,11 +273,11 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 	return nil
 }
 
-func (p *Provider) deployClusterOperator(n nodes.Node, offlineParams OfflineParams, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry, kubeconfigPath string, firstInstallation bool) error {
+func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry, kubeconfigPath string, firstInstallation bool) error {
 	var c string
 	var err error
 	var helmRepository helmRepository
-	keosCluster := offlineParams.KeosCluster
+	keosCluster := privateParams.KeosCluster
 
 	if kubeconfigPath == "" {
 		// Clean keoscluster file
@@ -361,7 +361,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, offlineParams OfflinePara
 		" --set app.containers.controllerManager.image.tag=" + clusterOperatorImage +
 		" --set app.containers.controllerManager.image.registry=" + keosRegistry.url +
 		" --set app.containers.controllerManager.image.repository=stratio/cluster-operator"
-	if offlineParams.Offline {
+	if privateParams.Private {
 		c += " --set app.containers.kubeRbacProxy.image=" + keosRegistry.url + "/stratio/kube-rbac-proxy:v0.13.1"
 	}
 	if keosCluster.Spec.InfraProvider == "azure" {
@@ -399,22 +399,22 @@ func (p *Provider) deployClusterOperator(n nodes.Node, offlineParams OfflinePara
 	return nil
 }
 
-func installCalico(n nodes.Node, k string, offlineParams OfflineParams, allowCommonEgressNetPolPath string) error {
+func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCommonEgressNetPolPath string) error {
 	var c string
 	var cmd exec.Cmd
 	var err error
-	keosCluster := offlineParams.KeosCluster
+	keosCluster := privateParams.KeosCluster
 
 	calicoTemplate := "/kind/calico-helm-values.yaml"
 
 	calicoParams := struct {
-		Spec       commons.Spec
+		Spec       commons.KeosSpec
 		KeosRegUrl string
-		Offline    bool
+		Private    bool
 	}{
 		Spec:       keosCluster.Spec,
-		KeosRegUrl: offlineParams.KeosRegUrl,
-		Offline:    offlineParams.Offline,
+		KeosRegUrl: privateParams.KeosRegUrl,
+		Private:    privateParams.Private,
 	}
 
 	// Generate the calico helm values

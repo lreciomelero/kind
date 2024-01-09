@@ -38,7 +38,7 @@ type action struct {
 	avoidCreation      bool
 	keosCluster        commons.KeosCluster
 	clusterCredentials commons.ClusterCredentials
-	offline            bool
+	clusterConfig      commons.ClusterConfig
 }
 
 type keosRegistry struct {
@@ -73,7 +73,7 @@ var allowCommonEgressNetPol string
 var rbacInternalLoadBalancing string
 
 // NewAction returns a new action for installing default CAPI
-func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, offline bool) actions.Action {
+func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig commons.ClusterConfig) actions.Action {
 	return &action{
 		vaultPassword:      vaultPassword,
 		descriptorPath:     descriptorPath,
@@ -81,7 +81,7 @@ func NewAction(vaultPassword string, descriptorPath string, moveManagement bool,
 		avoidCreation:      avoidCreation,
 		keosCluster:        keosCluster,
 		clusterCredentials: clusterCredentials,
-		offline:            offline,
+		clusterConfig:      clusterConfig,
 	}
 }
 
@@ -121,14 +121,14 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
 
-	offlineParams := OfflineParams{
+	privateParams := PrivateParams{
 		KeosCluster: a.keosCluster,
 		KeosRegUrl:  keosRegistry.url,
-		Offline:     a.offline,
+		Private:     a.clusterConfig.Spec.Private,
 	}
 
-	if a.offline {
-		ctx.Status.Start("Installing Offline CNI 🎖️")
+	if a.clusterConfig.Spec.Private {
+		ctx.Status.Start("Installing Private CNI 🎖️")
 		defer ctx.Status.End(false)
 		c = `sed -i 's/@sha256:[[:alnum:]_-].*$//g' ` + cniDefaultFile
 		_, err = commons.ExecuteCommand(n, c)
@@ -222,7 +222,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 	}
 
-	if a.offline {
+	if a.clusterConfig.Spec.Private {
 		err = provider.deployCertManager(n, keosRegistry.url, "")
 		if err != nil {
 			return err
@@ -249,7 +249,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		_, err = commons.ExecuteCommand(n, c)
 
 		if err != nil {
-			return errors.Wrap(err, "failed to add offline image registry clusterctl config")
+			return errors.Wrap(err, "failed to add private image registry clusterctl config")
 		}
 
 		c = `sed -i 's/@sha256:[[:alnum:]_-].*$//g' /root/.cluster-api/local-repository/infrastructure-gcp/` + infraGCPVersion + `/infrastructure-components.yaml`
@@ -273,7 +273,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	commons.EnsureSecretsFile(a.keosCluster.Spec, a.vaultPassword, a.clusterCredentials)
 
-	commons.RewriteDescriptorFile(a.descriptorPath)
+	commons.RewriteDescriptorFile(a.descriptorPath, a.keosCluster, a.clusterConfig)
 
 	defer ctx.Status.End(true) // End Generating secrets file
 
@@ -295,7 +295,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Installing keos cluster operator 💻")
 	defer ctx.Status.End(false)
 
-	err = provider.deployClusterOperator(n, offlineParams, a.clusterCredentials, keosRegistry, "", true)
+	err = provider.deployClusterOperator(n, privateParams, a.clusterCredentials, keosRegistry, "", true)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy cluster operator")
 	}
@@ -374,7 +374,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				ctx.Status.Start("Installing cloud-provider in workload cluster ☁️")
 				defer ctx.Status.End(false)
 
-				err = infra.installCloudProvider(n, kubeconfigPath, offlineParams)
+				err = infra.installCloudProvider(n, kubeconfigPath, privateParams)
 				if err != nil {
 					return errors.Wrap(err, "failed to install external cloud-provider in workload cluster")
 				}
@@ -384,7 +384,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, offlineParams, allowCommonEgressNetPolPath)
+			err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath)
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
@@ -393,7 +393,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing CSI in workload cluster 💾")
 			defer ctx.Status.End(false)
 
-			err = infra.installCSI(n, kubeconfigPath, offlineParams)
+			err = infra.installCSI(n, kubeconfigPath, privateParams)
 			if err != nil {
 				return errors.Wrap(err, "failed to install CSI in workload cluster")
 			}
@@ -498,7 +498,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
 		defer ctx.Status.End(false)
 
-		if a.offline {
+		if a.clusterConfig.Spec.Private {
 			err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath)
 			if err != nil {
 				return err
@@ -525,7 +525,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			// Use Calico as network policy engine in managed systems
 			if a.keosCluster.Spec.ControlPlane.Managed {
 
-				err = installCalico(n, kubeconfigPath, offlineParams, allowCommonEgressNetPolPath)
+				err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath)
 				if err != nil {
 					return errors.Wrap(err, "failed to install Network Policy Engine in workload cluster")
 				}
@@ -592,7 +592,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				" --set clusterAPIMode=incluster-incluster" +
 				" --set replicaCount=2"
 
-			if a.offline {
+			if a.clusterConfig.Spec.Private {
 				c += " --set image.repository=" + keosRegistry.url + "/autoscaling/cluster-autoscaler"
 			}
 
@@ -607,7 +607,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Installing keos cluster operator in workload cluster 💻")
 		defer ctx.Status.End(false)
 
-		err = provider.deployClusterOperator(n, offlineParams, a.clusterCredentials, keosRegistry, kubeconfigPath, true)
+		err = provider.deployClusterOperator(n, privateParams, a.clusterCredentials, keosRegistry, kubeconfigPath, true)
 		if err != nil {
 			return errors.Wrap(err, "failed to deploy cluster operator in workload cluster")
 		}
@@ -710,7 +710,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to delete keoscluster in management cluster")
 			}
 
-			err = provider.deployClusterOperator(n, offlineParams, a.clusterCredentials, keosRegistry, "", false)
+			err = provider.deployClusterOperator(n, privateParams, a.clusterCredentials, keosRegistry, "", false)
 			if err != nil {
 				return errors.Wrap(err, "failed to deploy cluster operator")
 			}

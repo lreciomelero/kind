@@ -63,8 +63,8 @@ type ClusterOptions struct {
 	MoveManagement     bool
 	AvoidCreation      bool
 	KeosCluster        commons.KeosCluster
+	ClusterConfig      commons.ClusterConfig
 	ClusterCredentials commons.ClusterCredentials
-	Offline            bool
 	DockerRegUrl       string
 
 	// Force local container delete before creating the cluster if it already exists
@@ -153,7 +153,7 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 
 		// add Stratio step
 		actionsToRun = append(actionsToRun,
-			createworker.NewAction(opts.VaultPassword, opts.DescriptorPath, opts.MoveManagement, opts.AvoidCreation, opts.KeosCluster, opts.ClusterCredentials, opts.Offline), // create worker k8s cluster
+			createworker.NewAction(opts.VaultPassword, opts.DescriptorPath, opts.MoveManagement, opts.AvoidCreation, opts.KeosCluster, opts.ClusterCredentials, opts.ClusterConfig), // create worker k8s cluster
 		)
 	}
 

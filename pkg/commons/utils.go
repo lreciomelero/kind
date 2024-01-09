@@ -19,6 +19,7 @@ package commons
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"time"
 	"unicode"
 
@@ -60,7 +61,7 @@ func convertStringMapToInterfaceMap(inputMap map[string]string) map[string]inter
 	return outputMap
 }
 
-func EnsureSecretsFile(spec Spec, vaultPassword string, clusterCredentials ClusterCredentials) error {
+func EnsureSecretsFile(spec KeosSpec, vaultPassword string, clusterCredentials ClusterCredentials) error {
 	var err error
 
 	edited := false
@@ -163,10 +164,19 @@ func EnsureSecretsFile(spec Spec, vaultPassword string, clusterCredentials Clust
 	return nil
 }
 
-func RewriteDescriptorFile(descriptorPath string) error {
+func RewriteDescriptorFile(descriptorPath string, keosCluster KeosCluster, resources ...interface{}) error {
+	r := []string{}
+	if len(resources) > 0 {
+		for _, resource := range resources {
+			resourceBytes, err := yaml.Marshal(resource)
+			if err != nil {
+				return err
+			}
+			r = append(r, string(resourceBytes))
+		}
+	}
 
-	descriptorRAW, err := os.ReadFile(descriptorPath)
-
+	descriptorRAW, err := yaml.Marshal(&keosCluster)
 	if err != nil {
 		return err
 	}
@@ -184,7 +194,10 @@ func RewriteDescriptorFile(descriptorPath string) error {
 		return err
 	}
 
-	err = os.WriteFile(descriptorPath, []byte(b), 0644)
+	descriptor := strings.Join(append([]string{string(b)}, r...), "\n---\n")
+	fmt.Println(descriptor)
+
+	err = os.WriteFile(descriptorPath, []byte(descriptor), 0644)
 	if err != nil {
 		return err
 	}

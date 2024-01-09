@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/kind/pkg/commons"
 )
 
-//go:embed offline/*
+//go:embed privatefiles/*
 var clusterConfig embed.FS
 
 type RegistryParams struct {
@@ -33,7 +33,7 @@ func getConfigFile(keosCluster *commons.KeosCluster, clusterCredentials commons.
 		},
 	}
 
-	templatePath := filepath.Join("offline", "offlineconfig.tmpl")
+	templatePath := filepath.Join("privatefiles", "privateconfig.tmpl")
 	t, err := template.New("").Funcs(funcMap).ParseFS(clusterConfig, templatePath)
 	if err != nil {
 		return "", err
@@ -56,7 +56,7 @@ func getConfigFile(keosCluster *commons.KeosCluster, clusterCredentials commons.
 			break
 		}
 	}
-	err = t.ExecuteTemplate(&tpl, "offlineconfig.tmpl", registryParams)
+	err = t.ExecuteTemplate(&tpl, "privateconfig.tmpl", registryParams)
 	if err != nil {
 		return "", err
 	}

@@ -127,11 +127,11 @@ func (b *GCPBuilder) getProvider() Provider {
 	}
 }
 
-func (b *GCPBuilder) installCloudProvider(n nodes.Node, k string, offlineParams OfflineParams) error {
+func (b *GCPBuilder) installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error {
 	return nil
 }
 
-func (b *GCPBuilder) installCSI(n nodes.Node, k string, offlineParams OfflineParams) error {
+func (b *GCPBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams) error {
 	var c string
 	var err error
 	var cmd exec.Cmd
@@ -144,7 +144,7 @@ func (b *GCPBuilder) installCSI(n nodes.Node, k string, offlineParams OfflinePar
 		return errors.Wrap(err, "failed to create CSI secret in CSI namespace")
 	}
 
-	csiManifests, err := getManifest(offlineParams.KeosCluster.Spec.InfraProvider, "gcp-compute-persistent-disk-csi-driver.tmpl", offlineParams)
+	csiManifests, err := getManifest(privateParams.KeosCluster.Spec.InfraProvider, "gcp-compute-persistent-disk-csi-driver.tmpl", privateParams)
 
 	// Deploy CSI driver
 	cmd = n.Command("kubectl", "--kubeconfig", k, "apply", "-f", "-")
