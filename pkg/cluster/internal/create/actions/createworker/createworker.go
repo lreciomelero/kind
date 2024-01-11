@@ -273,7 +273,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	commons.EnsureSecretsFile(a.keosCluster.Spec, a.vaultPassword, a.clusterCredentials)
 
-	commons.RewriteDescriptorFile(a.descriptorPath, a.keosCluster, a.clusterConfig)
+	commons.RewriteDescriptorFile(a.descriptorPath)
 
 	defer ctx.Status.End(true) // End Generating secrets file
 

@@ -163,25 +163,23 @@ func EnsureSecretsFile(spec KeosSpec, vaultPassword string, clusterCredentials C
 	return nil
 }
 
-func RewriteDescriptorFile(descriptorPath string, keosCluster KeosCluster, resources ...interface{}) error {
-	r := []string{}
-	if len(resources) > 0 {
-		for _, resource := range resources {
-			resourceBytes, err := yaml.Marshal(resource)
-			if err != nil {
-				return err
-			}
-			r = append(r, string(resourceBytes))
+// func RewriteDescriptorFile(descriptorPath string, keosCluster KeosCluster, resources ...interface{}) error {
+func RewriteDescriptorFile(descriptorPath string) error {
+
+	descriptorRAW, err := os.ReadFile(descriptorPath)
+	manifests := strings.Split(string(descriptorRAW), "---\n")
+	keosClusterIndex := -1
+	for i, m := range manifests {
+		if strings.Contains(m, "") {
+			keosClusterIndex = i
 		}
 	}
-
-	descriptorRAW, err := yaml.Marshal(&keosCluster)
-	if err != nil {
-		return err
+	if keosClusterIndex == -1 {
+		return errors.New("KeosCluster manifest not found.")
 	}
 
 	var data yaml.Node
-	err = yaml.Unmarshal(descriptorRAW, &data)
+	err = yaml.Unmarshal([]byte(manifests[keosClusterIndex]), &data)
 	if err != nil {
 		return err
 	}
@@ -192,10 +190,11 @@ func RewriteDescriptorFile(descriptorPath string, keosCluster KeosCluster, resou
 	if err != nil {
 		return err
 	}
+	descriptor := append(manifests[:keosClusterIndex], string(b))
+	descriptor = append(descriptor, manifests[keosClusterIndex+1:]...)
+	descriptorRewrited := strings.Join(descriptor, "---\n")
 
-	descriptor := strings.Join(append([]string{string(b)}, r...), "\n---\n")
-
-	err = os.WriteFile(descriptorPath, []byte(descriptor), 0644)
+	err = os.WriteFile(descriptorPath, []byte(descriptorRewrited), 0644)
 	if err != nil {
 		return err
 	}
