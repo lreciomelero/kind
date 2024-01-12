@@ -170,7 +170,7 @@ func RewriteDescriptorFile(descriptorPath string) error {
 	manifests := strings.Split(string(descriptorRAW), "---\n")
 	keosClusterIndex := -1
 	for i, m := range manifests {
-		if strings.Contains(m, "") {
+		if strings.Contains(m, "kind: KeosCluster") {
 			keosClusterIndex = i
 		}
 	}
