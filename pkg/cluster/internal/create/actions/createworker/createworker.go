@@ -324,7 +324,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return errors.Wrap(err, "failed to apply manifests")
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(20 * time.Second)
 
 		// Wait for the control plane initialization
 		c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=ControlPlaneInitialized --timeout=25m cluster " + a.keosCluster.Metadata.Name

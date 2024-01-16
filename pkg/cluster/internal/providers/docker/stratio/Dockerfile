@@ -9,7 +9,7 @@ ENV CLUSTERCTL_DISABLE_VERSIONCHECK=true
 # Tools versions
 ENV CLUSTERCTL=v1.5.3
 ENV CLUSTERAWSADM=v2.2.1
-ENV HELM=v3.11.3
+ENV HELM=v3.13.1
 
 # Helm charts
 ENV CLOUD_PROVIDER_AWS_CHART=0.0.8
@@ -53,7 +53,8 @@ RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases
 RUN curl -L https://get.helm.sh/helm-${HELM}-linux-amd64.tar.gz -o /root/helm.tar.gz \
   && tar -xf /root/helm.tar.gz -C /root && mv /root/linux-amd64/helm /usr/local/bin/helm \
   && rm -rf /root/linux-amd64 /root/helm.tar.gz \
-  && chmod +x /usr/local/bin/helm
+  && chmod +x /usr/local/bin/helm \
+  && helm plugin install https://github.com/hypnoglow/helm-s3.git
 
 RUN mkdir -p ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION} \
     && curl -LJ -o ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION}/cert-manager.crds.yaml  https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.crds.yaml
