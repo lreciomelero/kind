@@ -7,7 +7,7 @@ ENV CLUSTERCTL_DISABLE_VERSIONCHECK=true
 # Tools versions
 ENV CLUSTERCTL=v1.5.3
 ENV CLUSTERAWSADM=v2.2.1
-ENV HELM=v3.11.3
+ENV HELM=v3.13.1
 
 # Helm charts
 ENV CLOUD_PROVIDER_AWS_CHART=0.0.8
@@ -26,7 +26,7 @@ ENV CAPZ=v1.11.4
 
 # Install vim
 RUN apt-get update && apt-get install -y \
-  vim \
+  vim git \
   && rm -rf /var/lib/apt/lists/*
 
 # Add aliases
@@ -50,7 +50,8 @@ RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases
 RUN curl -L https://get.helm.sh/helm-${HELM}-linux-amd64.tar.gz -o /root/helm.tar.gz \
   && tar -xf /root/helm.tar.gz -C /root && mv /root/linux-amd64/helm /usr/local/bin/helm \
   && rm -rf /root/linux-amd64 /root/helm.tar.gz \
-  && chmod +x /usr/local/bin/helm
+  && chmod +x /usr/local/bin/helm \
+  && helm plugin install https://github.com/hypnoglow/helm-s3.git
 
 # Download helm charts
 RUN mkdir -p /stratio/helm \
