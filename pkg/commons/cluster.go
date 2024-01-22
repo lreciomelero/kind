@@ -110,6 +110,7 @@ type KeosSpec struct {
 		AWS             AWSCP               `yaml:"aws,omitempty"`
 		Azure           AzureCP             `yaml:"azure,omitempty"`
 		ExtraVolumes    []ExtraVolume       `yaml:"extra_volumes,omitempty" validate:"dive"`
+		Public          bool                `yaml:"public" validate:"boolean"`
 	} `yaml:"control_plane"`
 
 	WorkerNodes WorkerNodes `yaml:"worker_nodes" validate:"required,dive"`
@@ -118,12 +119,13 @@ type KeosSpec struct {
 }
 
 type Networks struct {
-	VPCID         string    `yaml:"vpc_id,omitempty"`
-	VPCCidrBlock  string    `yaml:"vpc_cidr,omitempty" validate:"omitempty,cidrv4"`
-	PodsCidrBlock string    `yaml:"pods_cidr,omitempty" validate:"omitempty,cidrv4"`
-	PodsSubnets   []Subnets `yaml:"pods_subnets,omitempty" validate:"dive"`
-	Subnets       []Subnets `yaml:"subnets,omitempty" validate:"dive"`
-	ResourceGroup string    `yaml:"resource_group,omitempty"`
+	VPCID                   string    `yaml:"vpc_id,omitempty"`
+	VPCCidrBlock            string    `yaml:"vpc_cidr,omitempty" validate:"omitempty,cidrv4"`
+	PodsCidrBlock           string    `yaml:"pods_cidr,omitempty" validate:"omitempty,cidrv4"`
+	PodsSubnets             []Subnets `yaml:"pods_subnets,omitempty" validate:"dive"`
+	Subnets                 []Subnets `yaml:"subnets,omitempty" validate:"dive"`
+	ResourceGroup           string    `yaml:"resource_group,omitempty"`
+	AdditionalSecurityGroup string    `yaml:"additional_sg,omitempty"`
 }
 
 type Subnets struct {
@@ -349,6 +351,7 @@ func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 func (s KeosSpec) Init() KeosSpec {
 	highlyAvailable := true
 	s.ControlPlane.HighlyAvailable = &highlyAvailable
+	s.ControlPlane.Public = true
 
 	// AKS
 	s.ControlPlane.Azure.Tier = "Paid"

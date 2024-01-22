@@ -180,6 +180,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 
 	clusterCredentials, err := provider.Validate(
 		*keosCluster,
+		*clusterConfig,
 		secretsDefaultPath,
 		flags.VaultPassword,
 	)
@@ -189,6 +190,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 
 	dockerRegUrl := ""
 	if clusterConfig != nil && clusterConfig.Spec.Private {
+
 		configFile, err := getConfigFile(keosCluster, clusterCredentials)
 		if err != nil {
 			return errors.Wrap(err, "Error getting private kubeadm config")
