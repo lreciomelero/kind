@@ -709,12 +709,27 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			if a.clusterConfig != nil {
+
+				c = "kubectl -n " + capiClustersNamespace + " patch clusterconfig " + a.clusterConfig.Metadata.Name + " -p '{\"metadata\":{\"ownerReferences\":null,\"finalizers\":null}}' --type=merge"
+				_, err = commons.ExecuteCommand(n, c)
+				if err != nil {
+					return errors.Wrap(err, "failed to remove clusterconfig ownerReferences and finalizers")
+				}
+
 				// Move clusterConfig to workload cluster
 				c = "kubectl -n " + capiClustersNamespace + " get clusterconfig " + a.clusterConfig.Metadata.Name + " -o json | kubectl apply --kubeconfig " + kubeconfigPath + " -f-"
 				_, err = commons.ExecuteCommand(n, c)
 				if err != nil {
 					return errors.Wrap(err, "failed to move clusterconfig to workload cluster")
 				}
+
+				// Delete clusterconfig in management cluster
+				c = "kubectl -n " + capiClustersNamespace + " delete clusterconfig " + a.clusterConfig.Metadata.Name
+				_, err = commons.ExecuteCommand(n, c)
+				if err != nil {
+					return errors.Wrap(err, "failed to delete clusterconfig in management cluster")
+				}
+
 			}
 
 			// Move keoscluster to workload cluster
