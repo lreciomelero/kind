@@ -2,8 +2,13 @@
 apiServer:
   enabled: false
 calicoctl:
+{{- if $.Private }}
+  image: {{ $.KeosRegUrl }}/calico/ctl
+  tag: v3.26.1
+{{- else }}
   image: docker.io/calico/ctl
   tag: v3.26.1
+{{- end }}
 certs:
   node:
     cert:
@@ -39,7 +44,11 @@ installation:
   enabled: true
   kubernetesProvider: {{- if and ($.Spec.ControlPlane.Managed) (eq $.Spec.InfraProvider "aws") }} EKS {{- else }} "" {{- end }}
   nodeMetricsPort: 9191
+  {{- if $.Private }}
+  registry: {{ $.KeosRegUrl }}
+  {{- else }}
   registry: docker.io
+  {{- end }}
   typhaMetricsPort: 9093
 # NodeSelector for the tigera/operator pod.
 nodeSelector:
@@ -55,8 +64,12 @@ podLabels: {}
 resources: {}
 # Image and registry configuration for the tigera/operator pod.
 tigeraOperator:
-  image: tigera/operator
+{{- if $.Private }}
+  registry: {{ $.KeosRegUrl }}
+{{- else }}
   registry: quay.io
+{{- end }}
+  image: tigera/operator
   version: v1.30.5
 # Tolerations for the tigera/operator pod.
 tolerations:
