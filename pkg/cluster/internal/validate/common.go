@@ -18,6 +18,7 @@ package validate
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -61,8 +62,12 @@ func validatePublicControlPlane(spec commons.KeosSpec, clusterConfig *commons.Cl
 		if clusterConfig == nil || !clusterConfig.Spec.Private {
 			return errors.New("If keoscluster's .spec.control_plane.public is false, clusterConfig .spec.private_registry must be true")
 		}
-		if spec.Networks.AdditionalSecurityGroup != "" {
+		if spec.Networks.AdditionalSecurityGroup == "" {
 			return errors.New("If keoscluster's .spec.control_plane.public is false, its .spec.networks.additional_sg must be indicated. This sg must be created as a requirement and must allow the internal vpc traffic.")
+		}
+		if spec.Networks.VPCID == "" || reflect.DeepEqual(spec.Networks.Subnets, commons.Subnets{}) {
+			return errors.New("If keoscluster's .spec.control_plane.public is false, its .spec.networks.vpc_id and .spec.networks.subnets must be indicated.")
+
 		}
 	}
 
