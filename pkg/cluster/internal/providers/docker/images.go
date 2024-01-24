@@ -72,7 +72,6 @@ func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster
 		} else {
 			err = buildStratioImage(logger, stratioImage, dockerfileDir)
 		}
-		err = buildStratioImage(logger, stratioImage, dockerfileDir)
 		if err != nil {
 			status.End(false)
 			return err
