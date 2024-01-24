@@ -176,12 +176,20 @@ func validateAWSNetwork(ctx context.Context, cfg aws.Config, spec commons.KeosSp
 				}
 			}
 		}
+		if spec.Networks.AdditionalSecurityGroupId != "" {
+			if err := validateSecurityGroup(spec.Networks.AdditionalSecurityGroupId, spec.Networks.VPCID, cfg); err != nil {
+				return err
+			}
+		}
 	} else {
 		if len(spec.Networks.Subnets) > 0 {
 			return errors.New("\"vpc_id\": is required when \"subnets\" is set")
 		}
 		if len(spec.Networks.PodsSubnets) > 0 {
 			return errors.New("\"vpc_id\": is required when \"pods_subnets\" is set")
+		}
+		if spec.Networks.AdditionalSecurityGroupId != "" {
+			return errors.New("\"vpc_id\": is required when \"additional_sg_id\" is set")
 		}
 	}
 	if len(spec.Networks.Subnets) > 0 {
@@ -194,6 +202,7 @@ func validateAWSNetwork(ctx context.Context, cfg aws.Config, spec commons.KeosSp
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -247,6 +256,44 @@ func getAWSRegions(config aws.Config) ([]string, error) {
 	}
 
 	return regions, nil
+}
+
+func validateSecurityGroup(sgId string, vpcId string, config aws.Config) error {
+	findSg := false
+	ec2Client := ec2.NewFromConfig(config)
+	params := ec2.DescribeSecurityGroupsInput{
+		Filters: []types.Filter{
+			{
+				Name:   toPtr[string]("group-id"),
+				Values: []string{sgId},
+			},
+		},
+	}
+	if vpcId != "" {
+		vpcFilter := types.Filter{Name: toPtr[string]("vpc-id"), Values: []string{vpcId}}
+		params.Filters = append(params.Filters, vpcFilter)
+	}
+	sgsOutput, err := ec2Client.DescribeSecurityGroups(context.Background(), &params)
+	if err != nil {
+		return err
+	}
+	for _, sg := range sgsOutput.SecurityGroups {
+		if *sg.GroupId == sgId {
+			findSg = true
+			continue
+		}
+	}
+	if !findSg {
+		errMsg := "SecurityGroup with sg_id: " + sgId + " does not exist in"
+		if vpcId == "" {
+			errMsg += " default vpc."
+		} else {
+			errMsg += " vpc: " + vpcId + "."
+		}
+		return errors.New(errMsg)
+
+	}
+	return nil
 }
 
 func getAWSVPCs(config aws.Config) ([]string, error) {

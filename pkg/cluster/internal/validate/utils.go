@@ -72,3 +72,7 @@ func getFieldNames(s interface{}) []string {
 	}
 	return fieldNames
 }
+
+func toPtr[T any](v T) *T {
+	return &v
+}

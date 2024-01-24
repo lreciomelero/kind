@@ -119,13 +119,13 @@ type KeosSpec struct {
 }
 
 type Networks struct {
-	VPCID                   string    `yaml:"vpc_id,omitempty"`
-	VPCCidrBlock            string    `yaml:"vpc_cidr,omitempty" validate:"omitempty,cidrv4"`
-	PodsCidrBlock           string    `yaml:"pods_cidr,omitempty" validate:"omitempty,cidrv4"`
-	PodsSubnets             []Subnets `yaml:"pods_subnets,omitempty" validate:"dive"`
-	Subnets                 []Subnets `yaml:"subnets,omitempty" validate:"dive"`
-	ResourceGroup           string    `yaml:"resource_group,omitempty"`
-	AdditionalSecurityGroup string    `yaml:"additional_sg,omitempty"`
+	VPCID                     string    `yaml:"vpc_id,omitempty"`
+	VPCCidrBlock              string    `yaml:"vpc_cidr,omitempty" validate:"omitempty,cidrv4"`
+	PodsCidrBlock             string    `yaml:"pods_cidr,omitempty" validate:"omitempty,cidrv4"`
+	PodsSubnets               []Subnets `yaml:"pods_subnets,omitempty" validate:"dive"`
+	Subnets                   []Subnets `yaml:"subnets,omitempty" validate:"dive"`
+	ResourceGroup             string    `yaml:"resource_group,omitempty"`
+	AdditionalSecurityGroupId string    `yaml:"additional_sg_id,omitempty"`
 }
 
 type Subnets struct {
