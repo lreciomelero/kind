@@ -53,9 +53,9 @@ func validateCommon(spec commons.KeosSpec, clusterConfig *commons.ClusterConfig)
 }
 
 func validatePublicControlPlane(spec commons.KeosSpec, clusterConfig *commons.ClusterConfig) error {
-	if spec.InfraProvider != "aws" {
+	if spec.InfraProvider == "gcp" {
 		if !spec.ControlPlane.Public {
-			return errors.New("spec.control_plane.public only can be false for aws or eks installations")
+			return errors.New("spec.control_plane.public cannot be false for gcp installations")
 		}
 	} else if !spec.ControlPlane.Public {
 		if clusterConfig == nil || !clusterConfig.Spec.Private {
