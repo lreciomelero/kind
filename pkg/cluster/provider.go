@@ -255,7 +255,7 @@ func (p *Provider) CollectLogs(name, dir string) error {
 	return p.provider.CollectLogs(dir, n)
 }
 
-func (p *Provider) Validate(keosCluster commons.KeosCluster, clusterConfig commons.ClusterConfig, secretsPath string, vaultPassword string) (commons.ClusterCredentials, error) {
+func (p *Provider) Validate(keosCluster commons.KeosCluster, clusterConfig *commons.ClusterConfig, secretsPath string, vaultPassword string) (commons.ClusterCredentials, error) {
 	params := &internalvalidate.ValidateParams{
 		KeosCluster:   keosCluster,
 		ClusterConfig: clusterConfig,

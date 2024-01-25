@@ -180,7 +180,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 
 	clusterCredentials, err := provider.Validate(
 		*keosCluster,
-		*clusterConfig,
+		clusterConfig,
 		secretsDefaultPath,
 		flags.VaultPassword,
 	)
