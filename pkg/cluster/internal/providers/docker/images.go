@@ -40,7 +40,7 @@ var (
 
 // ensureNodeImages ensures that the node images used by the create
 // configuration are present
-func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster, dockerRegUrl string) error {
+func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster, dockerRegUrl string, fullyPrivate bool) error {
 	// pull each required image
 	for _, image := range common.RequiredNodeImages(cfg).List() {
 		// prints user friendly message
@@ -62,12 +62,18 @@ func ensureNodeImages(logger log.Logger, status *cli.Status, cfg *config.Cluster
 			return err
 		}
 		stratioImage := "stratio-capi-image:" + strings.Split(friendlyImageName, ":")[1]
+		args := []string{}
 		if dockerRegUrl != "" {
-			cmd := exec.Command("docker", "inspect", "--type=image", stratioImage)
-			if err := cmd.Run(); err == nil {
-				logger.V(1).Infof("stratioImage: %s present locally", image)
+			args = append(args, "--build-arg=DOCKER_REG="+dockerRegUrl)
+			if fullyPrivate {
+				cmd := exec.Command("docker", "inspect", "--type=image", stratioImage)
+				if err := cmd.Run(); err == nil {
+					logger.V(1).Infof("stratioImage: %s present locally", image)
+				} else {
+					err = buildStratioImage(logger, stratioImage, dockerfileDir, args...)
+				}
 			} else {
-				err = buildStratioImage(logger, stratioImage, dockerfileDir)
+				err = buildStratioImage(logger, stratioImage, dockerfileDir, args...)
 			}
 		} else {
 			err = buildStratioImage(logger, stratioImage, dockerfileDir)
@@ -112,8 +118,13 @@ func ensureStratioImageFiles(logger log.Logger) (dir string, err error) {
 }
 
 // buildStratioImage builds the stratio image
-func buildStratioImage(logger log.Logger, image string, path string) error {
+func buildStratioImage(logger log.Logger, image string, path string, args ...string) error {
 	cmd := exec.Command("docker", "build", "--tag="+image, path)
+	if len(args) != 0 {
+		arg := strings.Join(args, " ")
+		cmd = exec.Command("docker", "build", "--tag="+image, arg, path)
+	}
+
 	if err := cmd.Run(); err != nil {
 		return errors.Wrapf(err, "failed to build image %q", image)
 	}

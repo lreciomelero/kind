@@ -59,6 +59,7 @@ const (
 	storageDefaultPath      = "/kind/manifests/default-storage.yaml"
 	infraGCPVersion         = "v1.4.0"
 	infraAWSVersion         = "v2.2.1"
+	infraAzureVersion       = "v1.11.4"
 )
 
 var PathsToBackupLocally = []string{
@@ -240,20 +241,36 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cluster-api:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  bootstrap-kubeadm:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  control-plane-kubeadm:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-aws:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-aws\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    tag: " + infraAWSVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-gcp:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    tag: " + infraGCPVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-azure/azureserviceoperator:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/k8s\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-azure/kube-rbac-proxy:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/kubebuilder\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-azure/nmi:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/oss/azure/aad-pod-identity\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
-			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml "
+			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    timeout: 10m\" >> /root/.cluster-api/clusterctl.yaml "
 
 		_, err = commons.ExecuteCommand(n, c)
 

@@ -64,7 +64,7 @@ func validatePublicControlPlane(spec commons.KeosSpec, clusterConfig *commons.Cl
 		if spec.Networks.VPCID == "" || len(spec.Networks.Subnets) == 0 {
 			return errors.New("If keoscluster's .spec.control_plane.public is false, its .spec.networks.vpc_id and .spec.networks.subnets must be indicated.")
 		}
-		if spec.Networks.AdditionalSecurityGroupId == "" && spec.ControlPlane.Managed {
+		if spec.Networks.AdditionalSecurityGroupId == "" && spec.ControlPlane.Managed && spec.InfraProvider == "aws" {
 			return errors.New("If keoscluster's .spec.control_plane.public is false and .spec.control_plane.managed, its .spec.networks.additional_sg must be indicated. This sg must be created as a requirement and must allow the internal vpc traffic.")
 		}
 

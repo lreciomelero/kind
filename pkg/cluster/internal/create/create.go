@@ -121,7 +121,7 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 	logger.V(0).Infof("Creating temporary cluster %q ...\n", opts.Config.Name)
 
 	// Create node containers implementing defined config Nodes
-	if err := p.Provision(status, opts.Config, opts.DockerRegUrl); err != nil {
+	if err := p.Provision(status, opts.Config, opts.DockerRegUrl, !opts.KeosCluster.Spec.ControlPlane.Public); err != nil {
 		// In case of errors nodes are deleted (except if retain is explicitly set)
 		if !opts.Retain {
 			_ = delete.Cluster(logger, p, opts.Config.Name, opts.KubeconfigPath)
