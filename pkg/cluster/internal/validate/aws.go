@@ -83,6 +83,16 @@ func validateAWS(spec commons.KeosSpec, providerSecrets map[string]string) error
 		}
 	}
 
+	for _, tag := range spec.ControlPlane.Tags {
+		for k, v := range tag {
+			label := k + "=" + v
+			fmt.Println(label)
+			if err = validateAWSLabel(label); err != nil {
+				return errors.Wrap(err, "spec.control_plane.tags: Invalid value")
+			}
+		}
+	}
+
 	if !spec.ControlPlane.Managed {
 		if spec.ControlPlane.NodeImage != "" {
 			if !isAWSNodeImage(spec.ControlPlane.NodeImage) {
@@ -160,6 +170,9 @@ func validateAWSNetwork(ctx context.Context, cfg aws.Config, spec commons.KeosSp
 		}
 	}
 	if spec.Networks.VPCID != "" {
+		if spec.Networks.VPCCIDRBlock != "" {
+			return errors.New("\"vpc_id\" and \"vpc_cidr\" are mutually exclusive")
+		}
 		vpcs, _ := getAWSVPCs(cfg)
 		if len(vpcs) > 0 && !commons.Contains(vpcs, spec.Networks.VPCID) {
 			return errors.New("\"vpc_id\": " + spec.Networks.VPCID + " does not exist")
@@ -167,6 +180,14 @@ func validateAWSNetwork(ctx context.Context, cfg aws.Config, spec commons.KeosSp
 		if len(spec.Networks.Subnets) == 0 {
 			return errors.New("\"subnets\": are required when \"vpc_id\" is set")
 		} else {
+			for _, s := range spec.Networks.Subnets {
+				if s.SubnetId == "" {
+					return errors.New("\"subnet_id\": is required")
+				}
+			}
+			if err = validateAWSAZs(ctx, cfg, spec); err != nil {
+				return err
+			}
 			subnets, _ := getAWSSubnets(spec.Networks.VPCID, cfg)
 			if len(subnets) > 0 {
 				for _, subnet := range spec.Networks.Subnets {
@@ -177,21 +198,22 @@ func validateAWSNetwork(ctx context.Context, cfg aws.Config, spec commons.KeosSp
 			}
 		}
 	} else {
-		if len(spec.Networks.Subnets) > 0 {
-			return errors.New("\"vpc_id\": is required when \"subnets\" is set")
+		if spec.Networks.VPCCIDRBlock != "" {
+			const cidrSizeMin = 256
+			_, ipv4Net, err := net.ParseCIDR(spec.Networks.VPCCIDRBlock)
+			if err != nil {
+				return errors.New("\"vpc_cidr\": CIDR block must be a valid IPv4 CIDR block")
+			}
+			cidrSize := cidr.AddressCount(ipv4Net)
+			if cidrSize < cidrSizeMin {
+				return errors.New("\"vpc_cidr\": CIDR block size must be at least /24 netmask")
+			}
+			if len(spec.Networks.Subnets) > 0 {
+				return errors.New("\"subnets\": are not supported when \"vpc_cidr\" is set")
+			}
 		}
 		if len(spec.Networks.PodsSubnets) > 0 {
 			return errors.New("\"vpc_id\": is required when \"pods_subnets\" is set")
-		}
-	}
-	if len(spec.Networks.Subnets) > 0 {
-		for _, s := range spec.Networks.Subnets {
-			if s.SubnetId == "" {
-				return errors.New("\"subnet_id\": is required")
-			}
-		}
-		if err = validateAWSAZs(ctx, cfg, spec); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -364,9 +386,17 @@ func validateAWSStorageClass(sc commons.StorageClass, wn commons.WorkerNodes) er
 	}
 	// Validate labels
 	if sc.Parameters.Labels != "" {
-		if err = validateLabel(sc.Parameters.Labels); err != nil {
+		if err = validateAWSLabel(sc.Parameters.Labels); err != nil {
 			return errors.Wrap(err, "invalid labels")
 		}
+	}
+	return nil
+}
+
+func validateAWSLabel(l string) error {
+	var isLabel = regexp.MustCompile(`^([\w\.\/-]+=[\w\.\/-]+)(\s?,\s?[\w\.\/-]+=[\w\.\/-]+)*$`).MatchString
+	if !isLabel(l) {
+		return errors.New("incorrect format. Must have the format 'key1=value1,key2=value2'")
 	}
 	return nil
 }
@@ -376,13 +406,15 @@ func validateAWSAZs(ctx context.Context, cfg aws.Config, spec commons.KeosSpec) 
 	var azs []string
 
 	svc := ec2.NewFromConfig(cfg)
-	if len(spec.Networks.Subnets) > 0 {
-		azs, err = commons.AWSGetPrivateAZs(ctx, svc, spec.Networks.Subnets)
-		if err != nil {
-			return err
-		}
-		if len(azs) < 3 {
-			return errors.New("insufficient Availability Zones in region " + spec.Region + ". Please add at least 3 private subnets in different Availability Zones")
+	if spec.Networks.VPCID != "" {
+		if len(spec.Networks.Subnets) > 0 {
+			azs, err = commons.AWSGetPrivateAZs(ctx, svc, spec.Networks.Subnets)
+			if err != nil {
+				return err
+			}
+			if len(azs) < 3 {
+				return errors.New("insufficient Availability Zones in region " + spec.Region + ". Please add at least 3 private subnets in different Availability Zones")
+			}
 		}
 	} else {
 		azs, err = commons.AWSGetAZs(ctx, svc)
@@ -393,7 +425,6 @@ func validateAWSAZs(ctx context.Context, cfg aws.Config, spec commons.KeosSpec) 
 			return errors.New("insufficient Availability Zones in region " + spec.Region + ". Must have at least 3")
 		}
 	}
-
 	for _, node := range spec.WorkerNodes {
 		if node.ZoneDistribution == "unbalanced" && node.AZ != "" {
 			if !slices.Contains(azs, node.AZ) {

@@ -185,9 +185,18 @@ func validateGCPStorageClass(spec commons.KeosSpec) error {
 	}
 	// Validate labels
 	if sc.Parameters.Labels != "" {
-		if err = validateLabel(sc.Parameters.Labels); err != nil {
+		if err = validateGCPLabel(sc.Parameters.Labels); err != nil {
 			return errors.Wrap(err, "invalid labels")
 		}
+	}
+	return nil
+}
+
+func validateGCPLabel(l string) error {
+	// Keys must start with a lowercase character and contain only hyphens (-), underscores (_), lowercase characters, and numbers.
+	var isLabel = regexp.MustCompile(`^([a-z][a-z\d_-]*=[a-z\d_-]+)(\s?,\s?[a-z][a-z\d_-]*=[a-z\d_-]+)*$`).MatchString
+	if !isLabel(l) {
+		return errors.New("incorrect format. Must have the format 'key1=value1,key2=value2'")
 	}
 	return nil
 }
@@ -221,6 +230,10 @@ func validateGCPNetwork(network commons.Networks, credentialsJson string, region
 			return errors.New("\"subnet_id\": required")
 		}
 	}
+	if network.VPCCIDRBlock != "" {
+		return errors.New("\"vpc_cidr\": is not supported")
+	}
+
 	return nil
 }
 
