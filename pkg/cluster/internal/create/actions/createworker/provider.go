@@ -47,6 +47,8 @@ var denyAllEgressIMDSgnpFiles embed.FS
 //go:embed files/*/allow-egress-imds_gnetpol.yaml
 var allowEgressIMDSgnpFiles embed.FS
 
+var stratio_helm_repo string
+
 const (
 	CAPICoreProvider         = "cluster-api"
 	CAPIBootstrapProvider    = "kubeadm"
@@ -56,8 +58,8 @@ const (
 	scName = "keos"
 
 	certManagerVersion   = "v1.12.3"
-	clusterOperatorChart = "0.2.0-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-SNAPSHOT"
+	clusterOperatorChart = "0.2.0-PR163-SNAPSHOT"
+	clusterOperatorImage = "0.2.0-PR163-SNAPSHOT"
 
 	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 )
@@ -287,7 +289,7 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 	return nil
 }
 
-func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry keosRegistry, clusterConfig *commons.ClusterConfig, kubeconfigPath string, firstInstallation bool) error {
+func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry KeosRegistry, clusterConfig *commons.ClusterConfig, kubeconfigPath string, firstInstallation bool, helmRepoCreds HelmRegistry) error {
 	var c string
 	var err error
 	var helmRepository helmRepository
@@ -329,10 +331,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		if keosCluster.Spec.ControlPlane.Managed {
 			keosCluster.Spec.ControlPlane.HighlyAvailable = nil
 		}
-		keosCluster.Spec.Keos = struct {
-			Flavour string `yaml:"flavour,omitempty"`
-			Version string `yaml:"version,omitempty"`
-		}{}
+		keosCluster.Spec.Keos = commons.Keos{}
 
 		if clusterConfig != nil {
 			clusterConfigYAML, err := yaml.Marshal(clusterConfig)
@@ -359,25 +358,35 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		}
 		// Add helm repository
 		helmRepository.url = keosCluster.Spec.HelmRepository.URL
-		if keosCluster.Spec.HelmRepository.AuthRequired {
+		if strings.HasPrefix(keosCluster.Spec.HelmRepository.URL, "oci://") {
+			stratio_helm_repo = helmRepoCreds.URL
+			urlLogin := strings.Split(strings.Split(keosCluster.Spec.HelmRepository.URL, "//")[1], "/")[0]
+
+			c = "helm registry login " + urlLogin + " --username " + helmRepoCreds.User + " --password " + helmRepoCreds.Pass
+			_, err = commons.ExecuteCommand(n, c)
+			if err != nil {
+				return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepoCreds.URL)
+			}
+		} else if keosCluster.Spec.HelmRepository.AuthRequired {
 			helmRepository.user = clusterCredentials.HelmRepositoryCredentials["User"]
 			helmRepository.pass = clusterCredentials.HelmRepositoryCredentials["Pass"]
-			c = "helm repo add stratio-helm-repo " + helmRepository.url + " --username " + helmRepository.user + " --password " + helmRepository.pass
+			stratio_helm_repo = "stratio-helm-repo"
+			c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL + " --username " + helmRepoCreds.User + " --password " + helmRepoCreds.Pass
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
 				return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepository.url)
 			}
 		} else {
-			c = "helm repo add stratio-helm-repo " + helmRepository.url
+			c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
-				return errors.Wrap(err, "failed to add helm repository: "+helmRepository.url)
+				return errors.Wrap(err, "failed to add helm repository: "+helmRepoCreds.URL)
 			}
 		}
 
 		if firstInstallation {
 			// Pull cluster-operator helm chart
-			c = "helm pull stratio-helm-repo/cluster-operator --version " + clusterOperatorChart +
+			c = "helm pull " + stratio_helm_repo + "/cluster-operator --version " + clusterOperatorChart +
 				" --untar --untardir /stratio/helm"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {

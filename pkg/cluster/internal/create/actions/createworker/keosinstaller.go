@@ -34,6 +34,9 @@ type KEOSDescriptor struct {
 	HelmRepository struct {
 		AuthRequired bool   `yaml:"auth_required"`
 		URL          string `yaml:"url"`
+		Type         string `yaml:"type,omitempty"`
+		User         string `yaml:"user,omitempty"`
+		Pass         string `yaml:"pass,omitempty"`
 	} `yaml:"helm_repository"`
 	AWS struct {
 		Enabled bool `yaml:"enabled"`
@@ -85,7 +88,7 @@ type EFSConfig struct {
 	Permissions string `yaml:"permissions"`
 }
 
-func createKEOSDescriptor(keosCluster commons.KeosCluster, storageClass string) error {
+func createKEOSDescriptor(keosCluster commons.KeosCluster, storageClass string, creds commons.ClusterCredentials) error {
 
 	var keosDescriptor KEOSDescriptor
 	var err error
@@ -102,6 +105,7 @@ func createKEOSDescriptor(keosCluster commons.KeosCluster, storageClass string) 
 	// Helm repository
 	keosDescriptor.HelmRepository.URL = keosCluster.Spec.HelmRepository.URL
 	keosDescriptor.HelmRepository.AuthRequired = keosCluster.Spec.HelmRepository.AuthRequired
+	keosDescriptor.HelmRepository.Type = keosCluster.Spec.HelmRepository.Type
 
 	// AWS
 	if keosCluster.Spec.InfraProvider == "aws" {
