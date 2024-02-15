@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -87,6 +88,19 @@ func getConfigFile(keosCluster *commons.KeosCluster, clusterCredentials commons.
 			break
 		}
 	}
+
+	if registryParams.Url != "" {
+		c := "docker"
+		args := []string{"login", "-u", registryParams.User, "-p", registryParams.Pass, registryParams.Url}
+
+		cmd := exec.Command(c, args...)
+		_, err := cmd.CombinedOutput()
+		if err != nil {
+			errors.Wrap(err, "Failed in docker login: ")
+			return "", err
+		}
+	}
+
 	err = t.ExecuteTemplate(&tpl, "privateconfig.tmpl", registryParams)
 	if err != nil {
 		return "", err
