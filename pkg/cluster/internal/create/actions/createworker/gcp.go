@@ -34,12 +34,6 @@ import (
 	"sigs.k8s.io/kind/pkg/exec"
 )
 
-// //go:embed files/gcp/gcp-compute-persistent-disk-csi-driver.yaml
-// var csiManifest string
-//
-//go:embed templates/gcp/gcp-compute-persistent-disk-csi-driver.tmpl
-var csiManifest string
-
 //go:embed files/gcp/internal-ingress-nginx.yaml
 var gcpInternalIngress []byte
 
@@ -145,6 +139,9 @@ func (b *GCPBuilder) installCSI(n nodes.Node, k string, privateParams PrivatePar
 	}
 
 	csiManifests, err := getManifest(privateParams.KeosCluster.Spec.InfraProvider, "gcp-compute-persistent-disk-csi-driver.tmpl", privateParams)
+	if err != nil {
+		return errors.Wrap(err, "failed to get CSI driver manifests")
+	}
 
 	// Deploy CSI driver
 	cmd = n.Command("kubectl", "--kubeconfig", k, "apply", "-f", "-")
@@ -256,6 +253,16 @@ func (b *GCPBuilder) getOverrideVars(p ProviderParams, networks commons.Networks
 }
 
 func (b *GCPBuilder) postInstallPhase(n nodes.Node, k string) error {
+	var coreDNSPDBName = "coredns"
+
+	c := "kubectl --kubeconfig " + kubeconfigPath + " get pdb " + coreDNSPDBName + " -n kube-system"
+	_, err := commons.ExecuteCommand(n, c)
+	if err != nil {
+		err = installCorednsPdb(n, k)
+		if err != nil {
+			return errors.Wrap(err, "failed to add core dns PDB")
+		}
+	}
 
 	return nil
 }

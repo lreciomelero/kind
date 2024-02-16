@@ -173,6 +173,9 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		defer ctx.Status.End(false)
 		c = `kubectl delete -f ` + storageDefaultPath + ` --force`
 		_, err = commons.ExecuteCommand(n, c)
+		if err != nil {
+			return err
+		}
 		ctx.Status.End(true)
 
 	}
@@ -790,7 +793,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		ctx.Status.End(true)
-
 	}
 
 	ctx.Status.Start("Generating the KEOS descriptor 📝")

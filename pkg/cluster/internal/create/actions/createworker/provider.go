@@ -22,7 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -49,6 +49,9 @@ var allowEgressIMDSgnpFiles embed.FS
 
 var stratio_helm_repo string
 
+//go:embed files/*/*_pdb.yaml
+var commonsPDBFile embed.FS
+
 const (
 	CAPICoreProvider         = "cluster-api"
 	CAPIBootstrapProvider    = "kubeadm"
@@ -62,11 +65,12 @@ const (
 	clusterOperatorImage = "0.2.0-SNAPSHOT"
 
 	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
-)
+	corednsPdbPath        = "/kind/coredns_pdb.yaml"
 
-const machineHealthCheckWorkerNodePath = "/kind/manifests/machinehealthcheckworkernode.yaml"
-const machineHealthCheckControlPlaneNodePath = "/kind/manifests/machinehealthcheckcontrolplane.yaml"
-const defaultScAnnotation = "storageclass.kubernetes.io/is-default-class"
+	machineHealthCheckWorkerNodePath       = "/kind/manifests/machinehealthcheckworkernode.yaml"
+	machineHealthCheckControlPlaneNodePath = "/kind/manifests/machinehealthcheckcontrolplane.yaml"
+	defaultScAnnotation                    = "storageclass.kubernetes.io/is-default-class"
+)
 
 //go:embed files/common/calico-metrics.yaml
 var calicoMetrics string
@@ -228,7 +232,7 @@ func (p *Provider) getDenyAllEgressIMDSGNetPol() (string, error) {
 		return "", errors.Wrap(err, "error opening the deny all egress IMDS file")
 	}
 	defer denyAllEgressIMDSgnpFile.Close()
-	denyAllEgressIMDSgnpContent, err := ioutil.ReadAll(denyAllEgressIMDSgnpFile)
+	denyAllEgressIMDSgnpContent, err := io.ReadAll(denyAllEgressIMDSgnpFile)
 	if err != nil {
 		return "", err
 	}
@@ -243,12 +247,26 @@ func (p *Provider) getAllowCAPXEgressIMDSGNetPol() (string, error) {
 		return "", errors.Wrap(err, "error opening the allow egress IMDS file")
 	}
 	defer allowEgressIMDSgnpFile.Close()
-	allowEgressIMDSgnpContent, err := ioutil.ReadAll(allowEgressIMDSgnpFile)
+	allowEgressIMDSgnpContent, err := io.ReadAll(allowEgressIMDSgnpFile)
 	if err != nil {
 		return "", err
 	}
 
 	return string(allowEgressIMDSgnpContent), nil
+}
+
+func getcapxPDB(commonsPDBLocalPath string) (string, error) {
+	commonsPDBFile, err := commonsPDBFile.Open(commonsPDBLocalPath)
+	if err != nil {
+		return "", errors.Wrap(err, "error opening the PodDisruptionBudget file")
+	}
+	defer commonsPDBFile.Close()
+	capaPDBContent, err := io.ReadAll(commonsPDBFile)
+	if err != nil {
+		return "", err
+	}
+
+	return string(capaPDBContent), nil
 }
 
 func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string) error {
@@ -620,6 +638,7 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 		return errors.Wrap(err, "failed to assigned priorityClass to "+p.capxName+"-controller-manager")
 	}
 	c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system rollout status deploy " + p.capxName + "-controller-manager --timeout 60s"
+	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
 		return errors.Wrap(err, "failed to check rollout status for "+p.capxName+"-controller-manager")
 	}
@@ -631,6 +650,7 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 		return errors.Wrap(err, "failed to scale CAPX in workload cluster")
 	}
 	c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system rollout status deploy " + p.capxName + "-controller-manager --timeout 60s"
+	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
 		return errors.Wrap(err, "failed to check rollout status for "+p.capxName+"-controller-manager")
 	}
@@ -707,6 +727,7 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 			return errors.Wrap(err, "failed to assigned priorityClass to nmi")
 		}
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system rollout status ds capz-nmi --timeout 60s"
+		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
 			return errors.Wrap(err, "failed to check rollout status for nmi")
 		}
@@ -719,6 +740,7 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 		return errors.Wrap(err, "failed to scale the CAPI Deployment")
 	}
 	c = "kubectl --kubeconfig " + kubeconfigPath + " -n capi-system rollout status deploy capi-controller-manager --timeout 60s"
+	_, err = commons.ExecuteCommand(n, c)
 	if err != nil {
 		return errors.Wrap(err, "failed to check rollout status for capi-controller-manager")
 	}
@@ -731,7 +753,8 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 			if err != nil {
 				return errors.Wrap(err, "failed to scale the "+deployment.name+" deployment")
 			}
-			c = "kubectl --kubeconfig " + kubeconfigPath + " -n capi-system rollout status deploy " + deployment.name + " --timeout 60s"
+			c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + deployment.namespace + " rollout status deploy " + deployment.name + " --timeout 60s"
+			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
 				return errors.Wrap(err, "failed to check rollout status for "+deployment.name)
 			}
@@ -904,4 +927,27 @@ func rolloutStatus(n nodes.Node, k string, ns string, deployName string) error {
 	c := "kubectl --kubeconfig " + k + " rollout status deploy -n " + ns + " " + deployName + " --timeout=5m"
 	_, err := commons.ExecuteCommand(n, c)
 	return err
+}
+
+func installCorednsPdb(n nodes.Node, k string) error {
+
+	// Define PodDisruptionBudget for coredns service
+	corednsPDBLocalPath := "files/common/coredns_pdb.yaml"
+	corednsPDB, err := getcapxPDB(corednsPDBLocalPath)
+	if err != nil {
+		return err
+	}
+
+	c := "echo \"" + corednsPDB + "\" > " + corednsPdbPath
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create coredns PodDisruptionBudget file")
+	}
+
+	c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + corednsPdbPath
+	_, err = commons.ExecuteCommand(n, c)
+	if err != nil {
+		return errors.Wrap(err, "failed to apply coredns PodDisruptionBudget")
+	}
+	return nil
 }
