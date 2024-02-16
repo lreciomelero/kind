@@ -114,6 +114,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		StorageClass: a.keosCluster.Spec.StorageClass,
 	}
 
+	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)
+	infra := newInfra(providerBuilder)
+	provider := infra.buildProvider(providerParams)
+
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
 		if registry.KeosRegistry {
 			keosRegistry.url = registry.URL
@@ -122,9 +126,15 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 	}
 
-	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)
-	infra := newInfra(providerBuilder)
-	provider := infra.buildProvider(providerParams)
+	if keosRegistry.registryType != "generic" {
+		keosRegistry.user, keosRegistry.pass, err = infra.getRegistryCredentials(providerParams, keosRegistry.url)
+		if err != nil {
+			return errors.Wrap(err, "failed to get docker registry credentials")
+		}
+	} else {
+		keosRegistry.user = a.clusterCredentials.KeosRegistryCredentials["User"]
+		keosRegistry.pass = a.clusterCredentials.KeosRegistryCredentials["Pass"]
+	}
 
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
@@ -147,6 +157,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	if privateParams.Private {
 		ctx.Status.Start("Installing Private CNI 🎖️")
 		defer ctx.Status.End(false)
+
 		c = `sed -i 's/@sha256:[[:alnum:]_-].*$//g' ` + cniDefaultFile
 		_, err = commons.ExecuteCommand(n, c)
 		if err != nil {
