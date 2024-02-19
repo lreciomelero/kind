@@ -18,6 +18,7 @@ package createworker
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -31,6 +32,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/containers/image/v5/types"
 	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
@@ -313,6 +315,11 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 	var helmRepository helmRepository
 	keosCluster := privateParams.KeosCluster
 
+	chartVersion, err := getLastChartVersion(helmRepoCreds)
+	if err != nil {
+		return errors.Wrap(err, "failed to get the last chart version")
+	}
+
 	if firstInstallation && keosCluster.Spec.InfraProvider == "aws" && strings.HasPrefix(keosCluster.Spec.HelmRepository.URL, "s3://") {
 		c = "mkdir -p ~/.aws"
 		_, err = commons.ExecuteCommand(n, c)
@@ -404,7 +411,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 
 		if firstInstallation {
 			// Pull cluster-operator helm chart
-			c = "helm pull " + stratio_helm_repo + "/cluster-operator --version " + clusterOperatorChart +
+			c = "helm pull " + stratio_helm_repo + "/cluster-operator --version " + chartVersion +
 				" --untar --untardir /stratio/helm"
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
@@ -950,4 +957,39 @@ func installCorednsPdb(n nodes.Node, k string) error {
 		return errors.Wrap(err, "failed to apply coredns PodDisruptionBudget")
 	}
 	return nil
+}
+
+func getLastChartVersion(helmRepoCreds HelmRegistry) (string, error) {
+	fmt.Println(">>> getLastChartVersion")
+	if strings.HasPrefix(helmRepoCreds.URL, "oci://") || strings.HasPrefix(helmRepoCreds.URL, "docker://") {
+		return getLastChartVersionBySkopeo(helmRepoCreds)
+	}
+	return getLastChartVersionByIndex(helmRepoCreds)
+
+}
+
+func getLastChartVersionBySkopeo(helmRepoCreds HelmRegistry) (string, error) {
+	fmt.Println(">>> getLastChartVersionBySkopeo")
+	dockerAuthConfig := types.DockerAuthConfig{
+		Username: helmRepoCreds.User,
+		Password: helmRepoCreds.Pass,
+	}
+	sys := types.SystemContext{
+		DockerAuthConfig: &dockerAuthConfig,
+	}
+	_, tags, err := listDockerRepoTags(context.Background(), &sys, helmRepoCreds.URL)
+	if err != nil {
+		return "", err
+	}
+	return getLastVersion(tags), nil
+}
+
+func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
+	return "", nil
+}
+
+func getLastVersion(tags []string) string {
+	fmt.Println(">>> getLastVersion")
+	fmt.Println(tags)
+	return ""
 }
