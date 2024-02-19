@@ -311,11 +311,20 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 	var c string
 	var err error
 	var helmRepository helmRepository
+	var chartVersion string
 	keosCluster := privateParams.KeosCluster
 
-	chartVersion, err := getLastChartVersion(helmRepoCreds)
-	if err != nil {
-		return errors.Wrap(err, "failed to get the last chart version")
+	if clusterConfig != nil && clusterConfig.Spec.ClusterOperatorVersion != "" {
+		chartVersion = clusterConfig.Spec.ClusterOperatorVersion
+	} else {
+		chartVersion, err = getLastChartVersion(helmRepoCreds)
+		if err != nil {
+			return errors.Wrap(err, "failed to get the last chart version")
+		}
+		if clusterConfig == nil {
+			clusterConfig = &commons.ClusterConfig{}
+		}
+		clusterConfig.Spec.ClusterOperatorVersion = chartVersion
 	}
 
 	if firstInstallation && keosCluster.Spec.InfraProvider == "aws" && strings.HasPrefix(keosCluster.Spec.HelmRepository.URL, "s3://") {

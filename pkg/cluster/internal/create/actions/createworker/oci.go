@@ -2,6 +2,7 @@ package createworker
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 var release_pattern = "[0-9]{1,2}.[0-9]{1,3}.[0-9]{1,3}$"
 var prerelease_pattern = "-[0-9a-f]{7}$"
 var milestone_pattern = "-M\\d+$"
-var pr_pattern = "-PR[0-9]{3,4}-SNAPSHOT$"
+var pr_pattern = "-PR[0-9]{1,5}-SNAPSHOT$"
 var snapshot_pattern = "-SNAPSHOT$"
 
 var versions = map[string][]string{
@@ -41,7 +42,6 @@ type ChartEntry struct {
 }
 
 func getLastChartVersion(helmRepoCreds HelmRegistry) (string, error) {
-	fmt.Println(">>> getLastChartVersion")
 	if strings.HasPrefix(helmRepoCreds.URL, "oci://") || strings.HasPrefix(helmRepoCreds.URL, "docker://") {
 
 		if url, ok := strings.CutPrefix(helmRepoCreds.URL, "oci"); ok {
@@ -69,10 +69,20 @@ func getLastChartVersionFromContainerReg(helmRepoCreds HelmRegistry) (string, er
 }
 
 func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
-
 	url := helmRepoCreds.URL + "/index.yaml"
-	fmt.Println("url: " + url)
-	resp, err := http.Get(url)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "Error creating request: ")
+	}
+	if helmRepoCreds.User != "" && helmRepoCreds.Pass != "" {
+		auth := helmRepoCreds.User + ":" + helmRepoCreds.Pass
+		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+		fmt.Println("basicAuth: " + basicAuth)
+		req.Header.Set("Authorization", basicAuth)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", errors.Wrap(err, "Error getting index: ")
 	}
