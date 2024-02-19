@@ -3,11 +3,11 @@ package createworker
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/kind/pkg/errors"
 )
 
-var release_pattern = "[0-9]{1,2}.[0-9]{1,3}.[0-9]{1,3}$"
+var release_pattern = "^[0-9]{1,2}.[0-9]{1,3}.[0-9]{1,3}$"
 var prerelease_pattern = "-[0-9a-f]{7}$"
 var milestone_pattern = "-M\\d+$"
 var pr_pattern = "-PR[0-9]{1,5}-SNAPSHOT$"
@@ -34,11 +34,38 @@ var versions = map[string][]string{
 }
 
 type Index struct {
-	Entries map[string][]ChartEntry `yaml:"entries"`
+	Entries map[string]ChartEntries `yaml:"entries"`
 }
 
 type ChartEntry struct {
 	Version string `yaml:"version"`
+	Created string `yaml:"created"`
+}
+
+// Definir el slice de ChartEntry
+type ChartEntries []ChartEntry
+
+// Implementar la interfaz sort.Interface para ChartEntries
+func (ce ChartEntries) Len() int {
+	return len(ce)
+}
+
+func (ce ChartEntries) Swap(i, j int) {
+	ce[i], ce[j] = ce[j], ce[i]
+}
+
+func (ce ChartEntries) Less(i, j int) bool {
+	timeI, err := time.Parse(time.RFC3339Nano, ce[i].Created)
+	if err != nil {
+		return false
+	}
+
+	timeJ, err := time.Parse(time.RFC3339Nano, ce[j].Created)
+	if err != nil {
+		return false
+	}
+
+	return timeI.After(timeJ)
 }
 
 func getLastChartVersion(helmRepoCreds HelmRegistry) (string, error) {
@@ -78,7 +105,6 @@ func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
 	if helmRepoCreds.User != "" && helmRepoCreds.Pass != "" {
 		auth := helmRepoCreds.User + ":" + helmRepoCreds.Pass
 		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
-		fmt.Println("basicAuth: " + basicAuth)
 		req.Header.Set("Authorization", basicAuth)
 	}
 
@@ -99,6 +125,7 @@ func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
 	}
 
 	entries := index.Entries["cluster-operator"]
+	sort.Sort(entries)
 	tags := make([]string, 0)
 	for _, entry := range entries {
 		tags = append(tags, entry.Version)
@@ -109,25 +136,43 @@ func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
 
 func getLastVersion(tags []string) (string, error) {
 	filterTags(tags)
-
 	if len(versions[release_pattern]) != 0 {
-		return getVersion(versions[release_pattern]), nil
+		return getVersion(versions[release_pattern], release_pattern), nil
 	} else if len(versions[prerelease_pattern]) != 0 {
-		return getVersion(versions[prerelease_pattern]), nil
+		return getVersion(versions[prerelease_pattern], prerelease_pattern), nil
 	} else if len(versions[milestone_pattern]) != 0 {
-		return getVersion(versions[milestone_pattern]), nil
+		return getVersion(versions[milestone_pattern], milestone_pattern), nil
 	} else if len(versions[snapshot_pattern]) != 0 {
-		return getVersion(versions[snapshot_pattern]), nil
+		return getVersion(versions[snapshot_pattern], snapshot_pattern), nil
 	} else if len(versions[pr_pattern]) != 0 {
-		return getVersion(versions[pr_pattern]), nil
+		return getVersion(versions[pr_pattern], pr_pattern), nil
 	}
 
 	return "", errors.New("No chart version matching the patterns defined by Stratio has been found.")
 }
 
-func getVersion(tags []string) string {
-	sort.Strings(tags)
-	return tags[len(tags)-1]
+func getVersion(tags []string, pattern string) string {
+	switch pattern {
+	case release_pattern:
+		sort.Slice(tags, func(i, j int) bool {
+			return compareVersions(tags[i], tags[j])
+		})
+	case prerelease_pattern:
+		break
+	case milestone_pattern:
+		sort.Slice(tags, func(i, j int) bool {
+			return compareVersions(tags[i], tags[j])
+		})
+	case snapshot_pattern:
+		sort.Slice(tags, func(i, j int) bool {
+			return compareVersions(tags[i], tags[j])
+		})
+	case pr_pattern:
+		sort.Slice(tags, func(i, j int) bool {
+			return compareVersions(tags[i], tags[j])
+		})
+	}
+	return tags[0]
 }
 
 func filterTags(tags []string) {
@@ -143,12 +188,12 @@ func filterTags(tags []string) {
 
 func parseDockerRepositoryReference(refString string) (types.ImageReference, error) {
 	if !strings.HasPrefix(refString, docker.Transport.Name()+"://") {
-		return nil, fmt.Errorf("docker: image reference %s does not start with %s://", refString, docker.Transport.Name())
+		return nil, errors.Errorf("docker: image reference %s does not start with %s://", refString, docker.Transport.Name())
 	}
 
 	_, dockerImageName, hasColon := strings.Cut(refString, ":")
 	if !hasColon {
-		return nil, fmt.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, refString)
+		return nil, errors.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, refString)
 	}
 	ref, err := reference.ParseNormalizedNamed(strings.TrimPrefix(dockerImageName, "//"))
 	if err != nil {
@@ -169,7 +214,7 @@ func listDockerTags(ctx context.Context, sys *types.SystemContext, imgRef types.
 
 	tags, err := docker.GetRepositoryTags(ctx, sys, imgRef)
 	if err != nil {
-		return ``, nil, fmt.Errorf("Error listing repository tags: %w", err)
+		return ``, nil, errors.Errorf("Error listing repository tags: %w", err)
 	}
 	return repositoryName, tags, nil
 }
@@ -194,4 +239,28 @@ func listDockerRepoTags(ctx context.Context, sys *types.SystemContext, userInput
 		return
 	}
 	return
+}
+
+func compareVersions(v1, v2 string) bool {
+
+	parts1 := strings.Split(strings.TrimSuffix(v1, "-SNAPSHOT"), "-")
+	parts2 := strings.Split(strings.TrimSuffix(v2, "-SNAPSHOT"), "-")
+
+	main1 := strings.Split(parts1[0], ".")
+	main2 := strings.Split(parts2[0], ".")
+
+	for i := 0; i < len(main1) && i < len(main2); i++ {
+		num1, _ := strconv.Atoi(main1[i])
+		num2, _ := strconv.Atoi(main2[i])
+
+		if num1 != num2 {
+			return num1 > num2
+		}
+	}
+
+	if len(parts1) > 1 && len(parts2) > 1 {
+		return parts1[1] > parts2[1]
+	}
+
+	return len(main1) > len(main2)
 }
