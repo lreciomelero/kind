@@ -127,7 +127,7 @@ func getLastVersion(tags []string) (string, error) {
 
 func getVersion(tags []string) string {
 	sort.Strings(tags)
-	return tags[0]
+	return tags[len(tags)-1]
 }
 
 func filterTags(tags []string) {
