@@ -18,7 +18,6 @@ package createworker
 
 import (
 	"bytes"
-	"context"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -32,7 +31,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/containers/image/v5/types"
 	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
@@ -402,6 +400,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 				return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepository.url)
 			}
 		} else {
+			stratio_helm_repo = "stratio-helm-repo"
 			c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL
 			_, err = commons.ExecuteCommand(n, c)
 			if err != nil {
@@ -957,39 +956,4 @@ func installCorednsPdb(n nodes.Node, k string) error {
 		return errors.Wrap(err, "failed to apply coredns PodDisruptionBudget")
 	}
 	return nil
-}
-
-func getLastChartVersion(helmRepoCreds HelmRegistry) (string, error) {
-	fmt.Println(">>> getLastChartVersion")
-	if strings.HasPrefix(helmRepoCreds.URL, "oci://") || strings.HasPrefix(helmRepoCreds.URL, "docker://") {
-		return getLastChartVersionBySkopeo(helmRepoCreds)
-	}
-	return getLastChartVersionByIndex(helmRepoCreds)
-
-}
-
-func getLastChartVersionBySkopeo(helmRepoCreds HelmRegistry) (string, error) {
-	fmt.Println(">>> getLastChartVersionBySkopeo")
-	dockerAuthConfig := types.DockerAuthConfig{
-		Username: helmRepoCreds.User,
-		Password: helmRepoCreds.Pass,
-	}
-	sys := types.SystemContext{
-		DockerAuthConfig: &dockerAuthConfig,
-	}
-	_, tags, err := listDockerRepoTags(context.Background(), &sys, helmRepoCreds.URL)
-	if err != nil {
-		return "", err
-	}
-	return getLastVersion(tags), nil
-}
-
-func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
-	return "", nil
-}
-
-func getLastVersion(tags []string) string {
-	fmt.Println(">>> getLastVersion")
-	fmt.Println(tags)
-	return ""
 }

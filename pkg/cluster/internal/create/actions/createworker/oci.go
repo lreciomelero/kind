@@ -3,6 +3,10 @@ package createworker
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -10,17 +14,124 @@ import (
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
+	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/errors"
 )
 
-// tagListOutput is the output format of (skopeo list-tags), primarily so that we can format it with a simple json.MarshalIndent.
-type tagListOutput struct {
-	Repository string `json:",omitempty"`
-	Tags       []string
+var release_pattern = "[0-9]{1,2}.[0-9]{1,3}.[0-9]{1,3}$"
+var prerelease_pattern = "-[0-9a-f]{7}$"
+var milestone_pattern = "-M\\d+$"
+var pr_pattern = "-PR[0-9]{3,4}-SNAPSHOT$"
+var snapshot_pattern = "-SNAPSHOT$"
+
+var versions = map[string][]string{
+	release_pattern:    {},
+	prerelease_pattern: {},
+	milestone_pattern:  {},
+	pr_pattern:         {},
+	snapshot_pattern:   {},
+}
+
+type Index struct {
+	Entries map[string][]ChartEntry `yaml:"entries"`
+}
+
+type ChartEntry struct {
+	Version string `yaml:"version"`
+}
+
+func getLastChartVersion(helmRepoCreds HelmRegistry) (string, error) {
+	fmt.Println(">>> getLastChartVersion")
+	if strings.HasPrefix(helmRepoCreds.URL, "oci://") || strings.HasPrefix(helmRepoCreds.URL, "docker://") {
+
+		if url, ok := strings.CutPrefix(helmRepoCreds.URL, "oci"); ok {
+			helmRepoCreds.URL = "docker" + url
+		}
+		return getLastChartVersionFromContainerReg(helmRepoCreds)
+	}
+	return getLastChartVersionByIndex(helmRepoCreds)
+
+}
+
+func getLastChartVersionFromContainerReg(helmRepoCreds HelmRegistry) (string, error) {
+	dockerAuthConfig := types.DockerAuthConfig{
+		Username: helmRepoCreds.User,
+		Password: helmRepoCreds.Pass,
+	}
+	sys := types.SystemContext{
+		DockerAuthConfig: &dockerAuthConfig,
+	}
+	_, tags, err := listDockerRepoTags(context.Background(), &sys, helmRepoCreds.URL+"/cluster-operator")
+	if err != nil {
+		return "", err
+	}
+	return getLastVersion(tags)
+}
+
+func getLastChartVersionByIndex(helmRepoCreds HelmRegistry) (string, error) {
+
+	url := helmRepoCreds.URL + "/index.yaml"
+	fmt.Println("url: " + url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", errors.Wrap(err, "Error getting index: ")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", errors.Wrap(err, "Error reading response: ")
+	}
+
+	var index Index
+	if err := yaml.Unmarshal(body, &index); err != nil {
+		return "", errors.Wrap(err, "Error decoding respose: ")
+	}
+
+	entries := index.Entries["cluster-operator"]
+	tags := make([]string, 0)
+	for _, entry := range entries {
+		tags = append(tags, entry.Version)
+	}
+
+	return getLastVersion(tags)
+}
+
+func getLastVersion(tags []string) (string, error) {
+	filterTags(tags)
+
+	if len(versions[release_pattern]) != 0 {
+		return getVersion(versions[release_pattern]), nil
+	} else if len(versions[prerelease_pattern]) != 0 {
+		return getVersion(versions[prerelease_pattern]), nil
+	} else if len(versions[milestone_pattern]) != 0 {
+		return getVersion(versions[milestone_pattern]), nil
+	} else if len(versions[snapshot_pattern]) != 0 {
+		return getVersion(versions[snapshot_pattern]), nil
+	} else if len(versions[pr_pattern]) != 0 {
+		return getVersion(versions[pr_pattern]), nil
+	}
+
+	return "", errors.New("No chart version matching the patterns defined by Stratio has been found.")
+}
+
+func getVersion(tags []string) string {
+	sort.Strings(tags)
+	return tags[0]
+}
+
+func filterTags(tags []string) {
+	for _, tag := range tags {
+		for reg := range versions {
+			if regexp.MustCompile(reg).MatchString(tag) {
+				versions[reg] = append(versions[reg], tag)
+				break
+			}
+		}
+	}
 }
 
 func parseDockerRepositoryReference(refString string) (types.ImageReference, error) {
-	fmt.Println(">>> parseDockerRepositoryReference")
 	if !strings.HasPrefix(refString, docker.Transport.Name()+"://") {
 		return nil, fmt.Errorf("docker: image reference %s does not start with %s://", refString, docker.Transport.Name())
 	}
@@ -55,7 +166,6 @@ func listDockerTags(ctx context.Context, sys *types.SystemContext, imgRef types.
 
 // return the tagLists from a docker repo
 func listDockerRepoTags(ctx context.Context, sys *types.SystemContext, userInput string) (repositoryName string, tagListing []string, err error) {
-	fmt.Println(">>> listDockerRepoTags")
 
 	// Do transport-specific parsing and validation to get an image reference
 	imgRef, err := parseDockerRepositoryReference(userInput)
