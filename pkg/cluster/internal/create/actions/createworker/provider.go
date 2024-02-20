@@ -395,6 +395,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 				return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepository.url)
 			}
 		} else {
+			stratio_helm_repo = "stratio-helm-repo"
 			c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL
 			_, err = commons.ExecuteCommand(n, c, 5)
 			if err != nil {
