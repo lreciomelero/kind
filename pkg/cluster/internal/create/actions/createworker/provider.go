@@ -61,8 +61,8 @@ const (
 	scName = "keos"
 
 	certManagerVersion   = "v1.12.3"
-	clusterOperatorChart = "0.2.0-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-SNAPSHOT"
+	clusterOperatorChart = "0.2.0-PR167-SNAPSHOT"
+	clusterOperatorImage = "0.2.0-PR167-SNAPSHOT"
 
 	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 	corednsPdbPath        = "/kind/coredns_pdb.yaml"
@@ -313,6 +313,11 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 	var helmRepository helmRepository
 	keosCluster := privateParams.KeosCluster
 
+	if clusterConfig == nil {
+		clusterConfig = &commons.ClusterConfig{}
+		clusterConfig.Spec = new(commons.ClusterConfigSpec).Init()
+	}
+
 	if firstInstallation && keosCluster.Spec.InfraProvider == "aws" && strings.HasPrefix(keosCluster.Spec.HelmRepository.URL, "s3://") {
 		c = "mkdir -p ~/.aws"
 		_, err = commons.ExecuteCommand(n, c, 5)
@@ -351,19 +356,18 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		}
 		keosCluster.Spec.Keos = commons.Keos{}
 
-		if clusterConfig != nil {
-			clusterConfigYAML, err := yaml.Marshal(clusterConfig)
-			if err != nil {
-				return err
-			}
-			// Write keoscluster file
-			c = "echo '" + string(clusterConfigYAML) + "' > " + manifestsPath + "/clusterconfig.yaml"
-			_, err = commons.ExecuteCommand(n, c, 5)
-			if err != nil {
-				return errors.Wrap(err, "failed to write the keoscluster file")
-			}
-			keosCluster.Spec.ClusterConfigRef.Name = clusterConfig.Metadata.Name
+		clusterConfigYAML, err := yaml.Marshal(clusterConfig)
+		if err != nil {
+			return err
 		}
+		// Write keoscluster file
+		c = "echo '" + string(clusterConfigYAML) + "' > " + manifestsPath + "/clusterconfig.yaml"
+		_, err = commons.ExecuteCommand(n, c, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to write the keoscluster file")
+		}
+		keosCluster.Spec.ClusterConfigRef.Name = clusterConfig.Metadata.Name
+
 		keosClusterYAML, err := yaml.Marshal(keosCluster)
 		if err != nil {
 			return err
@@ -395,6 +399,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 				return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepository.url)
 			}
 		} else {
+			stratio_helm_repo = "stratio-helm-repo"
 			c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL
 			_, err = commons.ExecuteCommand(n, c, 5)
 			if err != nil {
@@ -839,13 +844,19 @@ func (p *Provider) installCAPXLocal(n nodes.Node) error {
 	return nil
 }
 
-func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace string) error {
+func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace string, clusterConfig *commons.ClusterConfig) error {
 	var c string
 	var err error
+	var controlplane_maxunhealty = 34
+	var workernode_maxunhealty = 100
+	if clusterConfig != nil {
+		controlplane_maxunhealty = clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy
+		workernode_maxunhealty = clusterConfig.Spec.WorkersConfig.MaxUnhealthy
+	}
 
 	if !keosCluster.Spec.ControlPlane.Managed {
 		machineRole := "-control-plane-node"
-		generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckControlPlaneNodePath, machineRole)
+		generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckControlPlaneNodePath, machineRole, controlplane_maxunhealty)
 
 		c = "kubectl -n " + namespace + " apply -f " + machineHealthCheckControlPlaneNodePath
 		_, err = commons.ExecuteCommand(n, c, 5)
@@ -855,7 +866,7 @@ func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace 
 	}
 
 	machineRole := "-worker-node"
-	generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckWorkerNodePath, machineRole)
+	generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckWorkerNodePath, machineRole, workernode_maxunhealty)
 
 	c = "kubectl -n " + namespace + " apply -f " + machineHealthCheckWorkerNodePath
 	_, err = commons.ExecuteCommand(n, c, 5)
@@ -866,14 +877,11 @@ func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace 
 	return nil
 }
 
-func generateMHCManifest(n nodes.Node, clusterID string, namespace string, manifestPath string, machineRole string) error {
+func generateMHCManifest(n nodes.Node, clusterID string, namespace string, manifestPath string, machineRole string, maxunhealthy int) error {
 	var c string
 	var err error
-	var maxUnhealthy = "100%"
+	var maxUnhealthy = strconv.Itoa(maxunhealthy) + "%"
 
-	if strings.Contains(machineRole, "control-plane-node") {
-		maxUnhealthy = "34%"
-	}
 	var machineHealthCheck = `
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck

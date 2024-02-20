@@ -58,7 +58,17 @@ type Metadata struct {
 }
 
 type ClusterConfigSpec struct {
-	Private bool `yaml:"private_registry"`
+	Private            bool               `yaml:"private_registry"`
+	ControlplaneConfig ControlplaneConfig `yaml:"controlplane_config"`
+	WorkersConfig      WorkersConfig      `yaml:"workers_config"`
+}
+
+type ControlplaneConfig struct {
+	MaxUnhealthy int `yaml:"max_unhealthy,omitempty" validate:"numeric,gte=0,lte=100"`
+}
+
+type WorkersConfig struct {
+	MaxUnhealthy int `yaml:"max_unhealthy,omitempty" validate:"numeric,gte=0,lte=100"`
 }
 
 type ClusterConfigRef struct {
@@ -345,6 +355,8 @@ type SCParameters struct {
 
 func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 	s.Private = false
+	s.ControlplaneConfig.MaxUnhealthy = 34
+	s.WorkersConfig.MaxUnhealthy = 100
 	return s
 }
 
