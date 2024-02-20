@@ -214,7 +214,7 @@ func listDockerTags(ctx context.Context, sys *types.SystemContext, imgRef types.
 
 	tags, err := docker.GetRepositoryTags(ctx, sys, imgRef)
 	if err != nil {
-		return ``, nil, errors.Errorf("Error listing repository tags: %w", err)
+		return ``, nil, errors.Errorf("Error listing repository tags: %s", err.Error())
 	}
 	return repositoryName, tags, nil
 }
