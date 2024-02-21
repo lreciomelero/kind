@@ -56,9 +56,6 @@ func validateClusterConfig(spec commons.KeosSpec, clusterConfigSpec commons.Clus
 		if clusterConfigSpec.ControlplaneConfig.MaxUnhealthy != nil {
 			return errors.New("spec: Invalid value: \"controlplane_config.max_unhealthy\" in clusterConfig: This field cannot be set with managed cluster")
 		}
-		if clusterConfigSpec.WorkersConfig.MaxUnhealthy != nil {
-			return errors.New("spec: Invalid value: \"workers_config.max_unhealthy\" in clusterConfig: This field cannot be set with managed cluster")
-		}
 	}
 	return nil
 }
