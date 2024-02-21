@@ -172,8 +172,8 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to parse cluster descriptor")
 	}
-	if !keosCluster.Spec.ControlPlane.Managed && clusterConfig != nil {
-		if clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy == nil {
+	if clusterConfig != nil {
+		if !keosCluster.Spec.ControlPlane.Managed && clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy == nil {
 			clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = toPtr[int](34)
 		}
 		if clusterConfig.Spec.WorkersConfig.MaxUnhealthy == nil {
