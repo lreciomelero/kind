@@ -64,11 +64,11 @@ type ClusterConfigSpec struct {
 }
 
 type ControlplaneConfig struct {
-	MaxUnhealthy int `yaml:"max_unhealthy,omitempty" validate:"numeric,gte=0,lte=100"`
+	MaxUnhealthy *int `yaml:"max_unhealthy,omitempty" validate:"omitempty,numeric,gte=0,lte=100"`
 }
 
 type WorkersConfig struct {
-	MaxUnhealthy int `yaml:"max_unhealthy,omitempty" validate:"numeric,gte=0,lte=100"`
+	MaxUnhealthy *int `yaml:"max_unhealthy,omitempty" validate:"omitempty,numeric,gte=0,lte=100"`
 }
 
 type ClusterConfigRef struct {
@@ -355,8 +355,9 @@ type SCParameters struct {
 
 func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 	s.Private = false
-	s.ControlplaneConfig.MaxUnhealthy = 34
-	s.WorkersConfig.MaxUnhealthy = 100
+
+	// s.ControlplaneConfig.MaxUnhealthy = 34
+	// s.WorkersConfig.MaxUnhealthy = 100
 	return s
 }
 

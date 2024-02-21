@@ -172,6 +172,14 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to parse cluster descriptor")
 	}
+	if !keosCluster.Spec.ControlPlane.Managed && clusterConfig != nil {
+		if clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy == nil {
+			clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = toPtr[int](34)
+		}
+		if clusterConfig.Spec.WorkersConfig.MaxUnhealthy == nil {
+			clusterConfig.Spec.WorkersConfig.MaxUnhealthy = toPtr[int](100)
+		}
+	}
 
 	provider := cluster.NewProvider(
 		cluster.ProviderWithLogger(logger),
@@ -180,6 +188,7 @@ func runE(logger log.Logger, streams cmd.IOStreams, flags *flagpole) error {
 
 	clusterCredentials, err := provider.Validate(
 		*keosCluster,
+		clusterConfig,
 		secretsDefaultPath,
 		flags.VaultPassword,
 	)
@@ -299,4 +308,9 @@ func validateFlags(flags *flagpole) error {
 		return errors.New("Flags --retain, --avoid-creation, and --keep-mgmt are mutually exclusive")
 	}
 	return nil
+}
+
+// Ptr returns a pointer to the provided value.
+func toPtr[T any](v T) *T {
+	return &v
 }
