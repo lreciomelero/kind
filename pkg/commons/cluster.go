@@ -453,6 +453,8 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 
 	if !findClusterConfig {
 		clusterConfig = ClusterConfig{}
+		clusterConfig.APIVersion = "installer.stratio.com/v1beta1"
+		clusterConfig.Kind = "ClusterConfig"
 		clusterConfig.Metadata.Name = keosCluster.Spec.InfraProvider + "-config"
 		clusterConfig.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
 		clusterConfig.Spec = new(ClusterConfigSpec).Init()
