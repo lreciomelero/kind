@@ -274,6 +274,11 @@ kubectl --kubeconfig /home/jnovoa/.kube/configs/remote_kubeconfig -n cluster-<cl
 aws eks update-addon --cluster-name <cluster-name> --addon-name vpc-cni --addon-version v1.13.4-eksbuild.1 --resolve-conflicts OVERWRITE
 ----
 ==== Keos Deployment (No additional permissions needed)
+[options="header"]
+| Permission | Necessary for | Description | Resource | Application
+|===
+| ecr:ListImages | Helm charts version lookup | ListImages | arn:aws:ec2:*:*:vpc/* | keos  
+|===
 ==== Custom Network Deployment (Pdte)
 [options="header"]
 | Permission | Necessary for | Description | Resource | Application
