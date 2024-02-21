@@ -356,8 +356,6 @@ type SCParameters struct {
 func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 	s.Private = false
 
-	// s.ControlplaneConfig.MaxUnhealthy = 34
-	// s.WorkersConfig.MaxUnhealthy = 100
 	return s
 }
 
@@ -466,7 +464,15 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 		return &keosCluster, &clusterConfig, nil
 	}
 
-	return &keosCluster, nil, nil
+	clusterConfig = ClusterConfig{}
+	clusterConfig.Metadata.Name = keosCluster.Spec.InfraProvider + "-config"
+	clusterConfig.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
+	clusterConfig.Spec.WorkersConfig.MaxUnhealthy = ToPtr[int](100)
+	if !keosCluster.Spec.ControlPlane.Managed {
+		clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = ToPtr[int](34)
+	}
+
+	return &keosCluster, &clusterConfig, nil
 }
 
 func DecryptFile(filePath string, vaultPassword string) (string, error) {
@@ -597,4 +603,9 @@ func requireCheckFieldValue(fl validator.FieldLevel, param string, value string,
 
 	return false
 
+}
+
+// Ptr returns a pointer to the provided value.
+func ToPtr[T any](v T) *T {
+	return &v
 }

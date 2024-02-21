@@ -61,8 +61,8 @@ const (
 	scName = "keos"
 
 	certManagerVersion   = "v1.12.3"
-	clusterOperatorChart = "0.2.0-SNAPSHOT"
-	clusterOperatorImage = "0.2.0-SNAPSHOT"
+	clusterOperatorChart = "0.2.0-PR167-SNAPSHOT"
+	clusterOperatorImage = "0.2.0-PR167-SNAPSHOT"
 
 	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 	corednsPdbPath        = "/kind/coredns_pdb.yaml"
@@ -847,21 +847,16 @@ func (p *Provider) installCAPXLocal(n nodes.Node) error {
 func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace string, clusterConfig *commons.ClusterConfig) error {
 	var c string
 	var err error
-	// var controlplane_maxunhealty = 34
-	// var workernode_maxunhealty = 100
-	// if clusterConfig != nil {
-	// 	if clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy != nil {
-	// 		controlplane_maxunhealty = *clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy
-	// 	}
-	// 	if clusterConfig.Spec.WorkersConfig.MaxUnhealthy != nil {
-	// 		workernode_maxunhealty = *clusterConfig.Spec.WorkersConfig.MaxUnhealthy
-	// 	}
-	// }
-	controlplane_maxunhealty := *clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy
-	workernode_maxunhealty := *clusterConfig.Spec.WorkersConfig.MaxUnhealthy
 
 	if !keosCluster.Spec.ControlPlane.Managed {
 		machineRole := "-control-plane-node"
+		controlplane_maxunhealty := 34
+		if clusterConfig != nil {
+			if clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy != nil {
+				controlplane_maxunhealty = *clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy
+			}
+		}
+
 		generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckControlPlaneNodePath, machineRole, controlplane_maxunhealty)
 
 		c = "kubectl -n " + namespace + " apply -f " + machineHealthCheckControlPlaneNodePath
@@ -872,6 +867,12 @@ func enableSelfHealing(n nodes.Node, keosCluster commons.KeosCluster, namespace 
 	}
 
 	machineRole := "-worker-node"
+	workernode_maxunhealty := 34
+	if clusterConfig != nil {
+		if clusterConfig.Spec.WorkersConfig.MaxUnhealthy != nil {
+			workernode_maxunhealty = *clusterConfig.Spec.WorkersConfig.MaxUnhealthy
+		}
+	}
 	generateMHCManifest(n, keosCluster.Metadata.Name, namespace, machineHealthCheckWorkerNodePath, machineRole, workernode_maxunhealty)
 
 	c = "kubectl -n " + namespace + " apply -f " + machineHealthCheckWorkerNodePath
