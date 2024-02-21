@@ -355,7 +355,7 @@ type SCParameters struct {
 
 func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 	s.Private = false
-
+	s.WorkersConfig.MaxUnhealthy = ToPtr[int](100)
 	return s
 }
 
@@ -460,16 +460,16 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 		return nil, nil, errors.New("Keoscluster's manifest has not been found.")
 	}
 
-	if findClusterConfig {
-		return &keosCluster, &clusterConfig, nil
-	}
-
-	clusterConfig = ClusterConfig{}
-	clusterConfig.Metadata.Name = keosCluster.Spec.InfraProvider + "-config"
-	clusterConfig.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
-	clusterConfig.Spec.WorkersConfig.MaxUnhealthy = ToPtr[int](100)
-	if !keosCluster.Spec.ControlPlane.Managed {
-		clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = ToPtr[int](34)
+	if !findClusterConfig {
+		clusterConfig = ClusterConfig{}
+		clusterConfig.APIVersion = "installer.stratio.com/v1beta1"
+		clusterConfig.Kind = "ClusterConfig"
+		clusterConfig.Metadata.Name = keosCluster.Spec.InfraProvider + "-config"
+		clusterConfig.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
+		clusterConfig.Spec = new(ClusterConfigSpec).Init()
+		if !keosCluster.Spec.ControlPlane.Managed {
+			clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = ToPtr[int](34)
+		}
 	}
 
 	return &keosCluster, &clusterConfig, nil
