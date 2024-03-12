@@ -1,0 +1,29 @@
+= Imágenes EKS
+
+|===
+| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+| Instalado por Cluster API - CAPA | v2.2.1 | registry.k8s.io/cluster-api-aws/cluster-api-aws-controller | v2.2.1 |
+|===
+
+En *EKS*, además de las imágenes que se instalan a través de los diferentes componentes que se integran mediante *Helm Charts* o mediante *clusterctl* durante el proceso de aprovisionamiento, al instalar diferentes componentes como addons de EKS, se instalan en el workload cluster las siguientes imágenes procedentes de repositorios propios de EKS. 
+
+Estas imágenes pueden variar dependiendo de las versiones de los addons que se instalen, lo cuál estará sujeto a sus compatibilidades con las versiones de EKS, por ello la siguiente tabla podría no cumplirse en el momento de su lectura. 
+
+En cualquier caso, estas imágenes no es necesario subirlas a ningún registro y es meramente informativo.
+
+|===
+| *Componente* | *Versión* |*Imagen pública* | *Versiones* 
+| coredns | v1.9.3-eksbuild.3 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/coredns | v1.9.3-eksbuild.3 
+| aws-ebs-csi-driver | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/aws-ebs-csi-driver | v1.19.0 
+| aws-ebs-csi-drivern | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/csi-node-driver-registrar | v2.8.0-eks-1-27-3 
+| aws-ebs-csi-driver | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/csi-provisioner | v3.5.0-eks-1-27-3
+| aws-ebs-csi-driver | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/csi-attacher |  v4.3.0-eks-1-27-3
+| aws-ebs-csi-driver | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/csi-snapshotter |  v6.2.1-eks-1-27-3
+| aws-ebs-csi-driver | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/csi-resizer | v1.8.0-eks-1-27-3
+| aws-ebs-csi-driver | v1.19.0-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/livenessprobe | v2.10.0-eks-1-27-3
+| vpc-cni | v1.12.6-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/amazon-k8s-cni | v1.12.6-eksbuild.2
+| kube-proxy | v1.24.15-eksbuild.2 | 602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/kube-proxy | v1.26.7-minimal-eksbuild.2
+|===
+
+
+

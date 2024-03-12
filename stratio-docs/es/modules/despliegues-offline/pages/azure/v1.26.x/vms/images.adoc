@@ -1,0 +1,6 @@
+= Imágenes Azure VMs
+
+|===
+| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+|   |   |   |
+|===

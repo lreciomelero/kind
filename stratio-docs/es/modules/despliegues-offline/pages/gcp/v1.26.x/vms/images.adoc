@@ -1,0 +1,6 @@
+= Imágenes Google VMs
+
+|===
+| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+|   |   |   |
+|===

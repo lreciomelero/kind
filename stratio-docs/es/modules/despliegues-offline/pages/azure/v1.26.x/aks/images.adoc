@@ -1,0 +1,6 @@
+= Imágenes AKS
+
+|===
+| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+|   |   |   |
+|===

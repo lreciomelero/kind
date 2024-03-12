@@ -1,0 +1,59 @@
+[.text-justify]
+= Manual de despliegues offline
+
+Se entiende como despliegues offline, aquellos en los que las imágenes que utilizarán los distintos workloads de clúster provendrán de repositorios privados. 
+
+[.text-justify]
+== Descriptor
+
+Actualmente el descriptor acepta que la indicación de dos recursos de Kubernetes. Por un lado, el KeosCluster, que permite especificar los parámetros necesarios para la creaación del cluster, y por otro, el ClusterConfig con las configuraciones para ese cluster en particular.
+
+Para llevar a cabo un despliegue offline de forma satisfactoria, es necesario indicar:
+
+[.text-justify]
+* *ClusterConfig*: 
+** *spec.private_registry: true*. Con este parámetro se le indica al binario de cloud-provisioner que todas las imágenes necesarias durante el aprovisionamiento e instalación del clúster de deben recuperar del *keos_registry*.
+
+* *KeosCluster*:
+** *spec.docker_registries*: En la sección de docker_registries se debe indicar el keos_registry del que se descargarán las imágenes para el despliegue offline. 
+Es importante que esté registry cuente con las imágenes necesarias para cada despliegue.
+
+[.text-justify]
+== Versiones
+
+
+Las imágenes necesarias para los despliegues offline se encuentran compuestas por dos tipos de imágenes. Imágenes comunes a todas las distribuciones e imágenes propias. Por ello, se exponen a continuación las referencias a las imágenes necesarias en cada una.
+
+|===
+|VERSION | COMUNES | AWS-VMS | EKS | AZURE-VMS | AKS | GCP-VMS | GKE
+
+|v1.26.x | xref:despliegues-offline:commons/v1.26.x/commons/images.adoc[IMÁGENES COMUNES] | xref:despliegues-offline:aws/v1.26.x/vms/images.adoc[AWS-VMS] | xref:despliegues-offline:aws/v1.26.x/eks/images.adoc[EKS] | xref:despliegues-offline:azure/v1.26.x/vms/images.adoc[AZURE-VMS] | xref:despliegues-offline:azure/v1.26.x/aks/images.adoc[AKS] | xref:despliegues-offline:gcp/v1.26.x/vms/images.adoc[GCP-VMS] | xref:despliegues-offline:gcp/v1.26.x/gke/images.adoc[GKE]
+|===
+
+NOTE: Aunque no se indique en ninguna de las referencias a las imágenes necesarias, el cluster necesita las imágenes core de Kubernetes. Esto es por que las imágenes construidas para los distintos nodos de Kubernetes ya cuantan con dichas imágenes.
+
+[.text-justify]
+== Puesta a punto
+
+Se proporciona un script que descargue todas las imágenes necesarias, las renombre y suba al registry que se le indique: *registry-push.sh*. 
+
+Esta herramienta se encuentra ubicada en este repositorio bajo la carpetab *bin* y las imágenes que se deberán pushear a los distintos registros se encuentran ubicadas en distintos ficheros bajo *bin/images/<cloud>*.
+
+Para poder realizar la subida de imágenes al registro, se debe hacer login previamente contra él. En el caso de AWS, además, las credenciales que se utilizan deben tener permiso para crear registros dentro de ECR, ya que cada imagen es un registro único.
+
+Por otro lado, para usar la herramienta *registry-push.sh* es necesario indicar con la opción -d el directorio donde se ubican las imágenes y con la opción -p el provider (aws, azure, gcp) en el que ubicará el registro. De esta manera, para subir las imágenes necesarias para, por ejemplo, AWS:
+
+. *Subir imágenes comunes a AWS*: 
+[source,bash]
+----
+$ cd bin
+$ registry-push.sh -p aws -d images/commons
+----
+
+. *Subir imágenes propias de AWS*: 
+[source,bash]
+----
+$ cd bin
+$ registry-push.sh -p aws -d images/aws
+----
+

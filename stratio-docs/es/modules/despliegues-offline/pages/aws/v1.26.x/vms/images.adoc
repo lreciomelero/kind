@@ -1,0 +1,6 @@
+= Imágenes AWS VMs
+
+|===
+| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+|   |   |   |
+|===
