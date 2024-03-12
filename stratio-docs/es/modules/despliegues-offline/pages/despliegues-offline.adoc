@@ -39,7 +39,7 @@ NOTE: Es también fundamental disponer en el *keos_registry* de la imagen del cl
 
 Se proporciona un script que descargue todas las imágenes necesarias, las renombre y suba al registry que se le indique: *registry-push.sh*. 
 
-Esta herramienta se encuentra ubicada en este repositorio bajo la carpetab *bin* y las imágenes que se deberán pushear a los distintos registros se encuentran ubicadas en distintos ficheros bajo *bin/images/<cloud>*.
+Esta herramienta se encuentra ubicada en este repositorio bajo la carpetab *bin* y las imágenes que se deberán pushear a los distintos registros se encuentran ubicadas en distintos ficheros bajo *bin/images/<cloud>*. En estos directorios debe existir un fichero llamado *REGISTRY*, sin extensión que defina el registro al que se van a subir las imágenes.
 
 Para poder realizar la subida de imágenes al registro, se debe hacer login previamente contra él. En el caso de AWS, además, las credenciales que se utilizan deben tener permiso para crear registros dentro de ECR, ya que cada imagen es un registro único.
 
@@ -59,3 +59,18 @@ $ cd bin
 $ registry-push.sh -p aws -d images/aws
 ----
 
+De esta forma, por ejemplo, en caso de tener bajo images/aws:
+
+[source,bash]
+----
+REGISTRY
+XXXXX.dkr.ecr.eu-west-1.amazonaws.com/keos/offline
+----
+
+[source,bash]
+----
+imagenes-aws.txt
+registry.k8s.io/provider-aws/cloud-controller-manager:v1.27.1
+----
+
+El resultado sería la creación del repositorio, en caso de no existir, XXXXX.dkr.ecr.eu-west-1.amazonaws.com/keos/offline/provider-aws/cloud-controller-manager y la subida a dicho repositorio de la imagen  XXXXX.dkr.ecr.eu-west-1.amazonaws.com/keos/offline/provider-aws/cloud-controller-manager:v1.27.1
