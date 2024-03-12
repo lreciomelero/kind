@@ -32,7 +32,7 @@ Las imágenes necesarias para los despliegues offline se encuentran compuestas p
 
 NOTE: Aunque no se indique en ninguna de las referencias a las imágenes necesarias, el cluster necesita las imágenes core de Kubernetes. Esto es por que las imágenes construidas para los distintos nodos de Kubernetes ya cuantan con dichas imágenes.
 
-NOTE: Es también fundamental disponer en el *keos_registry* de la imagen del cluster-operator que se indique en el *ClusterConfig*, ya sea la de la última release o la específica para esa instalación
+NOTE: Es también fundamental disponer en el *keos_registry* de la imagen del cluster-operator que se indique en el *ClusterConfig*, ya sea la de la última release o la específica para esa instalación.
 
 [.text-justify]
 == Puesta a punto
