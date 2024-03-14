@@ -6,12 +6,14 @@
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones*
 | *Instalado por Cluster API - CAPA* | *v2.2.1* | | |
-|  | registry.k8s.io/cluster-api-aws/cluster-api-aws-controller | v2.2.1 |
+|  | registry.k8s.io/cluster-api-aws/cluster-api-aws-controller | v2.2.1 
+| *aws-load-balancer-controller* | *1.6.2* | | |
+|  | public.ecr.aws/eks/aws-load-balancer-controller | v2.6.2 
 |===
 
 == Imágenes comunes necesarias en EKS
 
-En las posibles distribuciones que se instalen mediante el cloud-provisioner, existen una serie de imágenes que se encuentran ligadas a la versión de los charts que se instalen. Estas son:
+Asociadas a los charts que instala el cloud-provisioner en eks, las imágenes necesarias son:
 
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones* 
@@ -27,10 +29,10 @@ En las posibles distribuciones que se instalen mediante el cloud-provisioner, ex
 |  |  | quay.io/tigera/operator | v1.30.5
 | *cert-manager* | *v1.12.3* | |
 |  |  | quay.io/jetstack/cert-manager-controller | v1.12.3
-|  |  | quay.io/jetstack/cert-manager-controller | v1.12.3
-|  |  | quay.io/jetstack/cert-manager-controller | v1.12.3
-|  |  | quay.io/jetstack/cert-manager-controller | v1.12.3
-|  |  | quay.io/jetstack/cert-manager-controller | v1.12.3
+|  |  | quay.io/jetstack/cert-manager-cainjector | v1.12.3
+|  |  | quay.io/jetstack/cert-manager-webhook | v1.12.3
+|  |  | quay.io/jetstack/cert-manager-acmesolver | v1.12.3
+|  |  | quay.io/jetstack/cert-manager-ctl | v1.12.3
 | *cluster-autoscaler* | *9.29.1* | |
 | | | registry.k8s.io/autoscaling/cluster-autoscaler | v1.27.2
 | *cluster-operator* | *** | | |
