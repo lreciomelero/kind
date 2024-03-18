@@ -1,0 +1,24 @@
+[.text-justify]
+= Imágenes Comunes
+
+== Imágenes cluster-operator
+
+|===
+| *Imagen* | *Versión*
+| stratio-releases.repo.stratio.com/stratio/cluster-operator  |  0.2.0 
+| gcr.io/kubebuilder/kube-rbac-proxy  |  v0.13.1 
+|===
+
+NOTE: La imágen gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1 del cluster operatos no sigue la misma nomenclatura que el resto de imágenes. Esta imágen debe seguir el patrón <keosregistry url>/stratio/kube-rbac-proxy:v0.13.1
+
+NOTE: Es posible que se haga referencia a la imágen gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1 desde otros operadores instalados mediante el cloud-provisioner. En ese caso esta imágen debería ser accesible desde 2 tags diferentes, desde el mencionado anteriormente y desde el que cumpla la nomenclatura general, es decir,  <keosregistry url>/kubebuilder/kube-rbac-proxy:v0.13.1.
+
+== Otras imágenes
+
+|===
+| *Imagen* | *Versión*
+| docker.io/kindest/node | v1.27.0
+| docker.io/kindest/kindnetd | v20230330-48f316cd
+|===
+
+ 

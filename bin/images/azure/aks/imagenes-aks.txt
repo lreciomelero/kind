@@ -1,0 +1,14 @@
+quay.io/jetstack/cert-manager-controller:v1.12.3
+quay.io/jetstack/cert-manager-cainjector:v1.12.3
+quay.io/jetstack/cert-manager-webhook:v1.12.3
+quay.io/jetstack/cert-manager-acmesolver:v1.12.3
+quay.io/jetstack/cert-manager-ctl:v1.12.3
+docker.io/kindest/node:v1.27.0
+docker.io/kindest/kindnetd:v20230330-48f316cd
+registry.k8s.io/cluster-api-azure/cluster-api-azure-controller:v1.11.4
+mcr.microsoft.com/k8s/azureserviceoperator:v2.3.0
+mcr.microsoft.com/oss/azure/aad-pod-identity/nmi:v1.8.14
+gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
+registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.5.3
+registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.5.3
+registry.k8s.io/cluster-api/cluster-api-controller:v1.5.3

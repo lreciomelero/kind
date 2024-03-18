@@ -1,0 +1,37 @@
+[.text-justify]
+= Manual de Instalación Offline
+
+Se entiende como instalación offline, aquellas en las que las imágenes que utilizarán los distintos workloads de clúster provendrán de repositorios accesibles desde entornos sin salida a internet. Por ello, a continuación se indican las imágenes que deben encontrarse accesibles en estos repositorios.
+
+[.text-justify]
+== Descriptor - Cluster.yaml
+
+Actualmente el descriptor del cluster se compone de dos recursos de Kubernetes, el KeosCluster, obligatorio, y el ClusterConfig, opcional. El *KeosCluster* permite especificar los parámetros necesarios para la creación del cluster y el *ClusterConfig* especifica las configuraciones para ese cluster en particular.
+
+Para llevar a cabo una inatalación offline de forma satisfactoria, es necesario indicar:
+
+[.text-justify]
+* *ClusterConfig*: 
+** *spec.private_registry: true*. Con este parámetro se le indica al binario de cloud-provisioner que todas las imágenes necesarias durante el aprovisionamiento e instalación del clúster de deben recuperar del *keos_registry*.
+
+* *KeosCluster*:
+** *spec.docker_registries*: En la sección de docker_registries se debe indicar el keos_registry del que se descargarán las imágenes para el despliegue offline. 
+Es importante que esté registry cuente con las imágenes necesarias para cada despliegue.
+
+NOTE: Las imágenes deberán encontrarse accesibles en el repositorio indicado como keos registry pero se deberá respetar el path del nombre de las imágenes. Por ejemplo, la imágen registry.k8s.io/cluster-api/cluster-api-controller:v1.5.3 deberá recuperarse de <keos_registry_url>/cluster-api/cluster-api-controller:v1.5.3.
+
+[.text-justify]
+== Versiones
+
+
+Las imágenes necesarias para una instalación offline se encuentran compuestas por dos tipos de imágenes. Imágenes comunes a todas las distribuciones e imágenes propias. Por ello, se exponen a continuación las referencias a las imágenes necesarias en cada una.
+
+|===
+|VERSION | COMUNES | AWS-VMS | EKS | AZURE-VMS | AKS | GCP-VMS | GKE
+
+|v1.26.x | xref:despliegues-offline:commons/v1.26.x/commons/images.adoc[IMÁGENES COMUNES] | xref:despliegues-offline:aws/v1.26.x/vms/images.adoc[AWS-VMS] | xref:despliegues-offline:aws/v1.26.x/eks/images.adoc[EKS] | xref:despliegues-offline:azure/v1.26.x/vms/images.adoc[AZURE-VMS] | xref:despliegues-offline:azure/v1.26.x/aks/images.adoc[AKS] | xref:despliegues-offline:gcp/v1.26.x/vms/images.adoc[GCP-VMS] | xref:despliegues-offline:gcp/v1.26.x/gke/images.adoc[GKE]
+|===
+
+NOTE: Las imágenes core de Kubernetes se encuentran contenidas en las propias imágenes de los nodos. Es por ello que no se indican en ninguna de las referencias a las imágenes necesarias, estarán disponibles en todas las imágenes construidas según la guía de ImageBuilder que se hace referencia en el manual de operaciones xref:operations-manual:operations-manual [Manual de Operaciones].
+
+NOTE: Es también fundamental disponer en el *keos_registry* de la imagen del cluster-operator que se indique en el *ClusterConfig*, ya sea la de la última release o la específica para esa instalación.

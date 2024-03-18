@@ -1,6 +1,8 @@
 [.text-justify]
 = Imágenes AWS VMs
 
+== Imágenes propias de AWS VMS
+
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones*
 | *Instalado por Cluster API - CAPA* | *v2.2.1* | | |
@@ -37,6 +39,4 @@ Asociadas a los charts que instala el cloud-provisioner en aws vms, las imágene
 |  |  | registry.k8s.io/cluster-api/kubeadm-bootstrap-controller | v1.5.3
 |  |  | registry.k8s.io/cluster-api/kubeadm-control-plane-controller | v1.5.3
 |  |  | registry.k8s.io/cluster-api/cluster-api-controller | v1.5.3
-| *cluster-operator* | *** | | |
-|  | gcr.io/kubebuilder/kube-rbac-proxy | v0.13.1
 |===

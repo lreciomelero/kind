@@ -1,6 +1,8 @@
 [.text-justify]
 = Imágenes Azure VMs
 
+== Imágenes propias de Azure VMS
+
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones*
 | *Instalado por Cluster API - CAPZ* | *v1.11.4* | | 
@@ -38,7 +40,7 @@ Deben existir en el repositorio definido como keos_registry bajo el nombre de:
 . <valor de keos_registry>/cluster-api-azure/kube-rbac-proxy
 . <valor de keos_registry>/cluster-api-azure/nmi
 
-== Imágenes comunes necesarias en AWS VMS
+== Imágenes comunes necesarias en Azure VMS
 
 Asociadas a los charts que instala el cloud-provisioner en aws vms, las imágenes necesarias son:
 
