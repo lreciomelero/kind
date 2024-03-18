@@ -1,2 +1,0 @@
-docker.io/kindest/node:v1.27.0
-docker.io/kindest/kindnetd:v20230330-48f316cd
