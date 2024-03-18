@@ -21,10 +21,6 @@
 *~
 
 /bin/.gimme
-/bin/images
-/bin/images*/
-/bin/images*/*
-/bin/images*
 /bin/cloud-provisioner*
 deploy-recorder.lst
 /hack/go
