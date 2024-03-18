@@ -29,7 +29,7 @@ Las imágenes necesarias para una instalación offline se encuentran compuestas 
 |===
 |VERSION | COMUNES | AWS-VMS | EKS | AZURE-VMS | AKS | GCP-VMS | GKE
 
-|v1.26.x | xref:despliegues-offline:commons/v1.26.x/commons/images.adoc[IMÁGENES COMUNES] | xref:despliegues-offline:aws/v1.26.x/vms/images.adoc[AWS-VMS] | xref:despliegues-offline:aws/v1.26.x/eks/images.adoc[EKS] | xref:despliegues-offline:azure/v1.26.x/vms/images.adoc[AZURE-VMS] | xref:despliegues-offline:azure/v1.26.x/aks/images.adoc[AKS] | xref:despliegues-offline:gcp/v1.26.x/vms/images.adoc[GCP-VMS] | xref:despliegues-offline:gcp/v1.26.x/gke/images.adoc[GKE]
+|v1.26.x | xref:commons/v1.26.x/images.adoc[IMÁGENES COMUNES] | xref:aws/v1.26.x/vms/images.adoc[AWS-VMS] | xref:aws/v1.26.x/eks/images.adoc[EKS] | xref:azure/v1.26.x/vms/images.adoc[AZURE-VMS] | xref:azure/v1.26.x/aks/images.adoc[AKS] | xref:gcp/v1.26.x/vms/images.adoc[GCP-VMS] | xref:gcp/v1.26.x/gke/images.adoc[GKE]
 |===
 
 NOTE: Las imágenes core de Kubernetes se encuentran contenidas en las propias imágenes de los nodos. Es por ello que no se indican en ninguna de las referencias a las imágenes necesarias, estarán disponibles en todas las imágenes construidas según la guía de ImageBuilder que se hace referencia en el manual de operaciones xref:operations-manual:operations-manual [Manual de Operaciones].
