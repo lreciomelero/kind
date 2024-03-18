@@ -1,7 +1,7 @@
 [.text-justify]
 = Manual de Instalación Offline
 
-Se entiende como instalación offline, aquellas en las que las imágenes que utilizarán los distintos workloads de clúster provendrán de repositorios accesibles desde entornos sin salida a internet. Por ello, a continuación se indican las imágenes que deben encontrarse accesibles en estos repositorios.
+Se entiende como instalación offline, aquellas en las que las imágenes que utilizarán los distintos workloads de clúster provendrán de repositorios accesibles desde entornos sin salida a internet. En este módulo se hace referencia a las imágenes que deben ser accesibles desde dichos repositorios.
 
 [.text-justify]
 == Descriptor - Cluster.yaml
@@ -12,19 +12,19 @@ Para llevar a cabo una inatalación offline de forma satisfactoria, es necesario
 
 [.text-justify]
 * *ClusterConfig*: 
-** *spec.private_registry: true*. Con este parámetro se le indica al binario de cloud-provisioner que todas las imágenes necesarias durante el aprovisionamiento e instalación del clúster de deben recuperar del *keos_registry*.
+** *spec.private_registry: true*. Con este parámetro se le indica al binario de cloud-provisioner que todas las imágenes necesarias durante el aprovisionamiento e instalación del clúster se deben recuperar del *keos registry*.
 
 * *KeosCluster*:
 ** *spec.docker_registries*: En la sección de docker_registries se debe indicar el keos_registry del que se descargarán las imágenes para el despliegue offline. 
-Es importante que esté registry cuente con las imágenes necesarias para cada despliegue.
+Es necesario que este registry cuente con las imágenes necesarias para cada instalación.
 
 NOTE: Las imágenes deberán encontrarse accesibles en el repositorio indicado como keos registry pero se deberá respetar el path del nombre de las imágenes. Por ejemplo, la imágen registry.k8s.io/cluster-api/cluster-api-controller:v1.5.3 deberá recuperarse de <keos_registry_url>/cluster-api/cluster-api-controller:v1.5.3.
 
 [.text-justify]
-== Versiones
+== Imágenes
 
 
-Las imágenes necesarias para una instalación offline se encuentran compuestas por dos tipos de imágenes. Imágenes comunes a todas las distribuciones e imágenes propias. Por ello, se exponen a continuación las referencias a las imágenes necesarias en cada una.
+Las imágenes necesarias para una instalación offline se encuentran compuestas por dos tipos. Imágenes comunes a todas las distribuciones e imágenes propias. Por ello, se exponen a continuación las referencias a las imágenes necesarias en cada una.
 
 |===
 |VERSION | COMUNES | AWS-VMS | EKS | AZURE-VMS | AKS | GCP-VMS | GKE
