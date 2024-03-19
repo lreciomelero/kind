@@ -248,6 +248,34 @@ Los siguientes campos son considerados secretos del aprovisionamiento:
 
 NOTE: Cualquier cambio en _spec.credentials_ debe hacerse con todas las credenciales en el descriptor del _cluster_ y eliminando previamente el _secrets.yml_.
 
+=== Helm Repository
+
+Como prerrequisito de instalación, se debe indicar el repositorio helm del que se descargará el chart de helm del _Cluster Operator_. Este campo permite indicar la url del repositorio, su tipo y si se trata de un repositorio autenticado.
+
+[cols="1,4,2,1"]
+|===
+^|Nombre ^|Descripción ^|Ejemplo ^|Default
+
+|_auth++_++required_ (*__boolean__*)
+|Indica si el repositorio es autenticado
+|false
+|false
+
+|_url_ (*__string__*)
+|Url del repositorio
+|*Repositorios OCI*: oci://stratioregistry.azurecr.io/helm-repository-example + 
+*Repositorios basados en Index*: http://[IP]:8080
+|
+
+|_type_ (*__string__*)
+|tipo del repositorio
+|generic o ecr
+|generic
+
+|===
+
+NOTE: Los repositorios ecr nunca son autenticados. La autenticación se realizará mediante las credenciales contenidas en el secrets.yml, a través del sdk de golang. Este tipo de repositorio únicamente está soportado para instalaciones sobre AWS y EKS.
+
 === Redes
 
 Como se ha mencionado anteriormente, el instalador permite utilizar elementos de red del proveedor _cloud_ creados con anterioridad (por ejemplo, por un equipo de seguridad de redes), posibilitando así las arquitecturas que mejor se adapten a las necesidades.

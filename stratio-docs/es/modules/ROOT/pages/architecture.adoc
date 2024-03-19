@@ -537,3 +537,27 @@ La siguiente tabla muestra los _registries_ soportados según proveedor/_flavour
 ^|AKS
 ^|acr
 |===
+
+== Helm Repository
+
+Como prerrequisito de la instalación se debe indicar un repositorio de helm del que se pueda extraer el chart de _Cluster Operator_. Este chart de helm puede ser un repositorio de helm tradicional o de tipo OCI, el cual es soportado para ECR.  
+
+[.center,cols="2,1",width=40%]
+|===
+^|AWS
+^|ecr, generic
+
+^|EKS
+^|ecr, generic
+
+^|GCP
+^|generic
+
+^|Azure
+^|generic
+
+^|AKS
+^|generic
+|===
+
+NOTE: Las url de los repositorios de tipo OCI llevan el prefijo *oci://*. Por ejemplo, oci://stratioregistry.azurecr.io/helm-repository-example
