@@ -239,7 +239,7 @@ func GCPFilterPublicSubnet(computeService *compute.Service, projectID string, re
 	}
 }
 
-func (b *GCPBuilder) getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error) {
+func (b *GCPBuilder) getOverrideVars(p ProviderParams, networks commons.Networks, clusterConfigSpec commons.ClusterConfigSpec) (map[string][]byte, error) {
 	var overrideVars = make(map[string][]byte)
 
 	requiredInternalNginx, err := b.internalNginx(p, networks)
@@ -258,7 +258,7 @@ func (b *GCPBuilder) postInstallPhase(n nodes.Node, k string) error {
 	c := "kubectl --kubeconfig " + kubeconfigPath + " get pdb " + coreDNSPDBName + " -n kube-system"
 	_, err := commons.ExecuteCommand(n, c, 5)
 	if err != nil {
-		err = installCorednsPdb(n, k)
+		err = installCorednsPdb(n)
 		if err != nil {
 			return errors.Wrap(err, "failed to add core dns PDB")
 		}

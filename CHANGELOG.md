@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.17.0-0.4.0 (upcoming)
+## 0.17.0-0.5.0 (upcoming)
 
-* Upcoming changelog
+* [Core] Update runc golang module to fix GHSA-xr7r-f8xq-vfvv
+* [Core] Improve command execution retries
 
 ## 0.17.0-0.4.0 (2024-02-22)
 
@@ -20,7 +21,7 @@
 * [Core] Set custom maxUnhealthy for CP and workers
 * [Core] Added default retrieval of the latest cluster-operator helm chart.
 * [Core] Override the cluster-operator chart and image versions in clusterconfig
-* [AWS][EKS] Support aws load balancer controller manager
+* [AWS][EKS] Support aws load balancer controller manager (optional)
 
 ## 0.17.0-0.3.7 (2024-01-31)
 

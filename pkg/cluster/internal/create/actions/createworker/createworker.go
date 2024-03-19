@@ -377,7 +377,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		c = "kubectl -n " + capiClustersNamespace + " get cluster " + a.keosCluster.Metadata.Name
-		_, err = commons.ExecuteCommand(n, c, 15)
+		_, err = commons.ExecuteCommand(n, c, 45)
 		if err != nil {
 			return errors.Wrap(err, "failed to wait for cluster")
 		}
@@ -532,7 +532,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
 
-		if awsEKSEnabled {
+		if awsEKSEnabled && a.clusterConfig.Spec.EKSLBController {
 			ctx.Status.Start("Installing AWS LB controller in workload cluster ⚖️")
 			defer ctx.Status.End(false)
 			err = installLBController(n, kubeconfigPath, privateParams, providerParams)
@@ -714,7 +714,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Customizing CoreDNS configuration 🪡")
 			defer ctx.Status.End(false)
 
-			err = customCoreDNS(n, kubeconfigPath, a.keosCluster)
+			err = customCoreDNS(n, a.keosCluster)
 			if err != nil {
 				return errors.Wrap(err, "failed to customized CoreDNS configuration")
 			}
@@ -855,12 +855,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Generating the KEOS descriptor 📝")
 	defer ctx.Status.End(false)
 
-	err = createKEOSDescriptor(a.keosCluster, scName, a.clusterCredentials)
+	err = createKEOSDescriptor(a.keosCluster, scName)
 	if err != nil {
 		return err
 	}
 
-	err = override_vars(ctx, providerParams, a.keosCluster.Spec.Networks, infra)
+	err = override_vars(ctx, providerParams, a.keosCluster.Spec.Networks, infra, a.clusterConfig.Spec)
 	if err != nil {
 		return err
 	}

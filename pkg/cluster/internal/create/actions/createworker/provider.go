@@ -88,7 +88,7 @@ type PBuilder interface {
 	getProvider() Provider
 	configureStorageClass(n nodes.Node, k string) error
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
-	getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error)
+	getOverrideVars(p ProviderParams, networks commons.Networks, clusterConfigSpec commons.ClusterConfigSpec) (map[string][]byte, error)
 	getRegistryCredentials(p ProviderParams, u string) (string, string, error)
 	postInstallPhase(n nodes.Node, k string) error
 }
@@ -211,8 +211,8 @@ func (i *Infra) internalNginx(p ProviderParams, networks commons.Networks) (bool
 	return i.builder.internalNginx(p, networks)
 }
 
-func (i *Infra) getOverrideVars(p ProviderParams, networks commons.Networks) (map[string][]byte, error) {
-	return i.builder.getOverrideVars(p, networks)
+func (i *Infra) getOverrideVars(p ProviderParams, networks commons.Networks,clusterConfigSpec commons.ClusterConfigSpec) (map[string][]byte, error) {
+	return i.builder.getOverrideVars(p, networks, clusterConfigSpec)
 }
 
 func (i *Infra) getRegistryCredentials(p ProviderParams, u string) (string, string, error) {
@@ -320,9 +320,6 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 			chartVersion, err = getLastChartVersion(helmRepoCreds)
 			if err != nil {
 				return errors.Wrap(err, "failed to get the last chart version")
-			}
-			if clusterConfig == nil {
-				clusterConfig = &commons.ClusterConfig{}
 			}
 			clusterConfig.Spec.ClusterOperatorVersion = chartVersion
 		}
@@ -541,8 +538,8 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCom
 	}
 
 	// Wait for calico-system namespace to be created
-	c = "timeout 300s bash -c 'until kubectl --kubeconfig " + kubeconfigPath + " get ns calico-system; do sleep 2s ; done'"
-	_, err = commons.ExecuteCommand(n, c, 5)
+	c = "kubectl --kubeconfig " + kubeconfigPath + " get ns calico-system"
+	_, err = commons.ExecuteCommand(n, c, 30)
 	if err != nil {
 		return errors.Wrap(err, "failed to wait for calico-system namespace")
 	}
@@ -563,7 +560,7 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCom
 	return nil
 }
 
-func customCoreDNS(n nodes.Node, k string, keosCluster commons.KeosCluster) error {
+func customCoreDNS(n nodes.Node, keosCluster commons.KeosCluster) error {
 	var c string
 	var err error
 
@@ -909,7 +906,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
   name: ` + clusterID + machineRole + `-unhealthy
-  namespace: cluster-` + clusterID + `
+  namespace: ` + namespace + `
 spec:
   clusterName: ` + clusterID + `
   nodeStartupTimeout: 300s
@@ -965,7 +962,7 @@ func rolloutStatus(n nodes.Node, k string, ns string, deployName string) error {
 	return err
 }
 
-func installCorednsPdb(n nodes.Node, k string) error {
+func installCorednsPdb(n nodes.Node) error {
 
 	// Define PodDisruptionBudget for coredns service
 	corednsPDBLocalPath := "files/common/coredns_pdb.yaml"
