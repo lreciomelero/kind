@@ -24,7 +24,7 @@ NOTE: Las imágenes deberán encontrarse accesibles en el repositorio indicado c
 == Imágenes
 
 
-Las imágenes necesarias para una instalación offline se encuentran compuestas por dos tipos. Imágenes comunes a todas las distribuciones e imágenes propias. Por ello, se exponen a continuación las referencias a las imágenes necesarias en cada una.
+Las imágenes necesarias para una instalación offline se encuentran compuestas por dos tipos. Imágenes comunes a todos los _cloud providers_ e imágenes específicas de cada uno. Por ello, se indican a continuación las referencias a las imágenes necesarias según el _cloud provider_ elegido para el _cluster_.
 
 |===
 |VERSION | COMUNES | AWS-VMS | EKS | AZURE-VMS | AKS | GCP-VMS | GKE
