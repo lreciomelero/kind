@@ -4,7 +4,7 @@
 == Imágenes propias
 
 |===
-| *Instalación* | *Versión* | *Imagen pública* | *Versiones*
+| *Instalación* | *Versión* | *Imagen pública* | *Versión*
 | *Instalado por Cluster API - CAPG* | *v1.4.0* | | 
 |  |  | registry.k8s.io/cluster-api-gcp/cluster-api-gcp-controller | v1.4.0 
 | *Instalado mediante templates - CSI* | *** | | 
@@ -16,12 +16,12 @@
 |  |  | registry.k8s.io/sig-storage/csi-snapshotter | v6.1.0
 |===
 
-== Imágenes comunes necesarias en GCP VMS
+== Imágenes comunes necesarias en GCP no-gestionado
 
 Asociadas a los charts que instala el cloud-provisioner en GCP no-gestionado, las imágenes necesarias son:
 
 |===
-| *Chart* | *Versión* | *Imagen pública* | *Versiones* 
+| *Chart* | *Versión* | *Imagen pública* | *Versión* 
 | *tigera-operator* | *v3.26.1* | | 
 |  |  | docker.io/calico/kube-controllers | v3.26.1
 |  |  | docker.io/calico/typha | v3.26.1

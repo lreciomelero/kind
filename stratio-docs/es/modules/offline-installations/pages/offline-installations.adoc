@@ -27,9 +27,9 @@ NOTE: Las imágenes deberán encontrarse accesibles en el repositorio indicado c
 Las imágenes necesarias para una instalación offline se encuentran compuestas por dos tipos. Imágenes comunes a todos los _cloud providers_ e imágenes específicas de cada uno. Por ello, se indican a continuación las referencias a las imágenes necesarias según el _cloud provider_ elegido para el _cluster_.
 
 |===
-|VERSION | COMUNES | AWS-VMS | EKS | AZURE-VMS | AKS | GCP-VMS | GKE
+|VERSION | COMUNES | AWS-no-gestionado | EKS | AZURE-no-gestionado | AKS | GCP-no-gestionado 
 
-|v1.26.x | xref:commons/v1.26.x/images.adoc[IMÁGENES COMUNES] | xref:aws/v1.26.x/vms/images.adoc[AWS-VMS] | xref:aws/v1.26.x/eks/images.adoc[EKS] | xref:azure/v1.26.x/vms/images.adoc[AZURE-VMS] | xref:azure/v1.26.x/aks/images.adoc[AKS] | xref:gcp/v1.26.x/vms/images.adoc[GCP-VMS] | xref:gcp/v1.26.x/gke/images.adoc[GKE]
+|v1.26.x | xref:commons/v1.26.x/images.adoc[IMÁGENES COMUNES] | xref:aws/v1.26.x/vms/images.adoc[AWS-no-gestionado] | xref:aws/v1.26.x/eks/images.adoc[EKS] | xref:azure/v1.26.x/vms/images.adoc[AZURE-no-gestionado] | xref:azure/v1.26.x/aks/images.adoc[AKS] | xref:gcp/v1.26.x/vms/images.adoc[GCP-no-gestionado] 
 |===
 
 NOTE: Las imágenes core de Kubernetes se encuentran contenidas en las propias imágenes de los nodos. Es por ello que no se indican en ninguna de las referencias a las imágenes necesarias, estarán disponibles en todas las imágenes construidas según la guía de ImageBuilder que se hace referencia en el manual de operaciones xref:operations-manual:operations-manual [Manual de Operaciones].

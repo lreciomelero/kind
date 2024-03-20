@@ -1,10 +1,10 @@
 [.text-justify]
-= Imágenes Azure VMs
+= Imágenes Azure no-gestionado
 
-== Imágenes propias de Azure VMS
+== Imágenes propias de Azure no-gestionado
 
 |===
-| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+| *Chart* | *Versión* | *Imagen pública* | *Versión*
 | *Instalado por Cluster API - CAPZ* | *v1.11.4* | | 
 |  |  | registry.k8s.io/cluster-api-azure/cluster-api-azure-controller | v1.11.4 
 |  |  | mcr.microsoft.com/k8s/azureserviceoperator | v2.3.0 
@@ -40,12 +40,12 @@ existan en el repositorio definido como keos_registry bajo el nombre de:
 . <valor de keos_registry>/cluster-api-azure/kube-rbac-proxy
 . <valor de keos_registry>/cluster-api-azure/nmi
 
-== Imágenes comunes necesarias en Azure VMS
+== Imágenes comunes necesarias en Azure no-gestionado
 
 Asociadas a los charts que instala el cloud-provisioner en AWS no-gestionado, las imágenes necesarias son:
 
 |===
-| *Chart* | *Versión* | *Imagen pública* | *Versiones* 
+| *Chart* | *Versión* | *Imagen pública* | *Versión* 
 | *tigera-operator* | *v3.26.1* | | 
 |  |  | docker.io/calico/kube-controllers | v3.26.1
 |  |  | docker.io/calico/typha | v3.26.1

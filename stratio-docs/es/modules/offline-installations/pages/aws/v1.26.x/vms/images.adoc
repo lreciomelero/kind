@@ -1,20 +1,20 @@
 [.text-justify]
-= Imágenes AWS VMs
+= Imágenes AWS no-gestionado
 
-== Imágenes propias de AWS VMS
+== Imágenes propias de AWS no-gestionado
 
 |===
-| *Chart* | *Versión* | *Imagen pública* | *Versiones*
+| *Chart* | *Versión* | *Imagen pública* | *Versión*
 | *Instalado por Cluster API - CAPA* | *v2.2.1* | | |
 |  | registry.k8s.io/cluster-api-aws/cluster-api-aws-controller | v2.2.1 |
 |===
 
-== Imágenes comunes necesarias en AWS VMS
+== Imágenes comunes necesarias en AWS no-gestionado
 
 Asociadas a los charts que instala el cloud-provisioner en AWS no-gestionado, las imágenes necesarias son:
 
 |===
-| *Chart* | *Versión* | *Imagen pública* | *Versiones* 
+| *Chart* | *Versión* | *Imagen pública* | *Versión* 
 | *tigera-operator* | *v3.26.1* | | 
 |  |  | docker.io/calico/kube-controllers | v3.26.1
 |  |  | docker.io/calico/typha | v3.26.1

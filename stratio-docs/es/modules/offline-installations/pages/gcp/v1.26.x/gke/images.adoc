@@ -1,8 +1,0 @@
-= Imágenes GKE
-
-Aún no se soportan despliegues sobre GKE
-
-|===
-| *Chart* | *Versión* | *Imagen pública* | *Versiones*
-|   |   |   |
-|===
