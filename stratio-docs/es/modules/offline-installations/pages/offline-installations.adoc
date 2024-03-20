@@ -6,7 +6,7 @@ Se entiende como instalación offline, aquellas en las que las imágenes que uti
 [.text-justify]
 == Descriptor - Cluster.yaml
 
-Actualmente el descriptor del cluster se compone de dos recursos de Kubernetes, el KeosCluster, obligatorio, y el ClusterConfig, opcional. El *KeosCluster* permite especificar los parámetros necesarios para la creación del cluster y el *ClusterConfig* especifica las configuraciones para ese cluster en particular.
+Actualmente el descriptor del cluster se compone de dos recursos de Kubernetes, el KeosCluster (obligatorio), y el ClusterConfig (opcional). El *KeosCluster* permite especificar los parámetros necesarios para la creación del cluster y el *ClusterConfig* especifica las configuraciones para ese cluster en particular.
 
 Para llevar a cabo una inatalación offline de forma satisfactoria, es necesario indicar:
 
