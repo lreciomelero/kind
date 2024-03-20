@@ -50,7 +50,7 @@ Al instalar diferentes componentes como *addons de EKS*, se instalan en el workl
 
 Estas imágenes pueden variar dependiendo de las versiones de los addons que se instalen, lo cuál estará sujeto a sus compatibilidades con las versiones de EKS, por ello la siguiente tabla podría no cumplirse en el momento de su lectura. 
 
-En cualquier caso, estas imágenes no es necesario subirlas a ningún registro y es meramente informativo.
+NOTE: En cualquier caso, estas imágenes no es necesario subirlas a ningún registro y es meramente informativo.
 
 |===
 | *Addon* | *Versión* |*Imagen pública* | *Versiones* 
