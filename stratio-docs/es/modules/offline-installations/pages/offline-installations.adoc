@@ -1,7 +1,7 @@
 [.text-justify]
 = Manual de Instalación Offline
 
-Se entiende como instalación offline, aquellas en las que las imágenes que utilizarán los distintos workloads de clúster provendrán de repositorios accesibles desde entornos sin salida a internet. En este módulo se hace referencia a las imágenes que deben ser accesibles desde dichos repositorios.
+Se entiende como instalación offline, aquellas en las que las imágenes que utilizarán los distintos workloads de clúster provendrán de repositorios accesibles desde entornos sin acceso a internet. En este módulo se hace referencia a las imágenes que deben ser accesibles desde dichos repositorios.
 
 [.text-justify]
 == Descriptor - Cluster.yaml
