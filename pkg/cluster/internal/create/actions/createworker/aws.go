@@ -100,6 +100,28 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 	}
 }
 
+var awsCharts = ChartsDictionary{
+	Charts: map[string][]commons.Chart{
+		"26": {
+			{Name: "aws-cloud-controller-manager", Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8"},
+			{Name: "aws-load-balancer-controller", Repository: "https://aws.github.io/eks-charts", Version: "1.6.2"},
+			{Name: "aws-ebs-csi-driver", Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "v2.20.0"},
+		},
+	},
+}
+
+func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec commons.ClusterConfigSpec, majorVersion string) error {
+	chartsToInstall := awsCharts.Charts[majorVersion]
+	for _, overrideChart := range clusterConfigSpec.Charts {
+		for i, chart := range chartsToInstall {
+			if overrideChart.Name == chart.Name {
+				chartsToInstall[i] = overrideChart
+			}
+		}
+	}
+	return pullCharts(n, chartsToInstall)
+}
+
 func (b *AWSBuilder) getProvider() Provider {
 	return Provider{
 		capxProvider:     b.capxProvider,

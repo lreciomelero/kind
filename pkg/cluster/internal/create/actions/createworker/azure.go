@@ -53,6 +53,16 @@ type AzureBuilder struct {
 	csiNamespace     string
 }
 
+var azureCharts = ChartsDictionary{
+	Charts: map[string][]commons.Chart{
+		"26": {
+			{Name: "azuredisk-csi-driver", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Version: "v1.28.3"},
+			{Name: "azurefile-csi-driver", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Version: "v1.28.3"},
+			{Name: "cloud-provider-azure", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Version: "v1.26.7"},
+		},
+	},
+}
+
 func newAzureBuilder() *AzureBuilder {
 	return &AzureBuilder{}
 }
@@ -89,6 +99,18 @@ func (b *AzureBuilder) setSC(p ProviderParams) {
 	if p.StorageClass.EncryptionKey != "" {
 		b.scParameters.DiskEncryptionSetID = p.StorageClass.EncryptionKey
 	}
+}
+
+func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec commons.ClusterConfigSpec, majorVersion string) error {
+	chartsToInstall := azureCharts.Charts[majorVersion]
+	for _, overrideChart := range clusterConfigSpec.Charts {
+		for i, chart := range chartsToInstall {
+			if overrideChart.Name == chart.Name {
+				chartsToInstall[i] = overrideChart
+			}
+		}
+	}
+	return pullCharts(n, chartsToInstall)
 }
 
 func (b *AzureBuilder) setCapxEnvVars(p ProviderParams) {

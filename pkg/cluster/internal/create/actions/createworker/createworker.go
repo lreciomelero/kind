@@ -117,6 +117,11 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	infra := newInfra(providerBuilder)
 	provider := infra.buildProvider(providerParams)
 
+	err = infra.pullProviderCharts(n, a.clusterConfig.Spec, strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1])
+	if err != nil {
+		return err
+	}
+
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
 		if registry.KeosRegistry {
 			keosRegistry.url = registry.URL
