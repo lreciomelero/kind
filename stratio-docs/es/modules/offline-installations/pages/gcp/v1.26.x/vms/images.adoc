@@ -1,5 +1,5 @@
 [.text-justify]
-= Imágenes Google VMs
+= Imágenes GCP no-gestionado
 
 == Imágenes propias de GCP VMS
 
