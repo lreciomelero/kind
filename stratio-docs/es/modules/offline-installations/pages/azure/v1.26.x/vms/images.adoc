@@ -29,7 +29,7 @@
 |  |  | mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager | v1.26.7 
 |===
 
-En este caso, existe como requisito adicional que las imágenes instaladas por CAPZ: 
+En este caso, existe como requisito adicional que las siguientes imágenes instaladas por CAPZ: 
 
 . mcr.microsoft.com/k8s/azureserviceoperator
 . gcr.io/kubebuilder/kube-rbac-proxy
