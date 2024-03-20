@@ -250,31 +250,31 @@ NOTE: Cualquier cambio en _spec.credentials_ debe hacerse con todas las credenci
 
 === Helm Repository
 
-Como prerrequisito de instalación, se debe indicar el repositorio helm del que se descargará el chart de helm del _Cluster Operator_. Este campo permite indicar la url del repositorio, su tipo y si se trata de un repositorio autenticado.
+Como prerrequisito de instalación, se debe indicar el repositorio helm del que se descargará el chart de helm del _Cluster Operator_. Este apartado permite indicar la url del repositorio, su tipo y si se trata de un repositorio autenticado.
 
 [cols="1,4,2,1"]
 |===
-^|Nombre ^|Descripción ^|Ejemplo ^|Default
+^|Nombre ^|Descripción ^|Ejemplo ^|Opcional
 
-|_auth++_++required_ (*__boolean__*)
+|_auth++_++required_
 |Indica si el repositorio es autenticado
 |false
-|false
+|Si, default: false.
 
-|_url_ (*__string__*)
+|_url_
 |Url del repositorio
 |*Repositorios OCI*: oci://stratioregistry.azurecr.io/helm-repository-example + 
-*Repositorios basados en Index*: http://[IP]:8080
-|
+*Repositorios HTTPS*: https://[IP]:8080
+|No
 
-|_type_ (*__string__*)
-|tipo del repositorio
+|_type_
+|Tipo del repositorio
 |generic o ecr
-|generic
+|Si, default: generic
 
 |===
 
-NOTE: Los repositorios ecr nunca son autenticados. La autenticación se realizará mediante las credenciales contenidas en el secrets.yml, a través del sdk de golang. Este tipo de repositorio únicamente está soportado para instalaciones sobre AWS y EKS.
+NOTE: Los repositorios OCI (de _cloud providers_ como ECR, GAR o ACR) nunca son autenticados. La autenticación se realizará mediante las credenciales utilizadas en el aprovisionamiento. Verificar en la documentación de keos-installer los repositorios que se soporten en la versión a utilizar.
 
 === Redes
 
