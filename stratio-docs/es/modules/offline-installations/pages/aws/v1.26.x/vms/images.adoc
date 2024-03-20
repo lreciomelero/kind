@@ -11,7 +11,7 @@
 
 == Imágenes comunes necesarias en AWS VMS
 
-Asociadas a los charts que instala el cloud-provisioner en aws vms, las imágenes necesarias son:
+Asociadas a los charts que instala el cloud-provisioner en AWS no-gestionado, las imágenes necesarias son:
 
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones* 
