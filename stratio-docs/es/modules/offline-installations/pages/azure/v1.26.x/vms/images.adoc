@@ -42,7 +42,7 @@ Deben existir en el repositorio definido como keos_registry bajo el nombre de:
 
 == Imágenes comunes necesarias en Azure VMS
 
-Asociadas a los charts que instala el cloud-provisioner en aws vms, las imágenes necesarias son:
+Asociadas a los charts que instala el cloud-provisioner en AWS no-gestionado, las imágenes necesarias son:
 
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones* 
