@@ -35,7 +35,7 @@ En este caso, existe como requisito adicional que las siguientes imágenes insta
 . gcr.io/kubebuilder/kube-rbac-proxy
 . mcr.microsoft.com/oss/azure/aad-pod-identity/nmi
 
-Deben existir en el repositorio definido como keos_registry bajo el nombre de: 
+existan en el repositorio definido como keos_registry bajo el nombre de: 
 . <valor de keos_registry>/cluster-api-azure/azureserviceoperator
 . <valor de keos_registry>/cluster-api-azure/kube-rbac-proxy
 . <valor de keos_registry>/cluster-api-azure/nmi
