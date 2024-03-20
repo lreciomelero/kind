@@ -14,7 +14,7 @@
 
 == Imágenes comunes necesarias en AKS
 
-Asociadas a los charts que instala el cloud-provisioner en aks, las imágenes necesarias son:
+Asociadas a los charts que instala el cloud-provisioner en AKS, las imágenes necesarias son:
 
 |===
 | *Chart* | *Versión* | *Imagen pública* | *Versiones* 
