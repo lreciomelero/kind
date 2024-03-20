@@ -1,7 +1,7 @@
 [.text-justify]
 = Imágenes GCP no-gestionado
 
-== Imágenes propias de GCP VMS
+== Imágenes propias
 
 |===
 | *Instalación* | *Versión* | *Imagen pública* | *Versiones*
