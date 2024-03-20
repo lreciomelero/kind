@@ -34,4 +34,4 @@ Las imágenes necesarias para una instalación offline se encuentran compuestas 
 
 NOTE: Las imágenes core de Kubernetes se encuentran contenidas en las propias imágenes de los nodos. Es por ello que no se indican en ninguna de las referencias a las imágenes necesarias, estarán disponibles en todas las imágenes construidas según la guía de ImageBuilder que se hace referencia en el manual de operaciones xref:operations-manual:operations-manual [Manual de Operaciones].
 
-NOTE: Es también fundamental disponer en el *keos_registry* de la imagen del cluster-operator que se indique en el *ClusterConfig*, ya sea la de la última release o la específica para esa instalación.
+NOTE: Es también fundamental disponer en el *keos_registry* de la imagen del cluster-operator, ya sea la de la última release o la específica para esa instalación indicada en el *ClusterConfig*.
