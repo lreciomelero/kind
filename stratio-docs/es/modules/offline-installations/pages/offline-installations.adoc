@@ -12,7 +12,7 @@ Para llevar a cabo una inatalación offline de forma satisfactoria, es necesario
 
 [.text-justify]
 * *ClusterConfig*: 
-** *spec.private_registry: true*. Con este parámetro se le indica al binario de cloud-provisioner que todas las imágenes necesarias durante el aprovisionamiento e instalación del clúster se deben recuperar del *keos registry*.
+** *spec.private_registry: true*. Con este parámetro se le indica al cloud-provisioner que todas las imágenes necesarias durante el aprovisionamiento e instalación del clúster se deben recuperar del *keos registry*.
 
 * *KeosCluster*:
 ** *spec.docker_registries*: En la sección de docker_registries se debe indicar el keos_registry del que se descargarán las imágenes para el despliegue offline. 
