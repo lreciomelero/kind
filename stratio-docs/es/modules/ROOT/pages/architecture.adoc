@@ -540,7 +540,7 @@ La siguiente tabla muestra los _registries_ soportados según proveedor/_flavour
 
 == Helm Repository
 
-Como prerrequisito de la instalación se debe indicar un repositorio de helm del que se pueda extraer el chart de _Cluster Operator_. Este chart de helm puede ser un repositorio de helm tradicional o de tipo OCI, el cual es soportado para ECR.  
+Como prerrequisito de la instalación se debe indicar un repositorio de helm del que se pueda extraer el chart de _Cluster Operator_. Este repositorio puede utilizar protocolo https u oci (utilizado para repositorios de _cloud providers_ como ECR, GAR o ACR).
 
 [.center,cols="2,1",width=40%]
 |===
@@ -551,13 +551,15 @@ Como prerrequisito de la instalación se debe indicar un repositorio de helm del
 ^|ecr, generic
 
 ^|GCP
-^|generic
+^|gar, gcr, generic
 
 ^|Azure
-^|generic
+^|acr, generic
 
 ^|AKS
-^|generic
+^|acr, generic
 |===
 
-NOTE: Las url de los repositorios de tipo OCI llevan el prefijo *oci://*. Por ejemplo, oci://stratioregistry.azurecr.io/helm-repository-example
+NOTE: Las url de los repositorios de tipo OCI llevan el prefijo *oci://*. Por ejemplo, oci://stratioregistry.azurecr.io/helm-repository-example.
+
+NOTE: Verificar en la documentación de keos-installer los repositorios que se soporten en la versión a utilizar.
