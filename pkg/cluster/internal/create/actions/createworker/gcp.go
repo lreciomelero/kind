@@ -123,6 +123,15 @@ func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 }
 
 func (b *GCPBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart {
+	providerCharts := ConvertToChart(googleCharts.Charts[majorVersion])
+	for _, ovChart := range clusterConfigSpec.Charts {
+		for _, chart := range *providerCharts {
+			if chart.Name == ovChart.Name {
+				chart.Version = ovChart.Version
+			}
+		}
+	}
+	*charts = append(*charts, *providerCharts...)
 	return *charts
 }
 

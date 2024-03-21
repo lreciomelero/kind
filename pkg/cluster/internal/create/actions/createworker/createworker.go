@@ -131,6 +131,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return err
 	}
 
+	// a.clusterConfig.Spec.Charts = infra.getOverriddenCharts(&a.clusterConfig.Spec, strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1])
+
 	ctx.Status.End(true)
 
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {

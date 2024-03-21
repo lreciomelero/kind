@@ -213,11 +213,17 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 }
 
 func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+
 	err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, commonsCharts)
 	if err != nil {
 		return err
 	}
-	return i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, majorVersion)
+	err = i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, majorVersion)
+	if err != nil {
+		return err
+	}
+	clusterConfigSpec.Charts = i.getOverriddenCharts(clusterConfigSpec, majorVersion)
+	return nil
 
 }
 
@@ -246,19 +252,18 @@ func ConvertToChart(chartEntries []commons.ChartEntry) *[]commons.Chart {
 }
 
 func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, chartDictionary ChartsDictionary) error {
-	helmRegistry := ""
-	if clusterConfigSpec.PrivateHelmRepo {
-		helmRegistry = keosSpec.HelmRepository.URL
-	}
 	chartsToInstall := chartDictionary.Charts[majorVersion]
+
 	for _, overrideChart := range clusterConfigSpec.Charts {
 		for i, chart := range chartsToInstall {
 			if overrideChart.Name == chart.Name {
 				chartsToInstall[i].Version = overrideChart.Version
-				if helmRegistry != "" {
-					chartsToInstall[i].Repository = helmRegistry
-				}
 			}
+		}
+	}
+	if clusterConfigSpec.PrivateHelmRepo {
+		for i := range chartsToInstall {
+			chartsToInstall[i].Repository = keosSpec.HelmRepository.URL
 		}
 	}
 	err := pullCharts(n, chartsToInstall)
@@ -465,29 +470,8 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		helmRepository.url = keosCluster.Spec.HelmRepository.URL
 		if strings.HasPrefix(keosCluster.Spec.HelmRepository.URL, "oci://") {
 			stratio_helm_repo = helmRepoCreds.URL
-			// urlLogin := strings.Split(strings.Split(keosCluster.Spec.HelmRepository.URL, "//")[1], "/")[0]
-
-			// c = "helm registry login " + urlLogin + " --username " + helmRepoCreds.User + " --password " + helmRepoCreds.Pass
-			// _, err = commons.ExecuteCommand(n, c, 5)
-			// if err != nil {
-			// 	return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepoCreds.URL)
-			// }
-			// } else if keosCluster.Spec.HelmRepository.AuthRequired {
-			// 	helmRepository.user = clusterCredentials.HelmRepositoryCredentials["User"]
-			// 	helmRepository.pass = clusterCredentials.HelmRepositoryCredentials["Pass"]
-			// 	stratio_helm_repo = "stratio-helm-repo"
-			// 	// c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL + " --username " + helmRepoCreds.User + " --password " + helmRepoCreds.Pass
-			// 	// _, err = commons.ExecuteCommand(n, c, 5)
-			// 	// if err != nil {
-			// 	// 	return errors.Wrap(err, "failed to add and authenticate to helm repository: "+helmRepository.url)
-			// 	// }
 		} else {
 			stratio_helm_repo = "stratio-helm-repo"
-			// c = "helm repo add " + stratio_helm_repo + " " + helmRepoCreds.URL
-			// _, err = commons.ExecuteCommand(n, c, 5)
-			// if err != nil {
-			// 	return errors.Wrap(err, "failed to add helm repository: "+helmRepoCreds.URL)
-			// }
 		}
 
 		if firstInstallation {
@@ -1061,6 +1045,9 @@ func installCorednsPdb(n nodes.Node) error {
 func pullCharts(n nodes.Node, charts []commons.ChartEntry) error {
 	for _, chart := range charts {
 		c := "helm pull " + chart.Name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
+		if strings.HasPrefix(chart.Repository, "oci://") {
+			c = "helm pull " + chart.Repository + "/" + chart.Name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+		}
 		_, err := commons.ExecuteCommand(n, c, 5)
 		if err != nil {
 			return errors.Wrap(err, "failed to pull the helm chart: "+fmt.Sprint(chart))

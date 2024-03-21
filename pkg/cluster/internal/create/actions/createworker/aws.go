@@ -105,7 +105,7 @@ var awsCharts = ChartsDictionary{
 		"26": {
 			{Name: "aws-cloud-controller-manager", Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8"},
 			{Name: "aws-load-balancer-controller", Repository: "https://aws.github.io/eks-charts", Version: "1.6.2"},
-			{Name: "aws-ebs-csi-driver", Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "v2.20.0"},
+			{Name: "aws-ebs-csi-driver", Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0"},
 		},
 	},
 }
@@ -119,6 +119,15 @@ func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 }
 
 func (b *AWSBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart {
+	providerCharts := ConvertToChart(awsCharts.Charts[majorVersion])
+	for _, ovChart := range clusterConfigSpec.Charts {
+		for _, chart := range *providerCharts {
+			if chart.Name == ovChart.Name {
+				chart.Version = ovChart.Version
+			}
+		}
+	}
+	*charts = append(*charts, *providerCharts...)
 	return *charts
 }
 

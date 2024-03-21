@@ -110,6 +110,15 @@ func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commo
 }
 
 func (b *AzureBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart {
+	providerCharts := ConvertToChart(azureCharts.Charts[majorVersion])
+	for _, ovChart := range clusterConfigSpec.Charts {
+		for _, chart := range *providerCharts {
+			if chart.Name == ovChart.Name {
+				chart.Version = ovChart.Version
+			}
+		}
+	}
+	*charts = append(*charts, *providerCharts...)
 	return *charts
 }
 
