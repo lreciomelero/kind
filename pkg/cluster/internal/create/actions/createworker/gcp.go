@@ -50,7 +50,7 @@ type GCPBuilder struct {
 }
 
 var googleCharts = ChartsDictionary{
-	Charts: map[string][]commons.Chart{
+	Charts: map[string][]commons.ChartEntry{
 		"26": {},
 	},
 }
@@ -114,16 +114,16 @@ func (b *GCPBuilder) setSC(p ProviderParams) {
 	}
 }
 
-func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec commons.ClusterConfigSpec, majorVersion string) error {
-	chartsToInstall := googleCharts.Charts[majorVersion]
-	for _, overrideChart := range clusterConfigSpec.Charts {
-		for i, chart := range chartsToInstall {
-			if overrideChart.Name == chart.Name {
-				chartsToInstall[i] = overrideChart
-			}
-		}
+func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+	err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, googleCharts)
+	if err != nil {
+		return err
 	}
-	return pullCharts(n, chartsToInstall)
+	return nil
+}
+
+func (b *GCPBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart {
+	return *charts
 }
 
 func (b *GCPBuilder) getProvider() Provider {

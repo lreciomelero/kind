@@ -117,10 +117,21 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	infra := newInfra(providerBuilder)
 	provider := infra.buildProvider(providerParams)
 
-	err = infra.pullProviderCharts(n, a.clusterConfig.Spec, strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1])
+	ctx.Status.Start("Pulling Helm Charts 🎖️")
+
+	err = loginHelmRepo(n, a.keosCluster, a.clusterCredentials, &helmRegistry, infra, providerParams)
 	if err != nil {
 		return err
 	}
+	// fmt.Println("helmRegistry despues de login: ")
+	// fmt.Println(helmRegistry)
+
+	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec, strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1])
+	if err != nil {
+		return err
+	}
+
+	ctx.Status.End(true)
 
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
 		if registry.KeosRegistry {
@@ -198,18 +209,18 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	ctx.Status.Start("Installing CAPx 🎖️")
 	defer ctx.Status.End(false)
 
-	helmRegistry.Type = a.keosCluster.Spec.HelmRepository.Type
-	helmRegistry.URL = a.keosCluster.Spec.HelmRepository.URL
-	if a.keosCluster.Spec.HelmRepository.Type != "generic" {
-		urlLogin := strings.Split(strings.Split(helmRegistry.URL, "//")[1], "/")[0]
-		helmRegistry.User, helmRegistry.Pass, err = infra.getRegistryCredentials(providerParams, urlLogin)
-		if err != nil {
-			return errors.Wrap(err, "failed to get helm registry credentials")
-		}
-	} else {
-		helmRegistry.User = a.clusterCredentials.HelmRepositoryCredentials["User"]
-		helmRegistry.Pass = a.clusterCredentials.HelmRepositoryCredentials["Pass"]
-	}
+	// helmRegistry.Type = a.keosCluster.Spec.HelmRepository.Type
+	// helmRegistry.URL = a.keosCluster.Spec.HelmRepository.URL
+	// if a.keosCluster.Spec.HelmRepository.Type != "generic" {
+	// 	urlLogin := strings.Split(strings.Split(helmRegistry.URL, "//")[1], "/")[0]
+	// 	helmRegistry.User, helmRegistry.Pass, err = infra.getRegistryCredentials(providerParams, urlLogin)
+	// 	if err != nil {
+	// 		return errors.Wrap(err, "failed to get helm registry credentials")
+	// 	}
+	// } else {
+	// 	helmRegistry.User = a.clusterCredentials.HelmRepositoryCredentials["User"]
+	// 	helmRegistry.Pass = a.clusterCredentials.HelmRepositoryCredentials["Pass"]
+	// }
 
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
 		if registry.KeosRegistry {

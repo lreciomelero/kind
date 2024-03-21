@@ -62,16 +62,7 @@ RUN mkdir -p ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION} \
     && curl -LJ -o ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION}/cert-manager.crds.yaml  https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.crds.yaml
   
 # Download helm charts
-RUN mkdir -p /stratio/helm \
-  && for i in $(seq 1 3); do timeout 5 helm pull aws-cloud-controller-manager --version ${CLOUD_PROVIDER_AWS_CHART} --repo https://kubernetes.github.io/cloud-provider-aws --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull aws-load-balancer-controller --version ${AWS_LOAD_BALANCER_CONTROLLER_CHART} --repo https://aws.github.io/eks-charts --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull aws-ebs-csi-driver --version ${AWS_EBS_CSI_DRIVER_CHART} --repo https://kubernetes-sigs.github.io/aws-ebs-csi-driver --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull azuredisk-csi-driver --version ${AZUREDISK_CSI_DRIVER_CHART} --repo https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull azurefile-csi-driver --version ${AZUREFILE_CSI_DRIVER_CHART} --repo https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull cloud-provider-azure --version ${CLOUD_PROVIDER_AZURE_CHART} --repo https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull cluster-autoscaler --version ${CLUSTER_AUTOSCALER_CHART} --repo https://kubernetes.github.io/autoscaler --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull tigera-operator --version ${TIGERA_OPERATOR_CHART} --repo https://docs.projectcalico.org/charts --untar --untardir /stratio/helm && break; done \
-  && for i in $(seq 1 3); do timeout 5 helm pull cert-manager --version ${CERT_MANAGER_CHART_VERSION} --repo  https://charts.jetstack.io --untar --untardir /stratio/helm && break; done
+RUN mkdir -p /stratio/helm 
 
 # Prepare cluster-api private repository
 RUN mkdir -p ${CAPI_REPO}/infrastructure-aws/${CAPA} ${CAPI_REPO}/infrastructure-gcp/${CAPG} ${CAPI_REPO}/infrastructure-azure/${CAPZ} ${CAPI_REPO}/cluster-api/${CLUSTERCTL} ${CAPI_REPO}/bootstrap-kubeadm/${CLUSTERCTL} ${CAPI_REPO}/control-plane-kubeadm/${CLUSTERCTL} ${CROSSPLANE_CACHE} \

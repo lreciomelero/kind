@@ -101,7 +101,7 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 }
 
 var awsCharts = ChartsDictionary{
-	Charts: map[string][]commons.Chart{
+	Charts: map[string][]commons.ChartEntry{
 		"26": {
 			{Name: "aws-cloud-controller-manager", Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8"},
 			{Name: "aws-load-balancer-controller", Repository: "https://aws.github.io/eks-charts", Version: "1.6.2"},
@@ -110,16 +110,16 @@ var awsCharts = ChartsDictionary{
 	},
 }
 
-func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec commons.ClusterConfigSpec, majorVersion string) error {
-	chartsToInstall := awsCharts.Charts[majorVersion]
-	for _, overrideChart := range clusterConfigSpec.Charts {
-		for i, chart := range chartsToInstall {
-			if overrideChart.Name == chart.Name {
-				chartsToInstall[i] = overrideChart
-			}
-		}
+func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+	err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, awsCharts)
+	if err != nil {
+		return err
 	}
-	return pullCharts(n, chartsToInstall)
+	return nil
+}
+
+func (b *AWSBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart {
+	return *charts
 }
 
 func (b *AWSBuilder) getProvider() Provider {

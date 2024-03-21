@@ -69,6 +69,11 @@ type ClusterConfigSpec struct {
 }
 
 type Chart struct {
+	Name    string `yaml:"name,omitempty"`
+	Version string `yaml:"version,omitempty"`
+}
+
+type ChartEntry struct {
 	Name       string
 	Repository string
 	Version    string
