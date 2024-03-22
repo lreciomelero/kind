@@ -12,15 +12,6 @@ ENV CLUSTERAWSADM=v2.2.1
 ENV HELM=v3.13.1
 
 # Helm charts
-ENV HELM_EXPERIMENTAL_OCI=1
-ENV CLOUD_PROVIDER_AWS_CHART=0.0.8
-ENV AWS_LOAD_BALANCER_CONTROLLER_CHART=1.6.2
-ENV AWS_EBS_CSI_DRIVER_CHART=v2.20.0
-ENV AZUREDISK_CSI_DRIVER_CHART=v1.28.3
-ENV AZUREFILE_CSI_DRIVER_CHART=v1.28.3
-ENV CLOUD_PROVIDER_AZURE_CHART=v1.26.7
-ENV CLUSTER_AUTOSCALER_CHART=9.29.1
-ENV TIGERA_OPERATOR_CHART=v3.26.1
 ENV CERT_MANAGER_CHART_VERSION=v1.12.3
 
 # Cluster-api artifacts
@@ -61,7 +52,7 @@ RUN curl -L https://get.helm.sh/helm-${HELM}-linux-amd64.tar.gz -o /root/helm.ta
 RUN mkdir -p ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION} \
     && curl -LJ -o ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION}/cert-manager.crds.yaml  https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.crds.yaml
   
-# Download helm charts
+# Create helm charts directory
 RUN mkdir -p /stratio/helm 
 
 # Prepare cluster-api private repository
