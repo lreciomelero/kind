@@ -1,4 +1,3 @@
-_TO BE TRANSLATED_
 = Installation
 
 == Prerequisites
@@ -120,9 +119,9 @@ metadata:
 spec:
 ----
 
-=== metadata
+=== _metadata_
 
-The metadata of the _KeosCluster_ consists of the following fields:
+The _metadata_ of the _KeosCluster_ consists of the following fields:
 
 [cols="1,4,2,1"]
 |===
@@ -247,6 +246,33 @@ The following fields are considered provisioning secrets:
 |===
 
 NOTE: Any changes to _spec.credentials_ must be made with all credentials in the cluster descriptor and removing the _secrets.yml_ beforehand.
+
+=== Helm repository
+
+As an installation prerequisite, the Helm repository from which the _Cluster Operator_ chart can be extracted must be specified. This section allows you to specify the URL of the repository, its type and whether it is an authenticated repository.
+
+[cols="1,4,2,1"]
+|===
+^|Name ^|Description ^|Example ^|Optional
+
+| _auth++_++required_
+| Indicates if the repository is authenticated.
+| false
+| Yes. Default: false.
+
+| _url_
+| URL of the repository.
+| *OCI repositories*: oci://stratioregistry.azurecr.io/helm-repository-example + 
+*HTTPS repositories*: https://[IP]:8080
+| No
+
+| _type_
+| Repository type.
+| generic or ecr.
+| Yes. Default: generic.
+|===
+
+NOTE: OCI repositories (from _cloud_ providers such as ECR, GAR or ACR) are never authenticated. Authentication will be done by the credentials used in provisioning. Please check the _Stratio KEOS_ documentation for the repositories supported in the version to be used.
 
 === Networking
 
