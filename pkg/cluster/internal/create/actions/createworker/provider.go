@@ -60,8 +60,6 @@ const (
 
 	scName = "keos"
 
-	certManagerVersion = "v1.12.3"
-
 	postInstallAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 	corednsPdbPath        = "/kind/coredns_pdb.yaml"
 
@@ -177,9 +175,9 @@ var scTemplate = DefaultStorageClass{
 var commonsCharts = ChartsDictionary{
 	Charts: map[string][]commons.ChartEntry{
 		"26": {
-			{Name: "cluster-autoscaler", Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1"},
-			{Name: "tigera-operator", Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1"},
-			{Name: "cert-manager", Repository: "https://charts.jetstack.io", Version: "v1.12.3"},
+			{Name: "cluster-autoscaler", Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
+			{Name: "tigera-operator", Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
+			{Name: "cert-manager", Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: false},
 		},
 	},
 }
@@ -213,6 +211,13 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 }
 
 func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+	if clusterConfigSpec.Private {
+		for i, chart := range commonsCharts.Charts[majorVersion] {
+			if chart.Name == "cert-manager" {
+				commonsCharts.Charts[majorVersion][i].Pull = true
+			}
+		}
+	}
 
 	err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, commonsCharts)
 	if err != nil {
@@ -242,11 +247,14 @@ func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec
 func ConvertToChart(chartEntries []commons.ChartEntry) *[]commons.Chart {
 	var charts []commons.Chart
 	for _, entry := range chartEntries {
-		chart := commons.Chart{
-			Name:    entry.Name,
-			Version: entry.Version,
+		if entry.Pull {
+			chart := commons.Chart{
+				Name:    entry.Name,
+				Version: entry.Version,
+			}
+			charts = append(charts, chart)
 		}
-		charts = append(charts, chart)
+
 	}
 	return &charts
 }
@@ -345,7 +353,7 @@ func getcapxPDB(commonsPDBLocalPath string) (string, error) {
 	return string(capaPDBContent), nil
 }
 
-func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string) error {
+func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string, certManagerVersion string) error {
 	c := "kubectl create -f " + CAPILocalRepository + "/cert-manager/" + certManagerVersion + "/cert-manager.crds.yaml"
 	if kubeconfigPath != "" {
 		c += " --kubeconfig " + kubeconfigPath
@@ -1044,14 +1052,17 @@ func installCorednsPdb(n nodes.Node) error {
 
 func pullCharts(n nodes.Node, charts []commons.ChartEntry) error {
 	for _, chart := range charts {
-		c := "helm pull " + chart.Name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
-		if strings.HasPrefix(chart.Repository, "oci://") {
-			c = "helm pull " + chart.Repository + "/" + chart.Name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+		if chart.Pull {
+			c := "helm pull " + chart.Name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
+			if strings.HasPrefix(chart.Repository, "oci://") {
+				c = "helm pull " + chart.Repository + "/" + chart.Name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+			}
+			_, err := commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to pull the helm chart: "+fmt.Sprint(chart))
+			}
 		}
-		_, err := commons.ExecuteCommand(n, c, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to pull the helm chart: "+fmt.Sprint(chart))
-		}
+
 	}
 	return nil
 }
@@ -1101,4 +1112,13 @@ func loginHelmRepo(n nodes.Node, keosCluster commons.KeosCluster, clusterCredent
 		}
 	}
 	return nil
+}
+
+func getChartVersion(charts []commons.Chart, majorVersion string, chartName string) string {
+	for _, chart := range charts {
+		if chart.Name == chartName {
+			return chart.Version
+		}
+	}
+	return ""
 }

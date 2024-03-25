@@ -97,6 +97,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	var err error
 	var keosRegistry KeosRegistry
 	var helmRegistry HelmRegistry
+	var majorVersion = strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1]
 
 	// Get the target node
 	n, err := ctx.GetNode()
@@ -124,7 +125,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return err
 	}
 
-	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec, strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1])
+	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec, majorVersion)
 	if err != nil {
 		return err
 	}
@@ -267,7 +268,11 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	if privateParams.Private {
-		err = provider.deployCertManager(n, keosRegistry.url, "")
+		certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, majorVersion, "cert-manager")
+		if certManagerVersion == "" {
+			return errors.New("Cert manager helm chart version cannot be found ")
+		}
+		err = provider.deployCertManager(n, keosRegistry.url, "", certManagerVersion)
 		if err != nil {
 			return err
 		}
@@ -567,7 +572,11 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		defer ctx.Status.End(false)
 
 		if privateParams.Private {
-			err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath)
+			certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, majorVersion, "cert-manager")
+			if certManagerVersion == "" {
+				return errors.New("Cert manager helm chart version cannot be found ")
+			}
+			err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, certManagerVersion)
 			if err != nil {
 				return err
 			}

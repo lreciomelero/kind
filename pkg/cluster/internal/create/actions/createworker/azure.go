@@ -56,9 +56,9 @@ type AzureBuilder struct {
 var azureCharts = ChartsDictionary{
 	Charts: map[string][]commons.ChartEntry{
 		"26": {
-			{Name: "azuredisk-csi-driver", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Version: "v1.28.3"},
-			{Name: "azurefile-csi-driver", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Version: "v1.28.3"},
-			{Name: "cloud-provider-azure", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Version: "v1.26.7"},
+			{Name: "azuredisk-csi-driver", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
+			{Name: "azurefile-csi-driver", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
+			{Name: "cloud-provider-azure", Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Version: "v1.26.7", Pull: true},
 		},
 	},
 }

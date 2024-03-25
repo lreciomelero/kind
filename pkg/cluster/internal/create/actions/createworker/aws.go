@@ -103,14 +103,21 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 var awsCharts = ChartsDictionary{
 	Charts: map[string][]commons.ChartEntry{
 		"26": {
-			{Name: "aws-cloud-controller-manager", Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8"},
-			{Name: "aws-load-balancer-controller", Repository: "https://aws.github.io/eks-charts", Version: "1.6.2"},
-			{Name: "aws-ebs-csi-driver", Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0"},
+			{Name: "aws-cloud-controller-manager", Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Pull: true},
+			{Name: "aws-load-balancer-controller", Repository: "https://aws.github.io/eks-charts", Version: "1.6.2", Pull: false},
+			{Name: "aws-ebs-csi-driver", Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0", Pull: true},
 		},
 	},
 }
 
 func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+	if clusterConfigSpec.EKSLBController {
+		for i, chart := range commonsCharts.Charts[majorVersion] {
+			if chart.Name == "aws-load-balancer-controller" {
+				commonsCharts.Charts[majorVersion][i].Pull = true
+			}
+		}
+	}
 	err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, awsCharts)
 	if err != nil {
 		return err

@@ -77,6 +77,7 @@ type ChartEntry struct {
 	Name       string
 	Repository string
 	Version    string
+	Pull       bool
 }
 
 type ControlplaneConfig struct {
