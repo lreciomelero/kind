@@ -250,7 +250,7 @@ NOTE: Cualquier cambio en _spec.credentials_ debe hacerse con todas las credenci
 
 === Repositorio de Helm
 
-Como prerrequisito de instalación, se debe indicar el repositorio helm del que se descargará el chart de helm del _Cluster Operator_. Este apartado permite indicar la url del repositorio, su tipo y si se trata de un repositorio autenticado.
+Como prerrequisito de instalación, se debe indicar el repositorio Helm del que se pueda extraer el _chart_ del _Cluster Operator_. Este apartado permite indicar la URL del repositorio, su tipo y si se trata de un repositorio autenticado.
 
 [cols="1,4,2,1"]
 |===
