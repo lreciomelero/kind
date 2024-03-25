@@ -261,11 +261,11 @@ Como prerrequisito de instalación, se debe indicar el repositorio Helm del que 
 | _false_
 | Sí. Por defecto: _false_.
 
-|_url_
-|Url del repositorio
-|*Repositorios OCI*: oci://stratioregistry.azurecr.io/helm-repository-example + 
+| _url_
+| URL del repositorio.
+| *Repositorios OCI*: oci://stratioregistry.azurecr.io/helm-repository-example + 
 *Repositorios HTTPS*: https://[IP]:8080
-|No
+| No
 
 |_type_
 |Tipo del repositorio
