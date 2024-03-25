@@ -256,10 +256,10 @@ Como prerrequisito de instalación, se debe indicar el repositorio Helm del que 
 |===
 ^|Nombre ^|Descripción ^|Ejemplo ^|Opcional
 
-|_auth++_++required_
-|Indica si el repositorio es autenticado
-|false
-|Si, default: false.
+| _auth++_++required_
+| Indica si el repositorio es autenticado.
+| _false_
+| Sí. Por defecto: _false_.
 
 |_url_
 |Url del repositorio
