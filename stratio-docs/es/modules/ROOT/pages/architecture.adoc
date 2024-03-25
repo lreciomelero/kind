@@ -562,4 +562,4 @@ Como prerrequisito de la instalación, se debe indicar un repositorio de Helm de
 
 NOTE: Las URL de los repositorios de tipo OCI llevan el prefijo *oci://*. Por ejemplo: oci://stratioregistry.azurecr.io/helm-repository-example.
 
-NOTE: Verificar en la documentación de keos-installer los repositorios que se soporten en la versión a utilizar.
+NOTE: Recuerda verificar en la documentación de _keos-installer_ los repositorios que se soporten en la versión a utilizar.
