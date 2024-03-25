@@ -267,11 +267,10 @@ Como prerrequisito de instalación, se debe indicar el repositorio Helm del que 
 *Repositorios HTTPS*: https://[IP]:8080
 | No
 
-|_type_
-|Tipo del repositorio
-|generic o ecr
-|Si, default: generic
-
+| _type_
+| Tipo del repositorio.
+| _generic_ o ecr.
+| Sí. Por defecto: _generic_.
 |===
 
 NOTE: Los repositorios OCI (de _cloud providers_ como ECR, GAR o ACR) nunca son autenticados. La autenticación se realizará mediante las credenciales utilizadas en el aprovisionamiento. Verificar en la documentación de keos-installer los repositorios que se soporten en la versión a utilizar.
