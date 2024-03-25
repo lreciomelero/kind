@@ -248,7 +248,7 @@ Los siguientes campos son considerados secretos del aprovisionamiento:
 
 NOTE: Cualquier cambio en _spec.credentials_ debe hacerse con todas las credenciales en el descriptor del _cluster_ y eliminando previamente el _secrets.yml_.
 
-=== Helm Repository
+=== Repositorio de Helm
 
 Como prerrequisito de instalación, se debe indicar el repositorio helm del que se descargará el chart de helm del _Cluster Operator_. Este apartado permite indicar la url del repositorio, su tipo y si se trata de un repositorio autenticado.
 
