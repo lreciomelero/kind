@@ -538,7 +538,7 @@ La siguiente tabla muestra los _registries_ soportados según proveedor/_flavour
 ^|acr
 |===
 
-== Helm Repository
+== Repositorio de Helm
 
 Como prerrequisito de la instalación se debe indicar un repositorio de helm del que se pueda extraer el chart de _Cluster Operator_. Este repositorio puede utilizar protocolo https u oci (utilizado para repositorios de _cloud providers_ como ECR, GAR o ACR).
 
