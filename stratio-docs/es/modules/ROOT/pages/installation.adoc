@@ -273,7 +273,7 @@ Como prerrequisito de instalación, se debe indicar el repositorio Helm del que 
 | Sí. Por defecto: _generic_.
 |===
 
-NOTE: Los repositorios OCI (de _cloud providers_ como ECR, GAR o ACR) nunca son autenticados. La autenticación se realizará mediante las credenciales utilizadas en el aprovisionamiento. Verificar en la documentación de keos-installer los repositorios que se soporten en la versión a utilizar.
+NOTE: Los repositorios OCI (de proveedores _cloud_ como ECR, GAR o ACR) nunca son autenticados. La autenticación se realizará mediante las credenciales utilizadas en el aprovisionamiento. Por favor, verifica en la documentación de _Stratio KEOS_ los repositorios que se soportan en la versión a utilizar.
 
 === Redes
 
