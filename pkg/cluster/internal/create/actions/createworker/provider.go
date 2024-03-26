@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -72,7 +73,7 @@ const (
 var calicoMetrics string
 
 type ChartsDictionary struct {
-	Charts map[string][]commons.ChartEntry
+	Charts map[string]map[string]map[string]commons.ChartEntry
 }
 
 type PrivateParams struct {
@@ -85,8 +86,8 @@ type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
-	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error
-	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart
+	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, clusterType string) error
+	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string, clusterType string) []commons.Chart
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
 	installCSI(n nodes.Node, k string, privateParams PrivateParams) error
 	getProvider() Provider
@@ -173,11 +174,18 @@ var scTemplate = DefaultStorageClass{
 }
 
 var commonsCharts = ChartsDictionary{
-	Charts: map[string][]commons.ChartEntry{
+	Charts: map[string]map[string]map[string]commons.ChartEntry{
 		"26": {
-			{Name: "cluster-autoscaler", Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
-			{Name: "tigera-operator", Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
-			{Name: "cert-manager", Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: false},
+			"managed": {
+				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
+				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
+				"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: false},
+			},
+			"not-managed": {
+				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
+				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
+				"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: false},
+			},
 		},
 	},
 }
@@ -211,29 +219,34 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 }
 
 func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+	clusterType := "managed"
+	if !keosSpec.ControlPlane.Managed {
+		clusterType = "not-managed"
+	}
 	if clusterConfigSpec.Private {
-		for i, chart := range commonsCharts.Charts[majorVersion] {
-			if chart.Name == "cert-manager" {
-				commonsCharts.Charts[majorVersion][i].Pull = true
+
+		for name, chart := range commonsCharts.Charts[majorVersion][clusterType] {
+			if name == "cert-manager" {
+				chart.Pull = true
+				commonsCharts.Charts[majorVersion][clusterType][name] = chart
 			}
 		}
 	}
 
-	err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, commonsCharts)
-	if err != nil {
+	if err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, commonsCharts, clusterType); err != nil {
 		return err
 	}
-	err = i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, majorVersion)
-	if err != nil {
+
+	if err := i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, majorVersion, clusterType); err != nil {
 		return err
 	}
-	clusterConfigSpec.Charts = i.getOverriddenCharts(clusterConfigSpec, majorVersion)
+	clusterConfigSpec.Charts = i.getOverriddenCharts(clusterConfigSpec, majorVersion, clusterType)
 	return nil
 
 }
 
-func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string) []commons.Chart {
-	charts := ConvertToChart(commonsCharts.Charts[majorVersion])
+func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string, clusterType string) []commons.Chart {
+	charts := ConvertToChart(commonsCharts.Charts[majorVersion][clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
 		for _, chart := range *charts {
 			if chart.Name == ovChart.Name {
@@ -241,15 +254,15 @@ func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec
 			}
 		}
 	}
-	return i.builder.getOverriddenCharts(charts, clusterConfigSpec, majorVersion)
+	return i.builder.getOverriddenCharts(charts, clusterConfigSpec, majorVersion, clusterType)
 }
 
-func ConvertToChart(chartEntries []commons.ChartEntry) *[]commons.Chart {
+func ConvertToChart(chartEntries map[string]commons.ChartEntry) *[]commons.Chart {
 	var charts []commons.Chart
-	for _, entry := range chartEntries {
+	for name, entry := range chartEntries {
 		if entry.Pull {
 			chart := commons.Chart{
-				Name:    entry.Name,
+				Name:    name,
 				Version: entry.Version,
 			}
 			charts = append(charts, chart)
@@ -259,26 +272,24 @@ func ConvertToChart(chartEntries []commons.ChartEntry) *[]commons.Chart {
 	return &charts
 }
 
-func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, chartDictionary ChartsDictionary) error {
-	chartsToInstall := chartDictionary.Charts[majorVersion]
+func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, chartDictionary ChartsDictionary, clusterType string) error {
+	chartsToInstall := chartDictionary.Charts[majorVersion][clusterType]
 
 	for _, overrideChart := range clusterConfigSpec.Charts {
-		for i, chart := range chartsToInstall {
-			if overrideChart.Name == chart.Name {
-				chartsToInstall[i].Version = overrideChart.Version
-			}
+		chart := chartsToInstall[overrideChart.Name]
+		if !reflect.DeepEqual(chart, commons.ChartEntry{}) {
+
+			chart.Version = overrideChart.Version
+			chartsToInstall[overrideChart.Name] = chart
 		}
 	}
 	if clusterConfigSpec.PrivateHelmRepo {
-		for i := range chartsToInstall {
-			chartsToInstall[i].Repository = keosSpec.HelmRepository.URL
+		for name, entry := range chartsToInstall {
+			entry.Repository = keosSpec.HelmRepository.URL
+			chartsToInstall[name] = entry
 		}
 	}
-	err := pullCharts(n, chartsToInstall)
-	if err != nil {
-		return err
-	}
-	return nil
+	return pullCharts(n, chartsToInstall)
 }
 
 func (i *Infra) installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error {
@@ -1050,12 +1061,12 @@ func installCorednsPdb(n nodes.Node) error {
 	return nil
 }
 
-func pullCharts(n nodes.Node, charts []commons.ChartEntry) error {
-	for _, chart := range charts {
+func pullCharts(n nodes.Node, charts map[string]commons.ChartEntry) error {
+	for name, chart := range charts {
 		if chart.Pull {
-			c := "helm pull " + chart.Name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
+			c := "helm pull " + name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
 			if strings.HasPrefix(chart.Repository, "oci://") {
-				c = "helm pull " + chart.Repository + "/" + chart.Name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+				c = "helm pull " + chart.Repository + "/" + name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
 			}
 			_, err := commons.ExecuteCommand(n, c, 5)
 			if err != nil {
