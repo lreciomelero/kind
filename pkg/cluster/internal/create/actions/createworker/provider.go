@@ -365,26 +365,11 @@ func getcapxPDB(commonsPDBLocalPath string) (string, error) {
 }
 
 func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string, certManagerVersion string) error {
-	c := "kubectl create -f " + CAPILocalRepository + "/cert-manager/" + certManagerVersion + "/cert-manager.crds.yaml"
-	if kubeconfigPath != "" {
-		c += " --kubeconfig " + kubeconfigPath
-	}
-	_, err := commons.ExecuteCommand(n, c, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to create cert-manager crds")
-	}
 
-	c = "kubectl create ns cert-manager"
-	if kubeconfigPath != "" {
-		c += " --kubeconfig " + kubeconfigPath
-	}
-	_, err = commons.ExecuteCommand(n, c, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to create cert-manager namespace")
-	}
-
-	c = "helm install --wait cert-manager /stratio/helm/cert-manager" +
-		" --set namespace=cert-manager" +
+	c := "helm install --wait cert-manager /stratio/helm/cert-manager" +
+		" --namespace=cert-manager" +
+		" --create-namespace" +
+		" --set installCRDs=true" +
 		" --set cainjector.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-cainjector" +
 		" --set webhook.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-webhook" +
 		" --set acmesolver.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-acmesolver" +
@@ -395,7 +380,7 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 		c += " --kubeconfig " + kubeconfigPath
 	}
 
-	_, err = commons.ExecuteCommand(n, c, 5)
+	_, err := commons.ExecuteCommand(n, c, 5)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
 	}

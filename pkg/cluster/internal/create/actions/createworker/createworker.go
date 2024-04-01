@@ -293,7 +293,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
-			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml "
+			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    version: " + certManagerVersion + "\" >> /root/.cluster-api/clusterctl.yaml "
 
 		_, err = commons.ExecuteCommand(n, c, 5)
 

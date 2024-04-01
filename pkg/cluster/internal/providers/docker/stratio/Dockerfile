@@ -11,9 +11,6 @@ ENV CLUSTERCTL=v1.5.3
 ENV CLUSTERAWSADM=v2.2.1
 ENV HELM=v3.13.1
 
-# Helm charts
-ENV CERT_MANAGER_CHART_VERSION=v1.12.3
-
 # Cluster-api artifacts
 ENV CAPI_REPO=/root/.cluster-api/local-repository
 ENV CAPA=v2.2.1
@@ -48,10 +45,7 @@ RUN curl -L https://get.helm.sh/helm-${HELM}-linux-amd64.tar.gz -o /root/helm.ta
   && rm -rf /root/linux-amd64 /root/helm.tar.gz \
   && chmod +x /usr/local/bin/helm \
   && helm plugin install https://github.com/hypnoglow/helm-s3.git
-
-RUN mkdir -p ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION} \
-    && curl -LJ -o ${CAPI_REPO}/cert-manager/${CERT_MANAGER_CHART_VERSION}/cert-manager.crds.yaml  https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.crds.yaml
-  
+ 
 # Create helm charts directory
 RUN mkdir -p /stratio/helm 
 
