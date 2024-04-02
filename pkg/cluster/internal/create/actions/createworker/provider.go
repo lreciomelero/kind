@@ -73,7 +73,7 @@ const (
 var calicoMetrics string
 
 type ChartsDictionary struct {
-	Charts map[string]map[string]map[string]commons.ChartEntry
+	Charts map[string]map[string]commons.ChartEntry
 }
 
 type PrivateParams struct {
@@ -86,8 +86,8 @@ type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
-	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, clusterType string) error
-	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string, clusterType string) []commons.Chart
+	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error
+	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
 	installCSI(n nodes.Node, k string, privateParams PrivateParams) error
 	getProvider() Provider
@@ -174,18 +174,16 @@ var scTemplate = DefaultStorageClass{
 }
 
 var commonsCharts = ChartsDictionary{
-	Charts: map[string]map[string]map[string]commons.ChartEntry{
-		"26": {
-			"managed": {
-				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
-				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
-				"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: false},
-			},
-			"not-managed": {
-				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
-				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
-				"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: false},
-			},
+	Charts: map[string]map[string]commons.ChartEntry{
+		"managed": {
+			"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
+			"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
+			"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: true},
+		},
+		"unmanaged": {
+			"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Pull: true},
+			"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.1", Pull: true},
+			"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Pull: true},
 		},
 	},
 }
@@ -218,35 +216,26 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 	return i.builder.getProvider()
 }
 
-func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string) error {
+func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec) error {
 	clusterType := "managed"
 	if !keosSpec.ControlPlane.Managed {
-		clusterType = "not-managed"
-	}
-	if clusterConfigSpec.Private {
-
-		for name, chart := range commonsCharts.Charts[majorVersion][clusterType] {
-			if name == "cert-manager" {
-				chart.Pull = true
-				commonsCharts.Charts[majorVersion][clusterType][name] = chart
-			}
-		}
+		clusterType = "unmanaged"
 	}
 
-	if err := pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, commonsCharts, clusterType); err != nil {
+	if err := pullGenericCharts(n, clusterConfigSpec, keosSpec, commonsCharts, clusterType); err != nil {
 		return err
 	}
 
-	if err := i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, majorVersion, clusterType); err != nil {
+	if err := i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, clusterType); err != nil {
 		return err
 	}
-	clusterConfigSpec.Charts = i.getOverriddenCharts(clusterConfigSpec, majorVersion, clusterType)
+	clusterConfigSpec.Charts = i.getOverriddenCharts(clusterConfigSpec, clusterType)
 	return nil
 
 }
 
-func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string, clusterType string) []commons.Chart {
-	charts := ConvertToChart(commonsCharts.Charts[majorVersion][clusterType])
+func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
+	charts := ConvertToChart(commonsCharts.Charts[clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
 		for _, chart := range *charts {
 			if chart.Name == ovChart.Name {
@@ -254,7 +243,7 @@ func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec
 			}
 		}
 	}
-	return i.builder.getOverriddenCharts(charts, clusterConfigSpec, majorVersion, clusterType)
+	return i.builder.getOverriddenCharts(charts, clusterConfigSpec, clusterType)
 }
 
 func ConvertToChart(chartEntries map[string]commons.ChartEntry) *[]commons.Chart {
@@ -272,8 +261,8 @@ func ConvertToChart(chartEntries map[string]commons.ChartEntry) *[]commons.Chart
 	return &charts
 }
 
-func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, chartDictionary ChartsDictionary, clusterType string) error {
-	chartsToInstall := chartDictionary.Charts[majorVersion][clusterType]
+func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) error {
+	chartsToInstall := chartDictionary.Charts[clusterType]
 
 	for _, overrideChart := range clusterConfigSpec.Charts {
 		chart := chartsToInstall[overrideChart.Name]
@@ -364,17 +353,19 @@ func getcapxPDB(commonsPDBLocalPath string) (string, error) {
 	return string(capaPDBContent), nil
 }
 
-func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string, certManagerVersion string) error {
+func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string, certManagerVersion string, private bool) error {
 
 	c := "helm install --wait cert-manager /stratio/helm/cert-manager" +
 		" --namespace=cert-manager" +
 		" --create-namespace" +
-		" --set installCRDs=true" +
-		" --set cainjector.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-cainjector" +
-		" --set webhook.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-webhook" +
-		" --set acmesolver.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-acmesolver" +
-		" --set startupapicheck.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-ctl" +
-		" --set image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-controller"
+		" --set installCRDs=true"
+	if private {
+		c += " --set cainjector.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-cainjector" +
+			" --set webhook.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-webhook" +
+			" --set acmesolver.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-acmesolver" +
+			" --set startupapicheck.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-ctl" +
+			" --set image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-controller"
+	}
 
 	if kubeconfigPath != "" {
 		c += " --kubeconfig " + kubeconfigPath

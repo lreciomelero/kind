@@ -50,9 +50,7 @@ type GCPBuilder struct {
 }
 
 var googleCharts = ChartsDictionary{
-	Charts: map[string]map[string]map[string]commons.ChartEntry{
-		"26": {},
-	},
+	Charts: map[string]map[string]commons.ChartEntry{},
 }
 
 func newGCPBuilder() *GCPBuilder {
@@ -114,12 +112,12 @@ func (b *GCPBuilder) setSC(p ProviderParams) {
 	}
 }
 
-func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, clusterType string) error {
-	return pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, googleCharts, clusterType)
+func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
+	return pullGenericCharts(n, clusterConfigSpec, keosSpec, googleCharts, clusterType)
 }
 
-func (b *GCPBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string, clusterType string) []commons.Chart {
-	providerCharts := ConvertToChart(googleCharts.Charts[majorVersion][clusterType])
+func (b *GCPBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
+	providerCharts := ConvertToChart(googleCharts.Charts[clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
 		for _, chart := range *providerCharts {
 			if chart.Name == ovChart.Name {

@@ -125,7 +125,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return err
 	}
 
-	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec, majorVersion)
+	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec)
 	if err != nil {
 		return err
 	}
@@ -267,15 +267,25 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 	}
 
+	certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, majorVersion, "cert-manager")
+	if certManagerVersion == "" {
+		return errors.New("Cert manager helm chart version cannot be found ")
+	}
+	err = provider.deployCertManager(n, keosRegistry.url, "", certManagerVersion, privateParams.Private)
+	if err != nil {
+		return err
+	}
+
+	c = "echo \"cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
+		"echo \"  version: " + certManagerVersion + "\" >> /root/.cluster-api/clusterctl.yaml "
+
+	_, err = commons.ExecuteCommand(n, c, 5)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to set cert-manager version in clusterctl config")
+	}
+
 	if privateParams.Private {
-		certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, majorVersion, "cert-manager")
-		if certManagerVersion == "" {
-			return errors.New("Cert manager helm chart version cannot be found ")
-		}
-		err = provider.deployCertManager(n, keosRegistry.url, "", certManagerVersion)
-		if err != nil {
-			return err
-		}
 
 		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cluster-api:\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -293,8 +303,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
-			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml && " +
-			"echo \"    version: " + certManagerVersion + "\" >> /root/.cluster-api/clusterctl.yaml "
+			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml "
 
 		_, err = commons.ExecuteCommand(n, c, 5)
 
@@ -572,15 +581,9 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
 		defer ctx.Status.End(false)
 
-		if privateParams.Private {
-			certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, majorVersion, "cert-manager")
-			if certManagerVersion == "" {
-				return errors.New("Cert manager helm chart version cannot be found ")
-			}
-			err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, certManagerVersion)
-			if err != nil {
-				return err
-			}
+		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, certManagerVersion, privateParams.Private)
+		if err != nil {
+			return err
 		}
 
 		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)

@@ -54,14 +54,12 @@ type AzureBuilder struct {
 }
 
 var azureCharts = ChartsDictionary{
-	Charts: map[string]map[string]map[string]commons.ChartEntry{
-		"26": {
-			"managed": {},
-			"not-managed": {
-				"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
-				"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
-				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Version: "v1.26.7", Pull: true},
-			},
+	Charts: map[string]map[string]commons.ChartEntry{
+		"managed": {},
+		"unmanaged": {
+			"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
+			"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
+			"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Version: "v1.26.7", Pull: true},
 		},
 	},
 }
@@ -104,12 +102,12 @@ func (b *AzureBuilder) setSC(p ProviderParams) {
 	}
 }
 
-func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, majorVersion string, clusterType string) error {
-	return pullGenericCharts(n, clusterConfigSpec, keosSpec, majorVersion, azureCharts, clusterType)
+func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
+	return pullGenericCharts(n, clusterConfigSpec, keosSpec, azureCharts, clusterType)
 }
 
-func (b *AzureBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, majorVersion string, clusterType string) []commons.Chart {
-	providerCharts := ConvertToChart(azureCharts.Charts[majorVersion][clusterType])
+func (b *AzureBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
+	providerCharts := ConvertToChart(azureCharts.Charts[clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
 		for _, chart := range *providerCharts {
 			if chart.Name == ovChart.Name {
