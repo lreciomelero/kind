@@ -33,12 +33,14 @@ var EtcdVolumeDeviceName = "/dev/xvdb"
 var EtcdVolumeMountPath = "/var/lib/etcd"
 var EtcdVolumeName = "etcd_disk"
 var EtcdVolumeLabel = "etcd_disk"
-var EtcdVolumeSize = 5
+var EtcdVolumeSize = 8
 var CriVolumeDeviceName = "/dev/xvdc"
 var CriVolumeName = "cri_disk"
 var CriVolumeMountPath = "/var/lib/containerd"
 var CriVolumeLabel = "cri_disk"
 var CriVolumeSize = 128
+var RootVolumeDefaultSize = 128
+var DeviceNameRegex = "^/dev/(sd[a-z]|xvd([a-d][a-z]|[e-z]))$"
 
 var AWSVolumeType = "gp3"
 var AzureVMsVolumeType = "Standard_LRS"
@@ -440,8 +442,12 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 		}
 		for i := range s.WorkerNodes {
 			s.WorkerNodes[i].CRIVolume.DeviceName = CriVolumeDeviceName
-			checkAndFill(s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-			checkAndFill(s.WorkerNodes[i].CRIVolume.Type, volumeType)
+			s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+			s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
+			checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+			checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+			checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+			checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
 		}
 
 	case "gcp":
@@ -449,20 +455,26 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			volumeType = GCPVMsVolumeType
 			s = initControlPlaneVolumes(s, volumeType)
 			for i := range s.WorkerNodes {
-				checkAndFill(s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-				checkAndFill(s.WorkerNodes[i].CRIVolume.Type, volumeType)
+				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
 			}
 		}
 	case "azure":
 		if !s.ControlPlane.Managed {
 			volumeType = AzureVMsVolumeType
-			checkAndFill(s.ControlPlane.CRIVolume.Name, CriVolumeName)
-			checkAndFill(s.ControlPlane.ETCDVolume.Name, EtcdVolumeName)
+			checkAndFill(&s.ControlPlane.CRIVolume.Name, CriVolumeName)
+			checkAndFill(&s.ControlPlane.ETCDVolume.Name, EtcdVolumeName)
 			s = initControlPlaneVolumes(s, volumeType)
 			for i := range s.WorkerNodes {
 				s.WorkerNodes[i].CRIVolume.Name = CriVolumeName
-				checkAndFill(s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-				checkAndFill(s.WorkerNodes[i].CRIVolume.Type, volumeType)
+				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
 			}
 		}
 	}
