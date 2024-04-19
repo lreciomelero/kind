@@ -50,7 +50,13 @@ type GCPBuilder struct {
 }
 
 var googleCharts = ChartsDictionary{
-	Charts: map[string]map[string]commons.ChartEntry{},
+	Charts: map[string]map[string]commons.ChartEntry{
+		"managed": {
+		},
+		"unmanaged": {
+			"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
+		},
+	},
 }
 
 func newGCPBuilder() *GCPBuilder {
@@ -116,6 +122,10 @@ func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 	return pullGenericCharts(n, clusterConfigSpec, keosSpec, googleCharts, clusterType)
 }
 
+func (b *GCPBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) (map[string]commons.ChartEntry) {
+	return printGenericCharts(clusterConfigSpec, keosSpec, googleCharts, clusterType)
+}
+
 func (b *GCPBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
 	providerCharts := ConvertToChart(googleCharts.Charts[clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
@@ -146,7 +156,7 @@ func (b *GCPBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	return nil
 }
 
-func (b *GCPBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams) error {
+func (b *GCPBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams, charstList map[string]commons.ChartEntry) error {
 	var c string
 	var err error
 	var cmd exec.Cmd

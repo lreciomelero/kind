@@ -54,6 +54,12 @@ type HelmRegistry struct {
 	Type string
 }
 
+type CMHelmRelease struct {
+	CMName      string
+	CMNamespace string
+	CMValue     string
+}
+
 const (
 	kubeconfigPath          = "/kind/worker-cluster.kubeconfig"
 	workKubeconfigPath      = ".kube/config"
@@ -118,7 +124,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	infra := newInfra(providerBuilder)
 	provider := infra.buildProvider(providerParams)
 
-	ctx.Status.Start("Pulling Helm Charts 🎖️")
+	ctx.Status.Start("Pulling initial Helm Charts 🧭")
 
 	err = loginHelmRepo(n, a.keosCluster, a.clusterCredentials, &helmRegistry, infra, providerParams)
 	if err != nil {
@@ -205,6 +211,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	}
 
+	chartsList := infra.printProviderCharts(&a.clusterConfig.Spec, a.keosCluster.Spec)
+
 	ctx.Status.Start("Installing CAPx 🎖️")
 	defer ctx.Status.End(false)
 
@@ -271,7 +279,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	if certManagerVersion == "" {
 		return errors.New("Cert manager helm chart version cannot be found ")
 	}
-	err = provider.deployCertManager(n, keosRegistry.url, "", certManagerVersion, privateParams.Private)
+	err = provider.deployCertManager(n, keosRegistry.url, "", privateParams.Private, make(map[string]commons.ChartEntry))
 	if err != nil {
 		return err
 	}
@@ -456,51 +464,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath)
+			err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, false)
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
 			ctx.Status.End(true) // End Installing Calico in workload cluster
 
-			ctx.Status.Start("Installing CSI in workload cluster 💾")
-			defer ctx.Status.End(false)
-
-			err = infra.installCSI(n, kubeconfigPath, privateParams)
-			if err != nil {
-				return errors.Wrap(err, "failed to install CSI in workload cluster")
-			}
-
-			ctx.Status.End(true)
-
-			if provider.capxProvider == "gcp" {
-				// XXX Ref kubernetes/kubernetes#86793 Starting from v1.18, gcp cloud-controller-manager requires RBAC to patch,update service/status (in-tree)
-				ctx.Status.Start("Creating Kubernetes RBAC for internal loadbalancing 🔐")
-				defer ctx.Status.End(false)
-
-				requiredInternalNginx, err := infra.internalNginx(providerParams, a.keosCluster.Spec.Networks)
-				if err != nil {
-					return err
-				}
-
-				if requiredInternalNginx {
-					rbacInternalLoadBalancingPath := "/kind/internalloadbalancing_rbac.yaml"
-
-					// Deploy Kubernetes RBAC internal loadbalancing
-					c = "echo \"" + rbacInternalLoadBalancing + "\" > " + rbacInternalLoadBalancingPath
-					_, err = commons.ExecuteCommand(n, c, 5)
-					if err != nil {
-						return errors.Wrap(err, "failed to write the kubernetes RBAC internal loadbalancing")
-					}
-
-					c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + rbacInternalLoadBalancingPath
-					_, err = commons.ExecuteCommand(n, c, 5)
-					if err != nil {
-						return errors.Wrap(err, "failed to the kubernetes RBAC internal loadbalancing")
-					}
-				}
-
-				ctx.Status.End(true)
-			}
 		}
 
 		ctx.Status.Start("Preparing nodes in workload cluster 📦")
@@ -548,10 +517,69 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
 
+		ctx.Status.Start("Configuring Flux in workload cluster 🧭")
+		defer ctx.Status.End(false)
+		err = configureFlux(n, kubeconfigPath, privateParams, helmRegistry, a.keosCluster.Spec, chartsList)
+		if err != nil {
+			return errors.Wrap(err, "failed to install Flux in workload cluster")
+		}
+		ctx.Status.End(true) // End Installing Flux in workload cluster
+
+		ctx.Status.Start("Reconciling the existing Helm charts in workload cluster 🧲")
+		defer ctx.Status.End(false)
+		err = reconcileCharts(n, kubeconfigPath, privateParams, a.keosCluster.Spec, chartsList, awsEKSEnabled)
+		if err != nil {
+			return errors.Wrap(err, "failed to reconcile with Flux the existing Helm charts in workload cluster")
+		}
+		ctx.Status.End(true) // End Installing Flux in workload cluster
+
+		if !a.keosCluster.Spec.ControlPlane.Managed {
+
+			ctx.Status.Start("Installing CSI in workload cluster 💾")
+			defer ctx.Status.End(false)
+
+			err = infra.installCSI(n, kubeconfigPath, privateParams, chartsList)
+			if err != nil {
+				return errors.Wrap(err, "failed to install CSI in workload cluster")
+			}
+
+			ctx.Status.End(true)
+
+			if provider.capxProvider == "gcp" {
+				// XXX Ref kubernetes/kubernetes#86793 Starting from v1.18, gcp cloud-controller-manager requires RBAC to patch,update service/status (in-tree)
+				ctx.Status.Start("Creating Kubernetes RBAC for internal loadbalancing 🔐")
+				defer ctx.Status.End(false)
+
+				requiredInternalNginx, err := infra.internalNginx(providerParams, a.keosCluster.Spec.Networks)
+				if err != nil {
+					return err
+				}
+
+				if requiredInternalNginx {
+					rbacInternalLoadBalancingPath := "/kind/internalloadbalancing_rbac.yaml"
+
+					// Deploy Kubernetes RBAC internal loadbalancing
+					c = "echo \"" + rbacInternalLoadBalancing + "\" > " + rbacInternalLoadBalancingPath
+					_, err = commons.ExecuteCommand(n, c, 5)
+					if err != nil {
+						return errors.Wrap(err, "failed to write the kubernetes RBAC internal loadbalancing")
+					}
+
+					c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + rbacInternalLoadBalancingPath
+					_, err = commons.ExecuteCommand(n, c, 5)
+					if err != nil {
+						return errors.Wrap(err, "failed to the kubernetes RBAC internal loadbalancing")
+					}
+				}
+
+				ctx.Status.End(true)
+			}
+		}
+
 		if awsEKSEnabled && a.clusterConfig.Spec.EKSLBController {
 			ctx.Status.Start("Installing AWS LB controller in workload cluster ⚖️")
 			defer ctx.Status.End(false)
-			err = installLBController(n, kubeconfigPath, privateParams, providerParams)
+			err = installLBController(n, kubeconfigPath, privateParams, providerParams, chartsList)
 
 			if err != nil {
 				return errors.Wrap(err, "failed to install AWS LB controller in workload cluster")
@@ -581,7 +609,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
 		defer ctx.Status.End(false)
 
-		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, certManagerVersion, privateParams.Private)
+		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, privateParams.Private, chartsList)
 		if err != nil {
 			return err
 		}
@@ -598,20 +626,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.End(true) // End Installing CAPx in workload cluster
 
+		ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
+		defer ctx.Status.End(false)
 		// Use Calico as network policy engine in managed systems
 		if provider.capxProvider != "azure" && !isMachinePool {
-			ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
-			defer ctx.Status.End(false)
-
-			// Use Calico as network policy engine in managed systems
-			if a.keosCluster.Spec.ControlPlane.Managed {
-
-				err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath)
-				if err != nil {
-					return errors.Wrap(err, "failed to install Network Policy Engine in workload cluster")
-				}
-			}
-
 			// Create the allow and deny (global) network policy file in the container
 			denyallEgressIMDSGNetPolPath := "/kind/deny-all-egress-imds_gnetpol.yaml"
 			allowCAPXEgressIMDSGNetPolPath := "/kind/allow-egress-imds_gnetpol.yaml"
@@ -664,50 +682,9 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing cluster-autoscaler in workload cluster 🗚")
 			defer ctx.Status.End(false)
 
-			c = "helm install cluster-autoscaler /stratio/helm/cluster-autoscaler" +
-				" --kubeconfig " + kubeconfigPath +
-				" --namespace kube-system" +
-				" --set autoDiscovery.clusterName=" + a.keosCluster.Metadata.Name +
-				" --set autoDiscovery.labels[0].namespace=cluster-" + a.keosCluster.Metadata.Name +
-				" --set cloudProvider=clusterapi" +
-				" --set clusterAPIMode=incluster-incluster" +
-				" --set replicaCount=2"
-
-			if privateParams.Private {
-				c += " --set image.repository=" + keosRegistry.url + "/autoscaling/cluster-autoscaler"
-			}
-
-			_, err = commons.ExecuteCommand(n, c, 5)
+			err = deployClusterAutoscaler (n, chartsList, privateParams, capiClustersNamespace, a.moveManagement)
 			if err != nil {
-				return errors.Wrap(err, "failed to deploy cluster-autoscaler in workload cluster")
-			}
-
-			if !a.moveManagement {
-				autoscalerRBACPath := "/kind/autoscaler_rbac.yaml"
-
-				autoscalerRBAC, err := getManifest("common", "autoscaler_rbac.tmpl", a.keosCluster)
-				if err != nil {
-					return errors.Wrap(err, "failed to get CA RBAC file")
-				}
-
-				c = "echo '" + autoscalerRBAC + "' > " + autoscalerRBACPath
-				_, err = commons.ExecuteCommand(n, c, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to create CA RBAC file")
-				}
-
-				// Create namespace for CAPI clusters (it must exists) in worker cluster
-				c = "kubectl --kubeconfig " + kubeconfigPath + " create ns " + capiClustersNamespace
-				_, err = commons.ExecuteCommand(n, c, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to create manifests Namespace")
-				}
-
-				c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + autoscalerRBACPath
-				_, err = commons.ExecuteCommand(n, c, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to apply CA RBAC")
-				}
+				return errors.Wrap(err, "failed to install cluster-autoscaler in workload cluster")
 			}
 
 			ctx.Status.End(true)

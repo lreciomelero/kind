@@ -51,6 +51,14 @@ type AWSBuilder struct {
 	csiNamespace     string
 }
 
+type lbControllerHelmParams struct {
+	ClusterName   string
+	Private       bool
+    KeosRegUrl    string
+	AccountID     string
+	RoleName      string
+}
+
 func newAWSBuilder() *AWSBuilder {
 	return &AWSBuilder{}
 }
@@ -103,11 +111,13 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 var awsCharts = ChartsDictionary{
 	Charts: map[string]map[string]commons.ChartEntry{
 		"managed": {
-			"aws-load-balancer-controller": {Repository: "https://aws.github.io/eks-charts", Version: "1.6.2", Pull: false},
+			"aws-load-balancer-controller": {Repository: "https://aws.github.io/eks-charts", Version: "1.6.2", Namespace: "kube-system", Pull: false},
+			"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: false},
 		},
 		"unmanaged": {
-			"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Pull: true},
-			"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0", Pull: true},
+			"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Namespace: "kube-system", Pull: true},
+			"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0", Namespace: "kube-system", Pull: false},
+			"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
 		},
 	},
 }
@@ -123,6 +133,10 @@ func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 	}
 	return pullGenericCharts(n, clusterConfigSpec, keosSpec, awsCharts, clusterType)
 
+}
+
+func (b *AWSBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
+	return printGenericCharts(clusterConfigSpec, keosSpec, awsCharts, clusterType)
 }
 
 func (b *AWSBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
@@ -160,69 +174,105 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	} else {
 		podsCidrBlock = "192.168.0.0/16"
 	}
-	c := "helm install aws-cloud-controller-manager /stratio/helm/aws-cloud-controller-manager" +
-		" --kubeconfig " + k +
-		" --namespace kube-system" +
-		" --set args[0]=\"--v=2\"" +
-		" --set args[1]=\"--cloud-provider=aws\"" +
-		" --set args[2]=\"--cluster-cidr=" + podsCidrBlock + "\"" +
-		" --set args[3]=\"--cluster-name=" + keosCluster.Metadata.Name + "\""
 
-	if privateParams.Private {
-		c += " --set image.repository=" + privateParams.KeosRegUrl + "/provider-aws/cloud-controller-manager"
+	cloudControllerManagerValuesFile := "/kind/aws-cloud-controller-manager-helm-values.yaml"
+	cloudControllerManagerHelmParams := cloudControllerHelmParams {
+		ClusterName:  privateParams.KeosCluster.Metadata.Name,
+		Private:      privateParams.Private,
+		KeosRegUrl:   privateParams.KeosRegUrl,
+		PodsCidr:     podsCidrBlock,
 	}
 
-	_, err := commons.ExecuteCommand(n, c, 5)
+	// Generate the CCM helm values
+	cloudControllerManagerHelmValues, err := getManifest(b.capxProvider, "aws-cloud-controller-manager-helm-values.tmpl", cloudControllerManagerHelmParams)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
+	}
+	c := "echo '" + cloudControllerManagerHelmValues + "' > " + cloudControllerManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
+	}
+
+	c = "helm install aws-cloud-controller-manager /stratio/helm/aws-cloud-controller-manager" +
+	" --kubeconfig " + k +
+	" --namespace kube-system" +
+    " --values " + cloudControllerManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy aws-cloud-controller-manager Helm Chart")
 	}
+
 	return nil
 }
 
-func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams) error {
-	c := "helm install aws-ebs-csi-driver /stratio/helm/aws-ebs-csi-driver" +
-		" --kubeconfig " + k +
-		" --namespace " + b.csiNamespace +
-		" --set controller.podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict-local-volumes=socket-dir\""
-
-	if privateParams.Private {
-		c += " --set image.repository=" + privateParams.KeosRegUrl + "/ebs-csi-driver/aws-ebs-csi-driver" +
-			" --set sidecars.provisioner.image.repository=" + privateParams.KeosRegUrl + "/eks-distro/kubernetes-csi/external-provisioner" +
-			" --set sidecars.attacher.image.repository=" + privateParams.KeosRegUrl + "/eks-distro/kubernetes-csi/external-attacher" +
-			" --set sidecars.snapshotter.image.repository=" + privateParams.KeosRegUrl + "/eks-distro/kubernetes-csi/external-snapshotter/csi-snapshotter" +
-			" --set sidecars.livenessProbe.image.repository=" + privateParams.KeosRegUrl + "/eks-distro/kubernetes-csi/livenessprobe" +
-			" --set sidecars.resizer.image.repository=" + privateParams.KeosRegUrl + "/eks-distro/kubernetes-csi/external-resizer" +
-			" --set sidecars.nodeDriverRegistrar.image.repository=" + privateParams.KeosRegUrl + "/eks-distro/kubernetes-csi/node-driver-registrar" +
-			" --set sidecars.volumemodifier.image.repository=" + privateParams.KeosRegUrl + "/ebs-csi-driver/volume-modifier-for-k8s"
-
+func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
+	csiName := "aws-ebs-csi-driver"
+	csiValuesFile := "/kind/" + csiName + "-helm-values.yaml"
+	csiEntry := chartsList[csiName]
+	csiHelmReleaseParams := fluxHelmReleaseParams {
+		ChartRepoRef:   "keos",
+		ChartName:      csiName,
+		ChartNamespace: csiEntry.Namespace,
+		ChartVersion:   csiEntry.Version,
 	}
+	if !privateParams.Private {
+		csiHelmReleaseParams.ChartRepoRef = csiName
+	}
+	// Generate the csiName-csi helm values
+	csiHelmValues, getManifestErr := getManifest(privateParams.KeosCluster.Spec.InfraProvider, csiName+"-helm-values.tmpl", privateParams)
+	if getManifestErr != nil {
+		return errors.Wrap(getManifestErr, "failed to generate "+csiName+"-csi helm values")
+	}
+	c := "echo '" + csiHelmValues + "' > " + csiValuesFile
 	_, err := commons.ExecuteCommand(n, c, 5)
 	if err != nil {
-		return errors.Wrap(err, "failed to deploy AWS EBS CSI driver Helm Chart")
+		return errors.Wrap(err, "failed to create "+csiName+" Helm chart values file")
+	}
+	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams); err != nil {
+		return err
 	}
 	return nil
 }
 
-func installLBController(n nodes.Node, k string, privateParams PrivateParams, p ProviderParams) error {
+func installLBController(n nodes.Node, k string, privateParams PrivateParams, p ProviderParams, chartsList map[string]commons.ChartEntry) error {
+	lbControllerName := "aws-load-balancer-controller"
+	lbControllerValuesFile := "/kind/" + lbControllerName + "-helm-values.yaml"
+	lbControllerEntry := chartsList[lbControllerName]
 	clusterName := p.ClusterName
-	roleName := p.ClusterName + "-lb-controller-manager"
+	roleName := clusterName + "-lb-controller-manager"
 	accountID := p.Credentials["AccountID"]
 
-	c := "helm install aws-load-balancer-controller /stratio/helm/aws-load-balancer-controller" +
-		" --kubeconfig " + k +
-		" --namespace kube-system" +
-		" --set clusterName=" + clusterName +
-		" --set podDisruptionBudget.minAvailable=1" +
-		" --set serviceAccount.annotations.\"eks\\.amazonaws\\.com/role-arn\"=arn:aws:iam::" + accountID + ":role/" + roleName
-	if privateParams.Private {
-		c += " --set image.repository=" + privateParams.KeosRegUrl + "/eks/aws-load-balancer-controller"
+	lbControllerManagerHelmParams := lbControllerHelmParams {
+		ClusterName:  privateParams.KeosCluster.Metadata.Name,
+		Private:      privateParams.Private,
+		KeosRegUrl:   privateParams.KeosRegUrl,
+		AccountID:    accountID,
+		RoleName:     roleName,
 	}
 
+	lbControllerHelmReleaseParams := fluxHelmReleaseParams {
+		ChartRepoRef:   "keos",
+		ChartName:      lbControllerName,
+		ChartNamespace: lbControllerEntry.Namespace,
+		ChartVersion:   lbControllerEntry.Version,
+	}
+	if !privateParams.Private {
+		lbControllerHelmReleaseParams.ChartRepoRef = lbControllerName
+	}
+	// Generate the aws lb controller helm values
+	lbControllerHelmValues, getManifestErr := getManifest(privateParams.KeosCluster.Spec.InfraProvider, lbControllerName+"-helm-values.tmpl", lbControllerManagerHelmParams)
+	if getManifestErr != nil {
+		return errors.Wrap(getManifestErr, "failed to generate "+lbControllerName+"-csi helm values")
+	}
+	c := "echo '" + lbControllerHelmValues + "' > " + lbControllerValuesFile
 	_, err := commons.ExecuteCommand(n, c, 5)
 	if err != nil {
-		return errors.Wrap(err, "failed to deploy aws-load-balancer-controller Helm Chart")
+		return errors.Wrap(err, "failed to create "+lbControllerName+" Helm chart values file")
 	}
-
+	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", lbControllerHelmReleaseParams); err != nil {
+		return err
+	}
 	return nil
 }
 

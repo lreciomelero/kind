@@ -76,6 +76,7 @@ type Chart struct {
 type ChartEntry struct {
 	Repository string
 	Version    string
+	Namespace  string
 	Pull       bool
 }
 

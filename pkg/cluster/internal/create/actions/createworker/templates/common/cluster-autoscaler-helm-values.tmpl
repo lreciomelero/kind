@@ -1,0 +1,112 @@
+additionalLabels: {}
+affinity: {}
+autoDiscovery:
+  clusterName: {{ $.KeosCluster.Metadata.Name }}
+  labels:
+  - namespace: cluster-{{ $.KeosCluster.Metadata.Name }}
+  roles:
+  - worker
+  tags:
+  - k8s.io/cluster-autoscaler/enabled
+  - k8s.io/cluster-autoscaler/{{ $.KeosCluster.Metadata.Name }}
+autoscalingGroups: []
+autoscalingGroupsnamePrefix: []
+awsAccessKeyID: ""
+awsRegion: us-east-1
+awsSecretAccessKey: ""
+azureClientID: ""
+azureClientSecret: ""
+azureClusterName: ""
+azureNodeResourceGroup: ""
+azureResourceGroup: ""
+azureSubscriptionID: ""
+azureTenantID: ""
+azureUseManagedIdentityExtension: false
+azureUseWorkloadIdentityExtension: false
+azureVMType: AKS
+cloudConfigPath: ""
+cloudProvider: clusterapi
+clusterAPICloudConfigPath: /etc/kubernetes/mgmt-kubeconfig
+clusterAPIConfigMapsNamespace: ""
+clusterAPIKubeconfigSecret: ""
+clusterAPIMode: incluster-incluster
+clusterAPIWorkloadKubeconfigPath: /etc/kubernetes/value
+containerSecurityContext: {}
+deployment:
+  annotations: {}
+dnsPolicy: ClusterFirst
+envFromConfigMap: ""
+envFromSecret: ""
+expanderPriorities: {}
+extraArgs:
+  logtostderr: true
+  stderrthreshold: info
+  v: 4
+extraEnv: {}
+extraEnvConfigMaps: {}
+extraEnvSecrets: {}
+extraVolumeMounts: []
+extraVolumeSecrets: {}
+extraVolumes: []
+fullnameOverride: ""
+hostNetwork: false
+image:
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  repository: {{ if $.Private }}{{ $.KeosRegUrl }}{{ else }}registry.k8s.io{{ end }}/autoscaling/cluster-autoscaler
+  tag: v1.27.2
+kubeTargetVersionOverride: ""
+magnumCABundlePath: /etc/kubernetes/ca-bundle.crt
+magnumClusterName: ""
+nameOverride: ""
+nodeSelector: {}
+podAnnotations: {}
+podDisruptionBudget:
+  maxUnavailable: 1
+podLabels: {}
+priorityClassName: system-cluster-critical
+priorityConfigMapAnnotations: {}
+prometheusRule:
+  additionalLabels: {}
+  enabled: false
+  interval: null
+  namespace: monitoring
+  rules: []
+rbac:
+  clusterScoped: true
+  create: true
+  pspEnabled: false
+  serviceAccount:
+    annotations: {}
+    automountServiceAccountToken: true
+    create: true
+    name: ""
+replicaCount: 2
+resources: {}
+securityContext: {}
+service:
+  annotations: {}
+  create: true
+  externalIPs: []
+  labels: {}
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  portName: http
+  servicePort: 8085
+  type: ClusterIP
+serviceMonitor:
+  annotations: {}
+  enabled: false
+  interval: 10s
+  metricRelabelings: {}
+  namespace: monitoring
+  path: /metrics
+  selector:
+    release: prometheus-operator
+tolerations: []
+topologySpreadConstraints: []
+updateStrategy: {}
+vpa:
+  containerPolicy: {}
+  enabled: false
+  updateMode: Auto

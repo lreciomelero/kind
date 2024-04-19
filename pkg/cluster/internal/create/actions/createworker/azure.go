@@ -55,11 +55,13 @@ type AzureBuilder struct {
 
 var azureCharts = ChartsDictionary{
 	Charts: map[string]map[string]commons.ChartEntry{
-		"managed": {},
+		"managed": {
+		},
 		"unmanaged": {
-			"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
-			"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Version: "v1.28.3", Pull: true},
-			"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Version: "v1.26.7", Pull: true},
+			"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.28.7", Pull: false},
+			"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system",Version: "v1.28.7", Pull: false},
+			"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.28.5", Pull: true},
+			"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
 		},
 	},
 }
@@ -104,6 +106,10 @@ func (b *AzureBuilder) setSC(p ProviderParams) {
 
 func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
 	return pullGenericCharts(n, clusterConfigSpec, keosSpec, azureCharts, clusterType)
+}
+
+func (b *AzureBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) (map[string]commons.ChartEntry) {
+	return printGenericCharts(clusterConfigSpec, keosSpec, azureCharts, clusterType)
 }
 
 func (b *AzureBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
@@ -156,56 +162,68 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 	} else {
 		podsCidrBlock = "192.168.0.0/16"
 	}
-	c := "helm install cloud-provider-azure /stratio/helm/cloud-provider-azure" +
-		" --kubeconfig " + k +
-		" --namespace kube-system" +
-		" --set infra.clusterName=" + keosCluster.Metadata.Name +
-		" --set cloudControllerManager.configureCloudRoutes=false" +
-		" --set cloudControllerManager.replicas=2" +
-		" --set 'cloudControllerManager.clusterCIDR=" + podsCidrBlock + "'"
-	if privateParams.Private {
-		c += " --set cloudControllerManager.imageRepository=" + privateParams.KeosRegUrl + "/oss/kubernetes" +
-			" --set cloudNodeManager.imageRepository=" + privateParams.KeosRegUrl + "/oss/kubernetes"
+
+	cloudControllerManagerValuesFile := "/kind/cloud-provider-"+keosCluster.Spec.InfraProvider+"-helm-values.yaml"
+	cloudControllerManagerHelmParams := cloudControllerHelmParams {
+		ClusterName:  privateParams.KeosCluster.Metadata.Name,
+		Private:      privateParams.Private,
+		KeosRegUrl:   privateParams.KeosRegUrl,
+		PodsCidr:     podsCidrBlock,
 	}
-	_, err := commons.ExecuteCommand(n, c, 5)
+
+	// Generate the CCM helm values
+	cloudControllerManagerHelmValues, err := getManifest(b.capxProvider, "cloud-provider-"+keosCluster.Spec.InfraProvider+"-helm-values.tmpl", cloudControllerManagerHelmParams)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
+	}
+	c := "echo '" + cloudControllerManagerHelmValues + "' > " + cloudControllerManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
+	}
+
+	c = "helm install cloud-provider-azure /stratio/helm/cloud-provider-azure" +
+	" --kubeconfig " + k +
+	" --namespace kube-system" +
+	" --set cloudControllerManager.replicas=1" +
+    " --values " + cloudControllerManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy cloud-provider-azure Helm Chart")
 	}
+
 	return nil
 }
 
-func (b *AzureBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams) error {
+func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
 	var c string
 	var err error
 
-	// Deploy disk CSI driver
-	c = "helm install azuredisk-csi-driver /stratio/helm/azuredisk-csi-driver " +
-		" --kubeconfig " + k +
-		" --namespace " + b.csiNamespace +
-		" --set controller.podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict-local-volumes=socket-dir\\,azure-cred\""
-
-	if privateParams.Private {
-		c += " --set image.baseRepo=" + privateParams.KeosRegUrl
-	}
-
-	_, err = commons.ExecuteCommand(n, c, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to deploy Azure Disk CSI driver Helm Chart")
-	}
-
-	// Deploy file CSI driver
-	c = "helm install azurefile-csi-driver /stratio/helm/azurefile-csi-driver " +
-		" --kubeconfig " + k +
-		" --namespace " + b.csiNamespace +
-		" --set controller.podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict-local-volumes=socket-dir\\,azure-cred\""
-
-	if privateParams.Private {
-		c += " --set image.baseRepo=" + privateParams.KeosRegUrl
-	}
-
-	_, err = commons.ExecuteCommand(n, c, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to deploy Azure File CSI driver Helm Chart")
+	for _, csiName := range []string{"azuredisk-csi-driver", "azurefile-csi-driver"} {
+		csiValuesFile := "/kind/" + csiName + "-helm-values.yaml"
+		csiEntry := chartsList[csiName]
+			csiHelmReleaseParams := fluxHelmReleaseParams {
+				ChartRepoRef:   "keos",
+				ChartName:      csiName,
+				ChartNamespace: csiEntry.Namespace,
+				ChartVersion:   csiEntry.Version,
+			}
+			if !privateParams.Private {
+				csiHelmReleaseParams.ChartRepoRef = csiName
+			}
+		// Generate the csiName-csi helm values
+		csiHelmValues, getManifestErr := getManifest(privateParams.KeosCluster.Spec.InfraProvider, csiName+"-helm-values.tmpl", privateParams)
+		if getManifestErr != nil {
+			return errors.Wrap(getManifestErr, "failed to generate "+csiName+"-csi helm values")
+		}
+		c = "echo '" + csiHelmValues + "' > " + csiValuesFile
+		_, err = commons.ExecuteCommand(n, c, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to create "+csiName+" Helm chart values file")
+		}
+		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams); err != nil {
+			return err
+		}
 	}
 
 	return nil
