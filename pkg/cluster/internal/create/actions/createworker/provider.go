@@ -913,16 +913,6 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartName = name
 			fluxHelmReleaseParams.ChartNamespace = entry.Namespace
 			fluxHelmReleaseParams.ChartVersion = entry.Version
-			// cloud-provider-azure requires two ready control planes for HA
-			if name == "cloud-provider-azure" && !keosClusterSpec.ControlPlane.Managed {
-				c = "kubectl -n " + "cluster-" + privateParams.KeosCluster.Metadata.Name +
-					" wait --for=jsonpath=\"{.status.readyReplicas}\"=2" +
-					" --timeout 5m kubeadmcontrolplanes " + privateParams.KeosCluster.Metadata.Name + "-control-plane"
-				_, err = commons.ExecuteCommand(n, c, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to wait for minimum number of required control-plane nodes")
-				}
-			}
 			// tigera-operator-helm-values.yaml is required to install Calico as Network Policy engine
 			if name =="tigera-operator" && awsEKSEnabled {
 				if err := installCalico(n, k, privateParams, "", true); err != nil {

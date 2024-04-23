@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -480,6 +481,32 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			_, err = commons.ExecuteCommand(n, c, 5)
 			if err != nil {
 				return errors.Wrap(err, "failed to reload capa-controller-manager")
+			}
+			c = "kubectl -n capa-system rollout status deployment capa-controller-manager"
+			_, err = commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to wait for capa-controller-manager")
+			}
+			// Patch aws-node clusterrole with the required permissions
+			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
+			awsNodeRules, err := commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to get aws-node clusterrole rules")
+			}
+			var rules []json.RawMessage
+			err = json.Unmarshal([]byte(awsNodeRules), &rules)
+			if err != nil {
+				return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
+			}
+			rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
+			newAWSNodeRules, err := json.Marshal(rules)
+			if err != nil {
+				return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newAWSNodeRules) + "}'"
+			_, err = commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to patch aws-node clusterrole")
 			}
 		}
 
