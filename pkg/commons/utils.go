@@ -19,6 +19,7 @@ package commons
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"time"
 	"unicode"
 
@@ -239,7 +240,7 @@ func removeKey(nodes []*yaml.Node, key string) []*yaml.Node {
 	return newNodes
 }
 
-func ExecuteCommand(n nodes.Node, command string, timeout int, envVars ...[]string) (string, error) {
+func ExecuteCommand(n nodes.Node, command string, timeout int, retries int, envVars ...[]string) (string, error) {
 	var err error
 	var raw bytes.Buffer
 	cmd := n.Command("sh", "-c", command)
@@ -248,12 +249,13 @@ func ExecuteCommand(n nodes.Node, command string, timeout int, envVars ...[]stri
 	}
 	retryConditions := []string{"dial tcp: lookup", "NotFound", "timed out waiting"}
 	provisionCommands := strings.Contains(command, "kubectl") || strings.Contains(command, "helm") || strings.Contains(command, "clusterctl")
-	for i := 0; i < 3; i++ {
+	for i := 0; i < retries; i++ {
 		raw = bytes.Buffer{}
 		err = cmd.SetStdout(&raw).SetStderr(&raw).Run()
 		retry := false
 		for _, condition := range retryConditions {
 			if strings.Contains(raw.String(), condition) {
+				fmt.Println(raw.String())
 				retry = true
 			}
 		}

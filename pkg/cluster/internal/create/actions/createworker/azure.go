@@ -177,7 +177,7 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
 	}
 	c := "echo '" + cloudControllerManagerHelmValues + "' > " + cloudControllerManagerValuesFile
-	_, err = commons.ExecuteCommand(n, c, 5)
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
 	}
@@ -187,7 +187,7 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 	" --namespace kube-system" +
 	" --set cloudControllerManager.replicas=1" +
     " --values " + cloudControllerManagerValuesFile
-	_, err = commons.ExecuteCommand(n, c, 5)
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy cloud-provider-azure Helm Chart")
 	}
@@ -208,7 +208,7 @@ func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privatePa
 				ChartNamespace: csiEntry.Namespace,
 				ChartVersion:   csiEntry.Version,
 			}
-			if !privateParams.Private {
+			if !privateParams.HelmPrivate {
 				csiHelmReleaseParams.ChartRepoRef = csiName
 			}
 		// Generate the csiName-csi helm values
@@ -217,7 +217,7 @@ func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privatePa
 			return errors.Wrap(getManifestErr, "failed to generate "+csiName+"-csi helm values")
 		}
 		c = "echo '" + csiHelmValues + "' > " + csiValuesFile
-		_, err = commons.ExecuteCommand(n, c, 5)
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create "+csiName+" Helm chart values file")
 		}
@@ -275,14 +275,14 @@ func (b *AzureBuilder) configureStorageClass(n nodes.Node, k string) error {
 	if b.capxManaged {
 		// Remove annotation from default storage class
 		c = "kubectl --kubeconfig " + k + ` get sc -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}'`
-		output, err := commons.ExecuteCommand(n, c, 5)
+		output, err := commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to get default storage class")
 		}
 
 		if strings.TrimSpace(output) != "" && strings.TrimSpace(output) != "No resources found" {
 			c = "kubectl --kubeconfig " + k + " annotate sc " + strings.TrimSpace(output) + " " + defaultScAnnotation + "-"
-			_, err = commons.ExecuteCommand(n, c, 5)
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to remove annotation from default storage class")
 			}
@@ -396,7 +396,7 @@ func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 	}
 
 	c := "kubectl --kubeconfig " + kubeconfigPath + " get pdb " + coreDNSPDBName + " -n kube-system"
-	_, err := commons.ExecuteCommand(n, c, 5)
+	_, err := commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		err = installCorednsPdb(n)
 		if err != nil {

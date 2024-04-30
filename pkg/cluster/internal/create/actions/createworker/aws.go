@@ -189,7 +189,7 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
 	}
 	c := "echo '" + cloudControllerManagerHelmValues + "' > " + cloudControllerManagerValuesFile
-	_, err = commons.ExecuteCommand(n, c, 5)
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
 	}
@@ -198,7 +198,7 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	" --kubeconfig " + k +
 	" --namespace kube-system" +
     " --values " + cloudControllerManagerValuesFile
-	_, err = commons.ExecuteCommand(n, c, 5)
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy aws-cloud-controller-manager Helm Chart")
 	}
@@ -216,7 +216,7 @@ func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivatePar
 		ChartNamespace: csiEntry.Namespace,
 		ChartVersion:   csiEntry.Version,
 	}
-	if !privateParams.Private {
+	if !privateParams.HelmPrivate {
 		csiHelmReleaseParams.ChartRepoRef = csiName
 	}
 	// Generate the csiName-csi helm values
@@ -225,7 +225,7 @@ func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivatePar
 		return errors.Wrap(getManifestErr, "failed to generate "+csiName+"-csi helm values")
 	}
 	c := "echo '" + csiHelmValues + "' > " + csiValuesFile
-	_, err := commons.ExecuteCommand(n, c, 5)
+	_, err := commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create "+csiName+" Helm chart values file")
 	}
@@ -257,7 +257,7 @@ func installLBController(n nodes.Node, k string, privateParams PrivateParams, p 
 		ChartNamespace: lbControllerEntry.Namespace,
 		ChartVersion:   lbControllerEntry.Version,
 	}
-	if !privateParams.Private {
+	if !privateParams.HelmPrivate {
 		lbControllerHelmReleaseParams.ChartRepoRef = lbControllerName
 	}
 	// Generate the aws lb controller helm values
@@ -266,7 +266,7 @@ func installLBController(n nodes.Node, k string, privateParams PrivateParams, p 
 		return errors.Wrap(getManifestErr, "failed to generate "+lbControllerName+"-csi helm values")
 	}
 	c := "echo '" + lbControllerHelmValues + "' > " + lbControllerValuesFile
-	_, err := commons.ExecuteCommand(n, c, 5)
+	_, err := commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create "+lbControllerName+" Helm chart values file")
 	}
@@ -300,14 +300,14 @@ spec:
 	// Create the eks.config file in the container
 	eksConfigPath := "/kind/eks.config"
 	c = "echo \"" + eksConfigData + "\" > " + eksConfigPath
-	_, err = commons.ExecuteCommand(n, c, 5)
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create eks.config")
 	}
 
 	// Run clusterawsadm with the eks.config file previously created (this will create or update the CloudFormation stack in AWS)
 	c = "clusterawsadm bootstrap iam create-cloudformation-stack --config " + eksConfigPath
-	_, err = commons.ExecuteCommand(n, c, 5, envVars)
+	_, err = commons.ExecuteCommand(n, c, 5, 3, envVars)
 	if err != nil {
 		return errors.Wrap(err, "failed to run clusterawsadm")
 	}
@@ -370,13 +370,13 @@ func (b *AWSBuilder) configureStorageClass(n nodes.Node, k string) error {
 	if b.capxManaged {
 		// Remove annotation from default storage class
 		c = "kubectl --kubeconfig " + k + ` get sc -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}'`
-		output, err := commons.ExecuteCommand(n, c, 5)
+		output, err := commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to get default storage class")
 		}
 		if strings.TrimSpace(output) != "" && strings.TrimSpace(output) != "No resources found" {
 			c = "kubectl --kubeconfig " + k + " annotate sc " + strings.TrimSpace(output) + " " + defaultScAnnotation + "-"
-			_, err = commons.ExecuteCommand(n, c, 5)
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to remove annotation from default storage class")
 			}
@@ -437,7 +437,7 @@ func (b *AWSBuilder) postInstallPhase(n nodes.Node, k string) error {
 	var coreDNSPDBName = "coredns"
 
 	c := "kubectl --kubeconfig " + kubeconfigPath + " get pdb " + coreDNSPDBName + " -n kube-system"
-	_, err := commons.ExecuteCommand(n, c, 5)
+	_, err := commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		err = installCorednsPdb(n)
 		if err != nil {
