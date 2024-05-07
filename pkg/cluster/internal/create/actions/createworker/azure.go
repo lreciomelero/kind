@@ -60,7 +60,7 @@ var azureCharts = ChartsDictionary{
 		"unmanaged": {
 			"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.28.7", Pull: false},
 			"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system",Version: "v1.28.7", Pull: false},
-			"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.28.5", Pull: true},
+			"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "1.28.5", Pull: true},
 			"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
 		},
 	},
@@ -372,6 +372,7 @@ func (b *AzureBuilder) getOverrideVars(p ProviderParams, networks commons.Networ
 
 func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 	var coreDNSPDBName = "coredns"
+
 	if b.capxManaged {
 		coreDNSPDBName = "coredns-pdb"
 

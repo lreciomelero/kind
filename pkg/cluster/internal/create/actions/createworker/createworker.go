@@ -377,6 +377,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	defer ctx.Status.End(true) // End installing keos cluster operator
 
+
+
 	if !a.avoidCreation {
 		if a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.Security.AWS.CreateIAM {
 			ctx.Status.Start("[CAPA] Ensuring IAM security 👮")
@@ -395,7 +397,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		if a.clusterConfig != nil {
 			// Apply cluster manifests
 			c = "kubectl apply -f " + manifestsPath + "/clusterconfig.yaml"
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
+			_, err = commons.ExecuteCommand(n, c, 5, 5)
 			if err != nil {
 				return errors.Wrap(err, "failed to apply clusterconfig manifests")
 			}
@@ -546,8 +548,25 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to create the worker Cluster")
 			}
 		}
-
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
+
+		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
+		defer ctx.Status.End(false)
+		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, privateParams, chartsList)
+		if err != nil {
+			return err
+		}
+
+		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)
+		if err != nil {
+			return err
+		}
+
+		err = provider.configCAPIWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)
+		if err != nil {
+			return err
+		}
+		ctx.Status.End(true) // End Installing CAPx in workload cluster
 
 		ctx.Status.Start("Configuring Flux in workload cluster 🧭")
 		defer ctx.Status.End(false)
@@ -637,26 +656,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		ctx.Status.End(true) // End Enabling workload cluster's self-healing
-
-		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
-		defer ctx.Status.End(false)
-
-		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, privateParams, chartsList)
-		if err != nil {
-			return err
-		}
-
-		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)
-		if err != nil {
-			return err
-		}
-
-		err = provider.configCAPIWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)
-		if err != nil {
-			return err
-		}
-
-		ctx.Status.End(true) // End Installing CAPx in workload cluster
 
 		ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 		defer ctx.Status.End(false)

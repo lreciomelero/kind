@@ -48,6 +48,9 @@ var denyAllEgressIMDSgnpFiles embed.FS
 //go:embed files/*/allow-egress-imds_gnetpol.yaml
 var allowEgressIMDSgnpFiles embed.FS
 
+//go:embed files/azure/flux2_azurepodidentityexception.yaml
+var azureFlux2PodIdentityException string
+
 var stratio_helm_repo string
 
 //go:embed files/*/*_pdb.yaml
@@ -408,68 +411,33 @@ func getcapxPDB(commonsPDBLocalPath string) (string, error) {
 }
 
 func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
-
-	if kubeconfigPath != "" {
 		certManagerValuesFile := "/kind/cert-manager-helm-values.yaml"
 		certManagerHelmParams := commonHelmParams {
 			KeosRegUrl:  keosRegistryUrl,
 			Private:     privateParams.Private,
 		}
-
-		certManagerEntry := chartsList["cert-manager"]
-		certManagerHelmReleaseParams := fluxHelmReleaseParams {
-			ChartRepoRef:   "keos",
-			ChartName:      "cert-manager",
-			ChartNamespace: certManagerEntry.Namespace,
-			ChartVersion:   certManagerEntry.Version,
-		}
-
-		if !privateParams.HelmPrivate {
-			certManagerHelmReleaseParams.ChartRepoRef = "cert-manager"
-		}
-
-		// Create cert-manager namespace
-		c := "kubectl create ns cert-manager" +
-			" --kubeconfig " + kubeconfigPath
-		_, err := commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to create cert-manager namespace")
-		}
-
-		// Generate the certmanager helm values
 		certManagerHelmValues, err := getManifest("common", "cert-manager-helm-values.tmpl", certManagerHelmParams)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate cert-manager helm values")
 		}
 
-		c = "echo '" + certManagerHelmValues + "' > " + certManagerValuesFile
+		c := "echo '" + certManagerHelmValues + "' > " + certManagerValuesFile
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create cert-manager Helm chart values file")
 		}
-
-		// Create Helm release using the fluxHelmReleaseParams
-		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", certManagerHelmReleaseParams); err != nil {
-			return err
-		}
-	} else {
-		c := "helm install --wait cert-manager /stratio/helm/cert-manager" +
+		c = "helm install --wait cert-manager /stratio/helm/cert-manager" +
 			" --namespace=cert-manager" +
 			" --create-namespace" +
-			" --set installCRDs=true"
-		if privateParams.Private {
-			c += " --set cainjector.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-cainjector" +
-				" --set webhook.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-webhook" +
-				" --set acmesolver.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-acmesolver" +
-				" --set startupapicheck.image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-ctl" +
-				" --set image.repository=" + keosRegistryUrl + "/jetstack/cert-manager-controller"
+			" --values " + certManagerValuesFile
+		if kubeconfigPath != "" {
+			c = c + " --kubeconfig " + kubeconfigPath
 		}
-		_, err := commons.ExecuteCommand(n, c, 5, 3)
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
 		}
-	}
-	return nil
+		return nil
 }
 
 func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry KeosRegistry, clusterConfig *commons.ClusterConfig, kubeconfigPath string, firstInstallation bool, helmRepoCreds HelmRegistry) error {
@@ -818,12 +786,29 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 	var err error
 
 	fluxTemplate := "/kind/flux2-helm-values.yaml"
+	keosChartRepoScheme := "default"
 	chartRepoScheme := "default"
 
 
 	fluxHelmParams := commonHelmParams{
 		KeosRegUrl: privateParams.KeosRegUrl,
 		Private:    privateParams.Private,
+	}
+
+	// Make flux work after capz-nmi deployment in Azure
+	if keosClusterSpec.InfraProvider == "azure" {
+		azureFlux2PodIdentityExceptionPath := "/kind/flux2_azurepodidentityexception.yaml"
+		c := "echo \"" + azureFlux2PodIdentityException + "\" > " + azureFlux2PodIdentityExceptionPath
+		_, err := commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to write the flux2 azure pod identity exception")
+		}
+		// Apply HelmRepository
+		c = "kubectl --kubeconfig " + k + " apply -f " + azureFlux2PodIdentityExceptionPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to deploy Flux2 azure pod identity exception")
+		}
 	}
 
 	// Generate the flux helm values
@@ -849,19 +834,18 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 		return errors.Wrap(err, "failed to deploy Flux Helm Chart")
 	}
 
-
 	fmt.Println(helmRepoCreds.URL)
 	// Set repository scheme for private case
 	if strings.HasPrefix(helmRepoCreds.URL, "oci://") {
-	    chartRepoScheme = "oci"
+	    keosChartRepoScheme = "oci"
 	}
-	fmt.Println(chartRepoScheme)
+	fmt.Println(keosChartRepoScheme)
 
 	// Create fluxHelmRepositoryParams for the private case
 	fluxHelmRepositoryParams := fluxHelmRepositoryParams {
 	    ChartName:       "keos",
 	    ChartRepoUrl:    helmRepoCreds.URL,
-	    ChartRepoScheme: chartRepoScheme,
+	    ChartRepoScheme: keosChartRepoScheme,
 		Spec:            keosClusterSpec,
 	    HelmRepoCreds:   helmRepoCreds,
 	}
@@ -911,7 +895,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 		    fluxHelmReleaseParams.ChartRepoRef = name
 		}
 
-		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|cloud-provider-.+|flux2)$`)
+		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|cloud-provider-.+|flux2|cert-manager)$`)
 
 		// Adopt helm charts already deployed: tigera-operator and cloud-provider
 		if fluxAdoptedCharts.MatchString(name) {
