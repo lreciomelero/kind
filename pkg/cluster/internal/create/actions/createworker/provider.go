@@ -207,12 +207,10 @@ var scTemplate = DefaultStorageClass{
 var commonsCharts = ChartsDictionary{
 	Charts: map[string]map[string]commons.ChartEntry{
 		"managed": {
-			"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
 			"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Namespace: "cert-manager", Pull: true},
 			"flux2":              {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
 		},
 		"unmanaged": {
-			"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
 			"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3",  Namespace: "cert-manager", Pull: true},
 			"flux2":              {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
 		},
@@ -834,12 +832,10 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 		return errors.Wrap(err, "failed to deploy Flux Helm Chart")
 	}
 
-	fmt.Println(helmRepoCreds.URL)
 	// Set repository scheme for private case
 	if strings.HasPrefix(helmRepoCreds.URL, "oci://") {
 	    keosChartRepoScheme = "oci"
 	}
-	fmt.Println(keosChartRepoScheme)
 
 	// Create fluxHelmRepositoryParams for the private case
 	fluxHelmRepositoryParams := fluxHelmRepositoryParams {

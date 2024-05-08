@@ -54,7 +54,8 @@ var googleCharts = ChartsDictionary{
 		"managed": {
 		},
 		"unmanaged": {
-			"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
+			"cluster-autoscaler": 	{Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
+			"tigera-operator": 		{Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
 		},
 	},
 }

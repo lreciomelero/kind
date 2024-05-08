@@ -19,7 +19,6 @@ package commons
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"time"
 	"unicode"
 
@@ -255,7 +254,6 @@ func ExecuteCommand(n nodes.Node, command string, timeout int, retries int, envV
 		retry := false
 		for _, condition := range retryConditions {
 			if strings.Contains(raw.String(), condition) {
-				fmt.Println(raw.String())
 				retry = true
 			}
 		}
