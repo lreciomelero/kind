@@ -62,6 +62,7 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 	if err != nil {
 		return err
 	}
+
 	if !commons.Contains(regions, spec.Region) {
 		return errors.New("spec.region: " + spec.Region + " region does not exist")
 	}
