@@ -851,7 +851,6 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 	}
 
 	// Create Helm repository using the fluxHelmRepositoryParams
-	fmt.Println(fluxHelmRepositoryParams)
 	if err := configureHelmRepository(n, k, "flux2_helmrepository.tmpl", fluxHelmRepositoryParams); err != nil {
 	    return err
 	}
