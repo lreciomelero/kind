@@ -248,7 +248,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Create docker-registry secret in provider-system namespace
 		c = "kubectl create secret docker-registry regcred" +
-			" --docker-server=" + keosRegistry.url +
+			" --docker-server=" + strings.Split(keosRegistry.url, "/")[0] +
 			" --docker-username=" + keosRegistry.user +
 			" --docker-password=" + keosRegistry.pass +
 			" --namespace=" + provider.capxName + "-system"
@@ -508,8 +508,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			// Wait for container metrics to be available
-			c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment metrics-server --timeout=90s"
-			_, err = commons.ExecuteCommand(n, c, 5)
+			c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment -l k8s-app=metrics-server --timeout=90s"
+			_, err = commons.ExecuteCommand(n, c, 15)
 			if err != nil {
 				return errors.Wrap(err, "failed to wait for container metrics to be available")
 			}
