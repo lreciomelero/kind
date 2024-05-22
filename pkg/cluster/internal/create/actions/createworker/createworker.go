@@ -79,6 +79,8 @@ var PathsToBackupLocally = []string{
 	"/kind/manifests",
 }
 
+var majorVersion = ""
+
 //go:embed files/common/allow-all-egress_netpol.yaml
 var allowCommonEgressNetPol string
 
@@ -104,7 +106,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	var err error
 	var keosRegistry KeosRegistry
 	var helmRegistry HelmRegistry
-	var majorVersion = strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1]
+	majorVersion = strings.Split(a.keosCluster.Spec.K8SVersion, ".")[1]
 
 	// Get the target node
 	n, err := ctx.GetNode()
@@ -277,7 +279,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 	}
 
-	certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, majorVersion, "cert-manager")
+	certManagerVersion := getChartVersion(a.clusterConfig.Spec.Charts, "cert-manager")
 	if certManagerVersion == "" {
 		return errors.New("Cert manager helm chart version cannot be found ")
 	}
@@ -376,8 +378,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	defer ctx.Status.End(true) // End installing keos cluster operator
-
-
 
 	if !a.avoidCreation {
 		if a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.Security.AWS.CreateIAM {
@@ -498,7 +498,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 			// Patch aws-node clusterrole with the required permissions
 			awsnodePatch := `'[{"op": "add", "path": "/rules/0", "value": {"apiGroups": [""], "resources": ["pods"], "verbs": ["patch"]}}]'`
-			c = "kubectl --kubeconfig " +kubeconfigPath+
+			c = "kubectl --kubeconfig " + kubeconfigPath +
 				" rollout status ds aws-node" +
 				" -n kube-system --timeout=3m"
 			fmt.Println(c)
@@ -506,8 +506,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to wait for aws-node daemonset to be ready")
 			}
-			c = "kubectl --kubeconfig " +kubeconfigPath+ " patch clusterrole aws-node " +
-				"--type='json' -p="+string(awsnodePatch)
+			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node " +
+				"--type='json' -p=" + string(awsnodePatch)
 			fmt.Println(c)
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
@@ -713,7 +713,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing cluster-autoscaler in workload cluster 🗚")
 			defer ctx.Status.End(false)
 
-			err = deployClusterAutoscaler (n, chartsList, privateParams, capiClustersNamespace, a.moveManagement)
+			err = deployClusterAutoscaler(n, chartsList, privateParams, capiClustersNamespace, a.moveManagement)
 			if err != nil {
 				return errors.Wrap(err, "failed to install cluster-autoscaler in workload cluster")
 			}
