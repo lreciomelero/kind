@@ -110,8 +110,8 @@ func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commo
 	return pullGenericCharts(n, clusterConfigSpec, keosSpec, azureCharts, clusterType)
 }
 
-func (b *AzureBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
-	return printGenericCharts(clusterConfigSpec, keosSpec, azureCharts, clusterType)
+func (b *AzureBuilder) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
+	return getGenericCharts(clusterConfigSpec, keosSpec, azureCharts, clusterType)
 }
 
 func (b *AzureBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {

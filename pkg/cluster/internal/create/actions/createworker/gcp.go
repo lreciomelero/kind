@@ -124,8 +124,8 @@ func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 	return pullGenericCharts(n, clusterConfigSpec, keosSpec, googleCharts, clusterType)
 }
 
-func (b *GCPBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
-	return printGenericCharts(clusterConfigSpec, keosSpec, googleCharts, clusterType)
+func (b *GCPBuilder) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
+	return getGenericCharts(clusterConfigSpec, keosSpec, googleCharts, clusterType)
 }
 
 func (b *GCPBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {

@@ -139,8 +139,8 @@ func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 
 }
 
-func (b *AWSBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
-	return printGenericCharts(clusterConfigSpec, keosSpec, awsCharts, clusterType)
+func (b *AWSBuilder) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
+	return getGenericCharts(clusterConfigSpec, keosSpec, awsCharts, clusterType)
 }
 
 func (b *AWSBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {

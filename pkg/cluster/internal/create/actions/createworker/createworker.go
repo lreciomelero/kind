@@ -215,7 +215,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	}
 
-	chartsList := infra.printProviderCharts(&a.clusterConfig.Spec, a.keosCluster.Spec)
+	chartsList := infra.getProviderCharts(&a.clusterConfig.Spec, a.keosCluster.Spec)
 
 	ctx.Status.Start("Installing CAPx 🎖️")
 	defer ctx.Status.End(false)

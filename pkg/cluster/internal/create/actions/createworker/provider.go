@@ -91,7 +91,7 @@ type PBuilder interface {
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
 	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error
-	printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry
+	getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry
 	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
 	installCSI(n nodes.Node, k string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error
@@ -247,15 +247,15 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 	return i.builder.getProvider()
 }
 
-func (i *Infra) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec) map[string]commons.ChartEntry {
+func (i *Infra) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec) map[string]commons.ChartEntry {
 	clusterType := "managed"
 	if !keosSpec.ControlPlane.Managed {
 		clusterType = "unmanaged"
 	}
 
-	commonsChartsList := printGenericCharts(clusterConfigSpec, keosSpec, commonsCharts, clusterType)
+	commonsChartsList := getGenericCharts(clusterConfigSpec, keosSpec, commonsCharts, clusterType)
 
-	providerChartsList := i.builder.printProviderCharts(clusterConfigSpec, keosSpec, clusterType)
+	providerChartsList := i.builder.getProviderCharts(clusterConfigSpec, keosSpec, clusterType)
 
 	completedChartsList := make(map[string]commons.ChartEntry)
 	for key, value := range commonsChartsList {
@@ -313,7 +313,7 @@ func ConvertToChart(chartEntries map[string]commons.ChartEntry) *[]commons.Chart
 	return &charts
 }
 
-func printGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) map[string]commons.ChartEntry {
+func getGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) map[string]commons.ChartEntry {
 	chartsToInstall := chartDictionary.Charts[majorVersion][clusterType]
 
 	for _, overrideChart := range clusterConfigSpec.Charts {
@@ -334,7 +334,7 @@ func printGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec c
 }
 
 func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) error {
-	chartsToInstall := printGenericCharts(clusterConfigSpec, keosSpec, chartDictionary, clusterType)
+	chartsToInstall := getGenericCharts(clusterConfigSpec, keosSpec, chartDictionary, clusterType)
 	return pullCharts(n, chartsToInstall)
 }
 
