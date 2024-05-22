@@ -52,11 +52,11 @@ type AWSBuilder struct {
 }
 
 type lbControllerHelmParams struct {
-	ClusterName   string
-	Private       bool
-    KeosRegUrl    string
-	AccountID     string
-	RoleName      string
+	ClusterName string
+	Private     bool
+	KeosRegUrl  string
+	AccountID   string
+	RoleName    string
 }
 
 func newAWSBuilder() *AWSBuilder {
@@ -109,27 +109,29 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 }
 
 var awsCharts = ChartsDictionary{
-	Charts: map[string]map[string]commons.ChartEntry{
-		"managed": {
-			"aws-load-balancer-controller": {Repository: "https://aws.github.io/eks-charts", Version: "1.6.2", Namespace: "kube-system", Pull: false},
-			"cluster-autoscaler": 			{Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
-			"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: false},
-		},
-		"unmanaged": {
-			"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Namespace: "kube-system", Pull: true},
-			"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0", Namespace: "kube-system", Pull: false},
-			"cluster-autoscaler": 			{Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
-			"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
+	Charts: map[string]map[string]map[string]commons.ChartEntry{
+		"28": {
+			"managed": {
+				"aws-load-balancer-controller": {Repository: "https://aws.github.io/eks-charts", Version: "1.6.2", Namespace: "kube-system", Pull: false},
+				"cluster-autoscaler":           {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
+				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: false},
+			},
+			"unmanaged": {
+				"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Namespace: "kube-system", Pull: true},
+				"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.20.0", Namespace: "kube-system", Pull: false},
+				"cluster-autoscaler":           {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.29.1", Namespace: "kube-system", Pull: false},
+				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.26.4", Namespace: "tigera-operator", Pull: true},
+			},
 		},
 	},
 }
 
 func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
 	if clusterConfigSpec.EKSLBController && clusterType == "managed" {
-		for name, chart := range awsCharts.Charts[clusterType] {
+		for name, chart := range awsCharts.Charts[majorVersion][clusterType] {
 			if name == "aws-load-balancer-controller" {
 				chart.Pull = true
-				awsCharts.Charts[clusterType][name] = chart
+				awsCharts.Charts[majorVersion][clusterType][name] = chart
 			}
 		}
 	}
@@ -137,12 +139,12 @@ func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 
 }
 
-func (b *AWSBuilder) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
-	return printGenericCharts(clusterConfigSpec, keosSpec, awsCharts, clusterType)
+func (b *AWSBuilder) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
+	return getGenericCharts(clusterConfigSpec, keosSpec, awsCharts, clusterType)
 }
 
 func (b *AWSBuilder) getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
-	providerCharts := ConvertToChart(awsCharts.Charts[clusterType])
+	providerCharts := ConvertToChart(awsCharts.Charts[majorVersion][clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
 		for _, chart := range *providerCharts {
 			if chart.Name == ovChart.Name {
@@ -178,11 +180,11 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	}
 
 	cloudControllerManagerValuesFile := "/kind/aws-cloud-controller-manager-helm-values.yaml"
-	cloudControllerManagerHelmParams := cloudControllerHelmParams {
-		ClusterName:  privateParams.KeosCluster.Metadata.Name,
-		Private:      privateParams.Private,
-		KeosRegUrl:   privateParams.KeosRegUrl,
-		PodsCidr:     podsCidrBlock,
+	cloudControllerManagerHelmParams := cloudControllerHelmParams{
+		ClusterName: privateParams.KeosCluster.Metadata.Name,
+		Private:     privateParams.Private,
+		KeosRegUrl:  privateParams.KeosRegUrl,
+		PodsCidr:    podsCidrBlock,
 	}
 
 	// Generate the CCM helm values
@@ -197,9 +199,9 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	}
 
 	c = "helm install aws-cloud-controller-manager /stratio/helm/aws-cloud-controller-manager" +
-	" --kubeconfig " + k +
-	" --namespace kube-system" +
-    " --values " + cloudControllerManagerValuesFile
+		" --kubeconfig " + k +
+		" --namespace kube-system" +
+		" --values " + cloudControllerManagerValuesFile
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy aws-cloud-controller-manager Helm Chart")
@@ -212,7 +214,7 @@ func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivatePar
 	csiName := "aws-ebs-csi-driver"
 	csiValuesFile := "/kind/" + csiName + "-helm-values.yaml"
 	csiEntry := chartsList[csiName]
-	csiHelmReleaseParams := fluxHelmReleaseParams {
+	csiHelmReleaseParams := fluxHelmReleaseParams{
 		ChartRepoRef:   "keos",
 		ChartName:      csiName,
 		ChartNamespace: csiEntry.Namespace,
@@ -245,15 +247,15 @@ func installLBController(n nodes.Node, k string, privateParams PrivateParams, p 
 	roleName := clusterName + "-lb-controller-manager"
 	accountID := p.Credentials["AccountID"]
 
-	lbControllerManagerHelmParams := lbControllerHelmParams {
-		ClusterName:  privateParams.KeosCluster.Metadata.Name,
-		Private:      privateParams.Private,
-		KeosRegUrl:   privateParams.KeosRegUrl,
-		AccountID:    accountID,
-		RoleName:     roleName,
+	lbControllerManagerHelmParams := lbControllerHelmParams{
+		ClusterName: privateParams.KeosCluster.Metadata.Name,
+		Private:     privateParams.Private,
+		KeosRegUrl:  privateParams.KeosRegUrl,
+		AccountID:   accountID,
+		RoleName:    roleName,
 	}
 
-	lbControllerHelmReleaseParams := fluxHelmReleaseParams {
+	lbControllerHelmReleaseParams := fluxHelmReleaseParams{
 		ChartRepoRef:   "keos",
 		ChartName:      lbControllerName,
 		ChartNamespace: lbControllerEntry.Namespace,

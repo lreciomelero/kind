@@ -76,7 +76,7 @@ const (
 var calicoMetrics string
 
 type ChartsDictionary struct {
-	Charts map[string]map[string]commons.ChartEntry
+	Charts map[string]map[string]map[string]commons.ChartEntry
 }
 
 type PrivateParams struct {
@@ -91,7 +91,7 @@ type PBuilder interface {
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
 	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error
-	printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry
+	getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry
 	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
 	installCSI(n nodes.Node, k string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error
@@ -162,15 +162,15 @@ type calicoHelmParams struct {
 }
 
 type commonHelmParams struct {
-	KeosRegUrl  string
-	Private     bool
+	KeosRegUrl string
+	Private    bool
 }
 
 type cloudControllerHelmParams struct {
-	ClusterName   string
-	Private       bool
-    KeosRegUrl    string
-	PodsCidr      string
+	ClusterName string
+	Private     bool
+	KeosRegUrl  string
+	PodsCidr    string
 }
 
 type fluxHelmRepositoryParams struct {
@@ -205,14 +205,16 @@ var scTemplate = DefaultStorageClass{
 }
 
 var commonsCharts = ChartsDictionary{
-	Charts: map[string]map[string]commons.ChartEntry{
-		"managed": {
-			"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Namespace: "cert-manager", Pull: true},
-			"flux2":              {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
-		},
-		"unmanaged": {
-			"cert-manager":       {Repository: "https://charts.jetstack.io", Version: "v1.12.3",  Namespace: "cert-manager", Pull: true},
-			"flux2":              {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+	Charts: map[string]map[string]map[string]commons.ChartEntry{
+		"28": {
+			"managed": {
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Namespace: "cert-manager", Pull: true},
+				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+			},
+			"unmanaged": {
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Namespace: "cert-manager", Pull: true},
+				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+			},
 		},
 	},
 }
@@ -245,15 +247,15 @@ func (i *Infra) buildProvider(p ProviderParams) Provider {
 	return i.builder.getProvider()
 }
 
-func (i *Infra) printProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec) map[string]commons.ChartEntry {
+func (i *Infra) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec) map[string]commons.ChartEntry {
 	clusterType := "managed"
 	if !keosSpec.ControlPlane.Managed {
 		clusterType = "unmanaged"
 	}
 
-	commonsChartsList := printGenericCharts(clusterConfigSpec, keosSpec, commonsCharts, clusterType)
+	commonsChartsList := getGenericCharts(clusterConfigSpec, keosSpec, commonsCharts, clusterType)
 
-	providerChartsList := i.builder.printProviderCharts(clusterConfigSpec, keosSpec, clusterType)
+	providerChartsList := i.builder.getProviderCharts(clusterConfigSpec, keosSpec, clusterType)
 
 	completedChartsList := make(map[string]commons.ChartEntry)
 	for key, value := range commonsChartsList {
@@ -285,7 +287,7 @@ func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.Clus
 }
 
 func (i *Infra) getOverriddenCharts(clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart {
-	charts := ConvertToChart(commonsCharts.Charts[clusterType])
+	charts := ConvertToChart(commonsCharts.Charts[majorVersion][clusterType])
 	for _, ovChart := range clusterConfigSpec.Charts {
 		for _, chart := range *charts {
 			if chart.Name == ovChart.Name {
@@ -311,8 +313,8 @@ func ConvertToChart(chartEntries map[string]commons.ChartEntry) *[]commons.Chart
 	return &charts
 }
 
-func printGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) (map[string]commons.ChartEntry) {
-	chartsToInstall := chartDictionary.Charts[clusterType]
+func getGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) map[string]commons.ChartEntry {
+	chartsToInstall := chartDictionary.Charts[majorVersion][clusterType]
 
 	for _, overrideChart := range clusterConfigSpec.Charts {
 		chart := chartsToInstall[overrideChart.Name]
@@ -332,7 +334,7 @@ func printGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec c
 }
 
 func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) error {
-	chartsToInstall := printGenericCharts(clusterConfigSpec, keosSpec, chartDictionary, clusterType)
+	chartsToInstall := getGenericCharts(clusterConfigSpec, keosSpec, chartDictionary, clusterType)
 	return pullCharts(n, chartsToInstall)
 }
 
@@ -409,33 +411,33 @@ func getcapxPDB(commonsPDBLocalPath string) (string, error) {
 }
 
 func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubeconfigPath string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
-		certManagerValuesFile := "/kind/cert-manager-helm-values.yaml"
-		certManagerHelmParams := commonHelmParams {
-			KeosRegUrl:  keosRegistryUrl,
-			Private:     privateParams.Private,
-		}
-		certManagerHelmValues, err := getManifest("common", "cert-manager-helm-values.tmpl", certManagerHelmParams)
-		if err != nil {
-			return errors.Wrap(err, "failed to generate cert-manager helm values")
-		}
+	certManagerValuesFile := "/kind/cert-manager-helm-values.yaml"
+	certManagerHelmParams := commonHelmParams{
+		KeosRegUrl: keosRegistryUrl,
+		Private:    privateParams.Private,
+	}
+	certManagerHelmValues, err := getManifest("common", "cert-manager-helm-values.tmpl", certManagerHelmParams)
+	if err != nil {
+		return errors.Wrap(err, "failed to generate cert-manager helm values")
+	}
 
-		c := "echo '" + certManagerHelmValues + "' > " + certManagerValuesFile
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to create cert-manager Helm chart values file")
-		}
-		c = "helm install --wait cert-manager /stratio/helm/cert-manager" +
-			" --namespace=cert-manager" +
-			" --create-namespace" +
-			" --values " + certManagerValuesFile
-		if kubeconfigPath != "" {
-			c = c + " --kubeconfig " + kubeconfigPath
-		}
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
-		}
-		return nil
+	c := "echo '" + certManagerHelmValues + "' > " + certManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cert-manager Helm chart values file")
+	}
+	c = "helm install --wait cert-manager /stratio/helm/cert-manager" +
+		" --namespace=cert-manager" +
+		" --create-namespace" +
+		" --values " + certManagerValuesFile
+	if kubeconfigPath != "" {
+		c = c + " --kubeconfig " + kubeconfigPath
+	}
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
+	if err != nil {
+		return errors.Wrap(err, "failed to deploy cert-manager Helm Chart")
+	}
+	return nil
 }
 
 func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry KeosRegistry, clusterConfig *commons.ClusterConfig, kubeconfigPath string, firstInstallation bool, helmRepoCreds HelmRegistry) error {
@@ -576,15 +578,15 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		} else if keosCluster.Spec.InfraProvider == "aws" {
 			c += " --set secrets.common.credentialsBase64=" + strings.Split(p.capxEnvVars[3], "AWS_B64ENCODED_CREDENTIALS=")[1]
 		}
-		 _, err = commons.ExecuteCommand(n, c, 5, 3)
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to deploy cluster-operator chart")
 		}
 	} else {
 		helmValuesClusterOperatorFile := "/kind/cluster-operator-helm-values.yaml"
 		c = "helm get values cluster-operator" +
-		" --namespace kube-system --all > " +
-		helmValuesClusterOperatorFile
+			" --namespace kube-system --all > " +
+			helmValuesClusterOperatorFile
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create cluster-operator helm values file")
@@ -603,7 +605,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		}
 
 		// Convert app field to map[string]interface{}
-		appValues,_ := helmReleaseValues["app"].(map[string]interface{})
+		appValues, _ := helmReleaseValues["app"].(map[string]interface{})
 
 		// Update the app.replicas
 		appValues["replicas"] = 2
@@ -626,11 +628,11 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 			return errors.Wrap(err, "failed to write updated HelmRelease values file")
 		}
 
-		clusterOperatorHelmReleaseParams := fluxHelmReleaseParams {
+		clusterOperatorHelmReleaseParams := fluxHelmReleaseParams{
 			ChartName:      "cluster-operator",
 			ChartNamespace: "kube-system",
 			ChartRepoRef:   "keos",
-			ChartVersion:    chartVersion,
+			ChartVersion:   chartVersion,
 		}
 		// Create Helm release using the fluxHelmReleaseParams
 		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", clusterOperatorHelmReleaseParams); err != nil {
@@ -681,7 +683,6 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCom
 		return errors.Wrap(err, "failed to create Calico Helm chart values file")
 	}
 
-
 	if !dryRun {
 		c = "helm install tigera-operator /stratio/helm/tigera-operator" +
 			" --kubeconfig " + k +
@@ -723,10 +724,10 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCom
 	return nil
 }
 
-func deployClusterAutoscaler (n nodes.Node, chartsList map[string]commons.ChartEntry, privateParams PrivateParams, capiClustersNamespace string, moveManagement bool) error {
+func deployClusterAutoscaler(n nodes.Node, chartsList map[string]commons.ChartEntry, privateParams PrivateParams, capiClustersNamespace string, moveManagement bool) error {
 	helmValuesCAFile := "/kind/cluster-autoscaler-helm-values.yaml"
 	clusterAutoscalerEntry := chartsList["cluster-autoscaler"]
-	clusterAutoscalerHelmReleaseParams := fluxHelmReleaseParams {
+	clusterAutoscalerHelmReleaseParams := fluxHelmReleaseParams{
 		ChartRepoRef:   "keos",
 		ChartName:      "cluster-autoscaler",
 		ChartNamespace: clusterAutoscalerEntry.Namespace,
@@ -787,7 +788,6 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 	keosChartRepoScheme := "default"
 	chartRepoScheme := "default"
 
-
 	fluxHelmParams := commonHelmParams{
 		KeosRegUrl: privateParams.KeosRegUrl,
 		Private:    privateParams.Private,
@@ -834,21 +834,21 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 
 	// Set repository scheme for private case
 	if strings.HasPrefix(helmRepoCreds.URL, "oci://") {
-	    keosChartRepoScheme = "oci"
+		keosChartRepoScheme = "oci"
 	}
 
 	// Create fluxHelmRepositoryParams for the private case
-	fluxHelmRepositoryParams := fluxHelmRepositoryParams {
-	    ChartName:       "keos",
-	    ChartRepoUrl:    helmRepoCreds.URL,
-	    ChartRepoScheme: keosChartRepoScheme,
+	fluxHelmRepositoryParams := fluxHelmRepositoryParams{
+		ChartName:       "keos",
+		ChartRepoUrl:    helmRepoCreds.URL,
+		ChartRepoScheme: keosChartRepoScheme,
 		Spec:            keosClusterSpec,
-	    HelmRepoCreds:   helmRepoCreds,
+		HelmRepoCreds:   helmRepoCreds,
 	}
 
 	// Create Helm repository using the fluxHelmRepositoryParams
 	if err := configureHelmRepository(n, k, "flux2_helmrepository.tmpl", fluxHelmRepositoryParams); err != nil {
-	    return err
+		return err
 	}
 
 	// Update fluxHelmRepositoryParams if not private
@@ -857,7 +857,7 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 		for name, entry := range chartsList {
 			// Set repository scheme if it's oci
 			if strings.HasPrefix(entry.Repository, "oci://") {
-		    	chartRepoScheme = "oci"
+				chartRepoScheme = "oci"
 			}
 
 			// Update fluxHelmRepositoryParams if not private
@@ -867,7 +867,7 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 
 			// Create Helm repository using the fluxHelmRepositoryParams
 			if err := configureHelmRepository(n, k, "flux2_helmrepository.tmpl", fluxHelmRepositoryParams); err != nil {
-		        return err
+				return err
 			}
 		}
 	}
@@ -879,15 +879,15 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 	var err error
 
 	// Create fluxHelmReleaseParams for the current entry
-	fluxHelmReleaseParams := fluxHelmReleaseParams {
-	    ChartRepoRef:   "keos",
+	fluxHelmReleaseParams := fluxHelmReleaseParams{
+		ChartRepoRef: "keos",
 	}
 
 	// Iterate through charts and create Helm repositories and releases
 	for name, entry := range chartsList {
 		// Update fluxHelmRepositoryParams if not private
 		if !privateParams.HelmPrivate {
-		    fluxHelmReleaseParams.ChartRepoRef = name
+			fluxHelmReleaseParams.ChartRepoRef = name
 		}
 
 		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|cloud-provider-.+|flux2|cert-manager)$`)
@@ -898,7 +898,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartNamespace = entry.Namespace
 			fluxHelmReleaseParams.ChartVersion = entry.Version
 			// tigera-operator-helm-values.yaml is required to install Calico as Network Policy engine
-			if name =="tigera-operator" && awsEKSEnabled {
+			if name == "tigera-operator" && awsEKSEnabled {
 				if err := installCalico(n, k, privateParams, "", true); err != nil {
 					return err
 				}
@@ -942,13 +942,13 @@ func configureHelmRepository(n nodes.Node, k string, templatePath string, params
 }
 
 func configureHelmRelease(n nodes.Node, k string, templatePath string, params fluxHelmReleaseParams) error {
-	valuesFile := "/kind/"+params.ChartName+"-helm-values.yaml"
+	valuesFile := "/kind/" + params.ChartName + "-helm-values.yaml"
 
 	// Create default HelmRelease configmap
 	c := "kubectl --kubeconfig " + kubeconfigPath + " " +
-	"-n " + params.ChartNamespace + " create configmap " +
-	"00-"+params.ChartName+"-helm-chart-default-values " +
-	"--from-file=values.yaml=" + valuesFile
+		"-n " + params.ChartNamespace + " create configmap " +
+		"00-" + params.ChartName + "-helm-chart-default-values " +
+		"--from-file=values.yaml=" + valuesFile
 	_, err := commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy "+params.ChartName+" HelmRelease default configuration map")
@@ -957,7 +957,7 @@ func configureHelmRelease(n nodes.Node, k string, templatePath string, params fl
 	// Create override HelmRelease configmap
 	c = "kubectl --kubeconfig " + kubeconfigPath + " " +
 		"-n " + params.ChartNamespace + " create configmap " +
-		"01-"+params.ChartName+"-helm-chart-override-values " +
+		"01-" + params.ChartName + "-helm-chart-override-values " +
 		"--from-literal=values.yaml=\"\""
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
@@ -985,8 +985,8 @@ func configureHelmRelease(n nodes.Node, k string, templatePath string, params fl
 	}
 	// Wait for HelmRelease to become ready
 	c = "kubectl --kubeconfig " + kubeconfigPath + " " +
-	"-n " + params.ChartNamespace + " wait helmrelease/"+params.ChartName+
-	" --for=condition=ready --timeout=5m"
+		"-n " + params.ChartNamespace + " wait helmrelease/" + params.ChartName +
+		" --for=condition=ready --timeout=5m"
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to wait for "+params.ChartName+" HelmRelease to become ready")
@@ -1487,7 +1487,7 @@ func loginHelmRepo(n nodes.Node, keosCluster commons.KeosCluster, clusterCredent
 	return nil
 }
 
-func getChartVersion(charts []commons.Chart, majorVersion string, chartName string) string {
+func getChartVersion(charts []commons.Chart, chartName string) string {
 	for _, chart := range charts {
 		if chart.Name == chartName {
 			return chart.Version
