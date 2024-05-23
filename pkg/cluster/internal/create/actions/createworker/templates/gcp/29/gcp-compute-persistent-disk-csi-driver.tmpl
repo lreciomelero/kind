@@ -415,7 +415,7 @@ metadata:
   name: csi-gce-pd-controller
   namespace: gce-pd-csi-driver
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: gcp-compute-persistent-disk-csi-driver
@@ -455,7 +455,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/sig-storage/csi-provisioner:v3.4.0
+        {{- else }}
         image: registry.k8s.io/sig-storage/csi-provisioner:v3.4.0
+        {{- end }}
         livenessProbe:
           failureThreshold: 1
           httpGet:
@@ -486,7 +490,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/sig-storage/csi-attacher:v4.2.0
+        {{- else }}
         image: registry.k8s.io/sig-storage/csi-attacher:v4.2.0
+        {{- end }}
         livenessProbe:
           failureThreshold: 1
           httpGet:
@@ -515,7 +523,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/sig-storage/csi-resizer:v1.7.0
+        {{- else }}
         image: registry.k8s.io/sig-storage/csi-resizer:v1.7.0
+        {{- end }}
         livenessProbe:
           failureThreshold: 1
           httpGet:
@@ -544,7 +556,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/sig-storage/csi-snapshotter:v6.1.0
+        {{- else }}
         image: registry.k8s.io/sig-storage/csi-snapshotter:v6.1.0
+        {{- end }}
         name: csi-snapshotter
         volumeMounts:
         - mountPath: /csi
@@ -555,7 +571,11 @@ spec:
         env:
         - name: GOOGLE_APPLICATION_CREDENTIALS
           value: /etc/cloud-sa/cloud-sa.json
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.1
+        {{- else }}
         image: registry.k8s.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.1
+        {{- end }}
         name: gce-pd-driver
         volumeMounts:
         - mountPath: /csi
@@ -599,7 +619,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/sig-storage/csi-node-driver-registrar:v2.7.0
+        {{- else }}
         image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.7.0
+        {{- end }}
         name: csi-driver-registrar
         volumeMounts:
         - mountPath: /csi
@@ -610,7 +634,11 @@ spec:
         - --v=5
         - --endpoint=unix:/csi/csi.sock
         - --run-controller-service=false
+        {{- if $.Private }}
+        image: {{ $.KeosRegUrl }}/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.1
+        {{- else }}
         image: registry.k8s.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.1
+        {{- end }}
         name: gce-pd-driver
         securityContext:
           privileged: true

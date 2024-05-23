@@ -208,11 +208,31 @@ var commonsCharts = ChartsDictionary{
 	Charts: map[string]map[string]map[string]commons.ChartEntry{
 		"28": {
 			"managed": {
-				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Namespace: "cert-manager", Pull: true},
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.14.5", Namespace: "cert-manager", Pull: true},
 				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
 			},
 			"unmanaged": {
-				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.12.3", Namespace: "cert-manager", Pull: true},
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.14.5", Namespace: "cert-manager", Pull: true},
+				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+			},
+		},
+		"29": {
+			"managed": {
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.14.5", Namespace: "cert-manager", Pull: true},
+				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+			},
+			"unmanaged": {
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.14.5", Namespace: "cert-manager", Pull: true},
+				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+			},
+		},
+		"30": {
+			"managed": {
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.14.5", Namespace: "cert-manager", Pull: true},
+				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
+			},
+			"unmanaged": {
+				"cert-manager": {Repository: "https://charts.jetstack.io", Version: "v1.14.5", Namespace: "cert-manager", Pull: true},
 				"flux2":        {Repository: "https://fluxcd-community.github.io/helm-charts", Version: "2.12.2", Namespace: "kube-system", Pull: true},
 			},
 		},
@@ -416,7 +436,7 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 		KeosRegUrl: keosRegistryUrl,
 		Private:    privateParams.Private,
 	}
-	certManagerHelmValues, err := getManifest("common", "cert-manager-helm-values.tmpl", certManagerHelmParams)
+	certManagerHelmValues, err := getManifest("common", "cert-manager-helm-values.tmpl", majorVersion, certManagerHelmParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate cert-manager helm values")
 	}
@@ -671,7 +691,7 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCom
 	}
 
 	// Generate the calico helm values
-	calicoHelmValues, err := getManifest("common", "tigera-operator-helm-values.tmpl", calicoHelmParams)
+	calicoHelmValues, err := getManifest("common", "tigera-operator-helm-values.tmpl", majorVersion, calicoHelmParams)
 
 	if err != nil {
 		return errors.Wrap(err, "failed to generate calico helm values")
@@ -737,7 +757,7 @@ func deployClusterAutoscaler(n nodes.Node, chartsList map[string]commons.ChartEn
 		clusterAutoscalerHelmReleaseParams.ChartRepoRef = "cluster-autoscaler"
 	}
 
-	helmValuesCA, err := getManifest("common", "cluster-autoscaler-helm-values.tmpl", privateParams)
+	helmValuesCA, err := getManifest("common", "cluster-autoscaler-helm-values.tmpl", majorVersion, privateParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to get CA helm values")
 	}
@@ -753,7 +773,7 @@ func deployClusterAutoscaler(n nodes.Node, chartsList map[string]commons.ChartEn
 	if !moveManagement {
 		autoscalerRBACPath := "/kind/autoscaler_rbac.yaml"
 
-		autoscalerRBAC, err := getManifest("common", "autoscaler_rbac.tmpl", privateParams.KeosCluster)
+		autoscalerRBAC, err := getManifest("common", "autoscaler_rbac.tmpl", "", privateParams.KeosCluster)
 		if err != nil {
 			return errors.Wrap(err, "failed to get CA RBAC file")
 		}
@@ -810,7 +830,7 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 	}
 
 	// Generate the flux helm values
-	fluxHelmValues, err := getManifest("common", "flux2-helm-values.tmpl", fluxHelmParams)
+	fluxHelmValues, err := getManifest("common", "flux2-helm-values.tmpl", majorVersion, fluxHelmParams)
 
 	if err != nil {
 		return errors.Wrap(err, "failed to generate flux helm values")
@@ -919,7 +939,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 
 func configureHelmRepository(n nodes.Node, k string, templatePath string, params fluxHelmRepositoryParams) error {
 	// Generate HelmRepository manifest
-	fluxHelmRepository, err := getManifest("common", templatePath, params)
+	fluxHelmRepository, err := getManifest("common", templatePath, majorVersion, params)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate "+params.ChartName+" HelmRepository")
 	}
@@ -964,7 +984,7 @@ func configureHelmRelease(n nodes.Node, k string, templatePath string, params fl
 		return errors.Wrap(err, "failed to deploy "+params.ChartName+" HelmRelease override configmap")
 	}
 	// Generate HelmRelease manifest
-	fluxHelmHelmRelease, err := getManifest("common", templatePath, params)
+	fluxHelmHelmRelease, err := getManifest("common", templatePath, majorVersion, params)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate "+params.ChartName+" HelmHelmRelease")
 	}
@@ -1007,7 +1027,7 @@ func customCoreDNS(n nodes.Node, keosCluster commons.KeosCluster) error {
 		coreDNSSuffix = "-aks"
 	}
 
-	coreDNSConfigmap, err := getManifest(keosCluster.Spec.InfraProvider, "coredns_configmap"+coreDNSSuffix+".tmpl", keosCluster.Spec)
+	coreDNSConfigmap, err := getManifest(keosCluster.Spec.InfraProvider, "coredns_configmap"+coreDNSSuffix+".tmpl", "", keosCluster.Spec)
 	if err != nil {
 		return errors.Wrap(err, "failed to get CoreDNS file")
 	}
@@ -1107,7 +1127,7 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 	}
 
 	// Define PodDisruptionBudget for capx services
-	capxPDB, err := getManifest("common", "capx_pdb.tmpl", keosCluster.Spec)
+	capxPDB, err := getManifest("common", "capx_pdb.tmpl", "", keosCluster.Spec)
 	if err != nil {
 		return errors.Wrap(err, "failed to get PodDisruptionBudget file")
 	}
@@ -1213,7 +1233,7 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 	}
 
 	// Define PodDisruptionBudget for capi services
-	capiPDB, err := getManifest("common", "capi_pdb.tmpl", keosCluster.Spec)
+	capiPDB, err := getManifest("common", "capi_pdb.tmpl", "", keosCluster.Spec)
 	if err != nil {
 		return errors.Wrap(err, "failed to get PodDisruptionBudget file")
 	}
@@ -1369,8 +1389,11 @@ spec:
 	return nil
 }
 
-func getManifest(parentPath string, name string, params interface{}) (string, error) {
-	templatePath := filepath.Join("templates", parentPath, name)
+func getManifest(parentPath string, name string, majorVersion string, params interface{}) (string, error) {
+	templatePath := filepath.Join("templates", parentPath, majorVersion, name)
+	if majorVersion == "" {
+		templatePath = filepath.Join("templates", parentPath, name)
+	}
 
 	var tpl bytes.Buffer
 	t, err := template.New("").ParseFS(ctel, templatePath)
