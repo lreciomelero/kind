@@ -62,7 +62,7 @@ var azureCharts = ChartsDictionary{
 				"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.28.7", Pull: false},
 				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.28.9", Pull: true},
 				"cluster-autoscaler":   {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.34.1", Namespace: "kube-system", Pull: false},
-				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 		"29": {
@@ -72,7 +72,7 @@ var azureCharts = ChartsDictionary{
 				"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.29.5", Pull: false},
 				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.29.6", Pull: true},
 				"cluster-autoscaler":   {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.35.0", Namespace: "kube-system", Pull: false},
-				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 		"30": {
@@ -82,7 +82,7 @@ var azureCharts = ChartsDictionary{
 				"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.30.2", Pull: false},
 				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.30.2", Pull: true},
 				"cluster-autoscaler":   {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
-				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 	},
