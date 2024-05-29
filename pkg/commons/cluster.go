@@ -461,7 +461,6 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 				if err != nil {
 					return nil, nil, err
 				}
-
 				err = validate.Struct(clusterConfig)
 				if err != nil {
 					return nil, nil, err

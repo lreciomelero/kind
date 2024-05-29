@@ -55,21 +55,21 @@ var googleCharts = ChartsDictionary{
 			"managed": {},
 			"unmanaged": {
 				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.34.1", Namespace: "kube-system", Pull: false},
-				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 		"29": {
 			"managed": {},
 			"unmanaged": {
 				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.35.0", Namespace: "kube-system", Pull: false},
-				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 		"30": {
 			"managed": {},
 			"unmanaged": {
 				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
-				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 	},
