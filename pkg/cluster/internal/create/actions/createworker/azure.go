@@ -133,7 +133,6 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 		" --namespace kube-system" +
 		" --set infra.clusterName=" + keosCluster.Metadata.Name +
 		" --set cloudControllerManager.configureCloudRoutes=false" +
-		" --set cloudControllerManager.replicas=2" +
 		" --set 'cloudControllerManager.clusterCIDR=" + podsCidrBlock + "'"
 	if privateParams.Private {
 		c += " --set cloudControllerManager.imageRepository=" + privateParams.KeosRegUrl + "/oss/kubernetes" +
