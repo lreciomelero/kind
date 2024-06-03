@@ -458,6 +458,7 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			s = initControlPlaneVolumes(s, volumeType)
 			for i := range s.WorkerNodes {
 				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
 				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
 				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
 				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
@@ -473,6 +474,7 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			for i := range s.WorkerNodes {
 				s.WorkerNodes[i].CRIVolume.Name = CriVolumeName
 				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
 				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
 				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
 				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
