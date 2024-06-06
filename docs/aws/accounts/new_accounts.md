@@ -1,11 +1,14 @@
 # Resumen tareas al crear una nueva cuenta
 
-* [Resumen tareas al crear una nueva cuenta](#resumen-tareas-al-crear-una-nueva-cuenta)
-	* [Quotas](#quotas)
-    * [IAM](#iam)
-    * [Passbolt](#passbolt)
-    * [ECR](#ecr)
-    * [Lambda](#lambda)
+- [Resumen tareas al crear una nueva cuenta](#resumen-tareas-al-crear-una-nueva-cuenta)
+  - [Quotas](#quotas)
+  - [Get service quotas](#get-service-quotas)
+- [IAM](#iam)
+  - [Esquema de usuarios y políticas](#esquema-de-usuarios-y-políticas)
+- [Passbolt](#passbolt)
+- [CloudFormation](#cloudformation)
+- [ECR](#ecr)
+- [Lambda](#lambda)
 
 ## Quotas
 
@@ -83,11 +86,14 @@ Es recomenable crear varias lambdas:
 - Comprobar el estado del stack de CloudFormation y notificar si hay algún error.
 - Borrar los posibles volúmenes de despliegues de test que se nos queden pendientes.
     > Periodicidad: 0 23 ? * MON-FRI * (Lunes a Viernes a las 23:00)  
-    > script: [deleteUnusedEBS](../../../scripts/deleteUnusedEBS.py)  
+    > script: [deleteUnusedEBS](../../../scripts/delete_unused_ebs.py)  
 - Borrar los Provedores de identidad del tipo "OpenID Connect (OIDC)" que no estén en uso.
     > Periodicidad: 0 23 ? * MON-FRI * (Lunes a Viernes a las 23:00)  
     > script: [deleteoldOIDC](../../../scripts/delete_oidc.py)
 - Revisión de clusters con más de '3' días desplegado.  
     > Periodicidad: 0 23 ? * MON-FRI * (Lunes a Viernes a las 23:00)  
     > script: [ClustersWatch](../../../scripts/ClustersWatch.py)  
-    > Para evitar mensajes sobre una vpc deberíamos añadir el tag "Custom" en la misma.   
+    > Para evitar mensajes sobre una vpc deberíamos añadir el tag "Custom" en la misma.
+- Revisión de las EPIs que no estén asociadas a ningún recurso.  
+    > Periodicidad: 0 23 ? * MON-FRI * (Lunes a Viernes a las 23:00)  
+    > script: [UnusedEIPs](../../../scripts/delete_unused_eips.py) 
