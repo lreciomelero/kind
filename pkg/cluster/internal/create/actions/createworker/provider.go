@@ -1082,8 +1082,7 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 		clientSecret, _ := base64.StdEncoding.DecodeString(strings.Split(p.capxEnvVars[0], "AZURE_CLIENT_SECRET_B64=")[1])
 
 		c := fmt.Sprintf(
-			"kubectl --kubeconfig %s -n %s create secret generic cluster-identity-secret "+
-				"--from-literal=clientSecret='%s'",
+			"kubectl --kubeconfig %s -n %s create secret generic cluster-identity-secret --from-literal=clientSecret='%s'",
 			kubeconfigPath, namespace, clientSecret)
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
@@ -1102,16 +1101,49 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 		return errors.Wrap(err, "failed to install CAPX in workload cluster")
 	}
 
-	// Manually assign PriorityClass to capx service
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system patch deploy " + p.capxName + "-controller-manager -p '{\"spec\": {\"template\": {\"spec\": {\"priorityClassName\": \"system-node-critical\"}}}}' --type=merge"
-	_, err = commons.ExecuteCommand(n, c, 5, 3)
-	if err != nil {
-		return errors.Wrap(err, "failed to assigned priorityClass to "+p.capxName+"-controller-manager")
+	// GKE by default limits the consumption of this priority class using ResourceQuota
+	if p.capxProvider == "gcp" && p.capxManaged {
+		resourceQuotaPath := "/kind/resourceQuota.yaml"
+		deploys := []struct {
+			Name      string
+			Namespace string
+		}{{"capi", "capi-system"}, {p.capxName, p.capxName + "-system"}}
+		for _, d := range deploys {
+			resourceQuota, err := getManifest("gcp", "resourcequota.tmpl", d)
+			if err != nil {
+				return errors.Wrap(err, "failed to get ResourceQuota template")
+			}
+			c = "echo '" + resourceQuota + "' > " + resourceQuotaPath
+			_, err = commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to save ResourceQuota manifest")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + resourceQuotaPath
+			_, err = commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply ResourceQuota manifest")
+			}
+		}
 	}
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system rollout status deploy " + p.capxName + "-controller-manager --timeout 60s"
-	_, err = commons.ExecuteCommand(n, c, 5, 3)
+
+	// Manually assign PriorityClass to capx service
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system get deploy " + p.capxName + "-controller-manager -o jsonpath='{.spec.template.spec.priorityClassName}'"
+	priorityClassName, err := commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
-		return errors.Wrap(err, "failed to check rollout status for "+p.capxName+"-controller-manager")
+		return errors.Wrap(err, "failed to get priorityClass for "+p.capxName+"-controller-manager")
+	}
+
+	if priorityClassName != "system-node-critical" {
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system patch deploy " + p.capxName + "-controller-manager -p '{\"spec\": {\"template\": {\"spec\": {\"priorityClassName\": \"system-node-critical\"}}}}' --type=merge"
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to assigned priorityClass to "+p.capxName+"-controller-manager")
+		}
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system rollout status deploy " + p.capxName + "-controller-manager --timeout 60s"
+		_, err = commons.ExecuteCommand(n, c, 30, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to check rollout status for "+p.capxName+"-controller-manager")
+		}
 	}
 
 	// Scale CAPX to 2 replicas
@@ -1152,7 +1184,6 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 	}
 
 	return nil
-
 }
 
 func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluster, kubeconfigPath string, allowCommonEgressNetPolPath string) error {

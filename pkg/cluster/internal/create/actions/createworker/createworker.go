@@ -70,7 +70,7 @@ const (
 	manifestsPath           = "/kind/manifests"
 	cniDefaultFile          = "/kind/manifests/default-cni.yaml"
 	storageDefaultPath      = "/kind/manifests/default-storage.yaml"
-	infraGCPVersion         = "v1.4.0"
+	infraGCPVersion         = "v1.6.1"
 	infraAWSVersion         = "v2.2.1"
 )
 
@@ -161,6 +161,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
+	gcpGKEEnabled := a.keosCluster.Spec.InfraProvider == "gcp" && a.keosCluster.Spec.ControlPlane.Managed
 
 	var privateParams PrivateParams
 	if a.clusterConfig != nil {
@@ -261,7 +262,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Create docker-registry secret in provider-system namespace
 		c = "kubectl create secret docker-registry regcred" +
-			" --docker-server=" + keosRegistry.url +
+			" --docker-server=" + strings.Split(keosRegistry.url, "/")[0] +
 			" --docker-username=" + keosRegistry.user +
 			" --docker-password=" + keosRegistry.pass +
 			" --namespace=" + provider.capxName + "-system"
@@ -327,6 +328,17 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return err
+		}
+	} else if gcpGKEEnabled {
+		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"  infrastructure-gcp:\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    tag: " + provider.capxImageVersion + "\" >> /root/.cluster-api/clusterctl.yaml "
+
+		_, err = commons.ExecuteCommand(n, c, 5)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to overwrite image registry clusterctl config")
 		}
 	}
 
@@ -636,6 +648,29 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to install AWS LB controller in workload cluster")
 			}
 			ctx.Status.End(true) // End Installing AWS LB controller in workload cluster
+		}
+
+		if awsEKSEnabled {
+			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
+			awsnoderules, err := commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to get aws-node clusterrole rules")
+			}
+			var rules []json.RawMessage
+			err = json.Unmarshal([]byte(awsnoderules), &rules)
+			if err != nil {
+				return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
+			}
+			rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
+			newawsnoderules, err := json.Marshal(rules)
+			if err != nil {
+				return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
+			_, err = commons.ExecuteCommand(n, c, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to patch aws-node clusterrole")
+			}
 		}
 
 		ctx.Status.Start("Installing StorageClass in workload cluster 💾")

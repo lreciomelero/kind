@@ -14,7 +14,7 @@ ENV HELM=v3.13.1
 # Cluster-api artifacts
 ENV CAPI_REPO=/root/.cluster-api/local-repository
 ENV CAPA=v2.2.1
-ENV CAPG=v1.4.0
+ENV CAPG=v1.6.1
 ENV CAPZ=v1.11.4
 
 # Install vim
