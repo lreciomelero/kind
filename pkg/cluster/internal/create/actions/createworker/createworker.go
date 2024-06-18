@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -335,7 +336,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    tag: " + provider.capxImageVersion + "\" >> /root/.cluster-api/clusterctl.yaml "
 
-		_, err = commons.ExecuteCommand(n, c, 5)
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 
 		if err != nil {
 			return errors.Wrap(err, "failed to overwrite image registry clusterctl config")
@@ -652,7 +653,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		if awsEKSEnabled {
 			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
-			awsnoderules, err := commons.ExecuteCommand(n, c, 5)
+			awsnoderules, err := commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to get aws-node clusterrole rules")
 			}
@@ -667,7 +668,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
 			}
 			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
-			_, err = commons.ExecuteCommand(n, c, 5)
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to patch aws-node clusterrole")
 			}

@@ -1109,17 +1109,17 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 			Namespace string
 		}{{"capi", "capi-system"}, {p.capxName, p.capxName + "-system"}}
 		for _, d := range deploys {
-			resourceQuota, err := getManifest("gcp", "resourcequota.tmpl", d)
+			resourceQuota, err := getManifest("gcp", "resourcequota.tmpl", majorVersion, d)
 			if err != nil {
 				return errors.Wrap(err, "failed to get ResourceQuota template")
 			}
 			c = "echo '" + resourceQuota + "' > " + resourceQuotaPath
-			_, err = commons.ExecuteCommand(n, c, 5)
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to save ResourceQuota manifest")
 			}
 			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + resourceQuotaPath
-			_, err = commons.ExecuteCommand(n, c, 5)
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to apply ResourceQuota manifest")
 			}
