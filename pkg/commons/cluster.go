@@ -433,6 +433,7 @@ func (s KeosSpec) Init() KeosSpec {
 
 func (s KeosSpec) InitVolumes() KeosSpec {
 	var volumeType string
+
 	switch s.InfraProvider {
 	case "aws":
 		volumeType = AWSVolumeType
@@ -440,16 +441,16 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			s.ControlPlane.CRIVolume.DeviceName = CriVolumeDeviceName
 			s.ControlPlane.ETCDVolume.DeviceName = EtcdVolumeDeviceName
 			s = initControlPlaneVolumes(s, volumeType)
+		}
 
-			for i := range s.WorkerNodes {
-				s.WorkerNodes[i].CRIVolume.DeviceName = CriVolumeDeviceName
-				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
-				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
-				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
-				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
-			}
+		for i := range s.WorkerNodes {
+			s.WorkerNodes[i].CRIVolume.DeviceName = CriVolumeDeviceName
+			s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+			s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
+			checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+			checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+			checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+			checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
 		}
 
 	case "gcp":
@@ -482,9 +483,8 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			}
 		}
 	}
-	if s.ControlPlane.Managed {
-		checkAndFill(&s.ControlPlane.RootVolume.Size, RootVolumeManagedDefaultSize)
-		checkAndFill(&s.ControlPlane.RootVolume.Type, volumeType)
+	if s.ControlPlane.Managed && s.InfraProvider == "aws" {
+
 		for i := range s.WorkerNodes {
 			checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeManagedDefaultSize)
 			checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
