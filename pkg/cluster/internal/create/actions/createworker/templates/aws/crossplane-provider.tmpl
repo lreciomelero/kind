@@ -1,0 +1,29 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: {{ $.Provider }}
+spec:
+  package: {{ $.Provider }}
+{{- if $.Private }}
+  skipDependencyResolution: true
+  packagePullPolicy: Never
+  runtimeConfigRef:
+    name: custom-config-{{ $.Provider }}
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: custom-config-{{ $.Provider }}
+spec:
+  deploymentTemplate:
+    metadata:
+      name: {{ $.Provider }}
+    spec:
+      selector: {}
+      template:
+        spec:
+          containers:
+            - name: package-runtime
+              imagePullPolicy: Always 
+              image: {{ $.Image }}
+{{- end }}

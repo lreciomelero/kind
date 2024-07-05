@@ -42,15 +42,17 @@ var azureStorageClasses string
 var azureInternalIngress []byte
 
 type AzureBuilder struct {
-	capxProvider     string
-	capxVersion      string
-	capxImageVersion string
-	capxManaged      bool
-	capxName         string
-	capxEnvVars      []string
-	scParameters     commons.SCParameters
-	scProvisioner    string
-	csiNamespace     string
+	capxProvider              string
+	capxVersion               string
+	capxImageVersion          string
+	capxManaged               bool
+	capxName                  string
+	capxEnvVars               []string
+	scParameters              commons.SCParameters
+	scProvisioner             string
+	csiNamespace              string
+	crossplaneProviders       map[string]string
+	crossplaneProviderVersion string
 }
 
 func newAzureBuilder() *AzureBuilder {
@@ -358,4 +360,21 @@ func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 		}
 	}
 	return nil
+}
+
+func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
+	return "", nil
+}
+func (b *AzureBuilder) getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
+	return "", nil
+}
+
+func (b *AzureBuilder) setCrossplaneProviders() {
+
+	b.crossplaneProviders = map[string]string{}
+}
+
+func (b *AzureBuilder) GetCrossplaneProviders() map[string]string {
+	b.setCrossplaneProviders()
+	return b.crossplaneProviders
 }

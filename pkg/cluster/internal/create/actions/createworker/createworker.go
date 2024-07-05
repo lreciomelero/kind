@@ -79,6 +79,8 @@ var allowCommonEgressNetPol string
 //go:embed files/gcp/rbac-loadbalancing.yaml
 var rbacInternalLoadBalancing string
 
+var infra *Infra
+
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
 	return &action{
@@ -115,7 +117,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)
-	infra := newInfra(providerBuilder)
+	infra = newInfra(providerBuilder)
 	provider := infra.buildProvider(providerParams)
 
 	for _, registry := range a.keosCluster.Spec.DockerRegistries {
@@ -191,6 +193,14 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true)
 
 	}
+
+	ctx.Status.Start("Installing Crossplane and deploying crs🎖️")
+	_, err = installCrossplane(n, "", keosRegistry.url, providerParams.Credentials, infra, privateParams, false, allowCommonEgressNetPol)
+	if err != nil {
+		return err
+	}
+	// a.keosCluster = offlineKeosCluster
+	ctx.Status.End(true)
 
 	ctx.Status.Start("Installing CAPx 🎖️")
 	defer ctx.Status.End(false)
@@ -546,35 +556,35 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
 
 		if awsEKSEnabled {
-                        c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
-                        awsnoderules, err := commons.ExecuteCommand(n, c, 3, 5)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to get aws-node clusterrole rules")
-                        }
-                        var rules []json.RawMessage
-                        err = json.Unmarshal([]byte(awsnoderules), &rules)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
-                        }
-                        rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
-                        newawsnoderules, err := json.Marshal(rules)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
-                        }
-                        c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
-                        _, err = commons.ExecuteCommand(n, c, 3, 5)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to patch aws-node clusterrole")
-                        }
-                }
+			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
+			awsnoderules, err := commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to get aws-node clusterrole rules")
+			}
+			var rules []json.RawMessage
+			err = json.Unmarshal([]byte(awsnoderules), &rules)
+			if err != nil {
+				return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
+			}
+			rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
+			newawsnoderules, err := json.Marshal(rules)
+			if err != nil {
+				return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to patch aws-node clusterrole")
+			}
+		}
 
-                // Ensure CoreDNS replicas are assigned to different nodes
-                // once more than 2 control planes or workers are running
-                c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
-                _, err = commons.ExecuteCommand(n, c, 3, 5)
-                if err != nil {
-                        return errors.Wrap(err, "failed to restart coredns deployment")
-                }
+		// Ensure CoreDNS replicas are assigned to different nodes
+		// once more than 2 control planes or workers are running
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to restart coredns deployment")
+		}
 
 		// Wait for CoreDNS deployment to be ready
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
@@ -720,6 +730,22 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			if !a.moveManagement {
+
+				ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
+
+				c = "kubectl scale deployment crossplane crossplane-rbac-manager  ec2 provider-family-aws provider-aws-route53 provider-aws-efs -n crossplane-system --replicas=0"
+				_, err = commons.ExecuteCommand(n, c, 3, 5)
+				if err != nil {
+					return errors.Wrap(err, "failed to scale to 0 crossplane controllers")
+				}
+
+				_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, providerParams.Credentials, infra, privateParams, true, allowCommonEgressNetPolPath)
+				if err != nil {
+					return err
+				}
+				// a.keosCluster = offlineKeosCluster
+				ctx.Status.End(true)
+
 				autoscalerRBACPath := "/kind/autoscaler_rbac.yaml"
 
 				autoscalerRBAC, err := getManifest("common", "autoscaler_rbac.tmpl", a.keosCluster)

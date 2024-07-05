@@ -40,15 +40,16 @@ var awsInternalIngress []byte
 var awsPublicIngress []byte
 
 type AWSBuilder struct {
-	capxProvider     string
-	capxVersion      string
-	capxImageVersion string
-	capxManaged      bool
-	capxName         string
-	capxEnvVars      []string
-	scParameters     commons.SCParameters
-	scProvisioner    string
-	csiNamespace     string
+	capxProvider        string
+	capxVersion         string
+	capxImageVersion    string
+	capxManaged         bool
+	capxName            string
+	capxEnvVars         []string
+	scParameters        commons.SCParameters
+	scProvisioner       string
+	csiNamespace        string
+	crossplaneProviders map[string]string
 }
 
 func newAWSBuilder() *AWSBuilder {
@@ -98,6 +99,22 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 		b.scParameters.Encrypted = "true"
 		b.scParameters.KmsKeyId = p.StorageClass.EncryptionKey
 	}
+}
+
+func (b *AWSBuilder) setCrossplaneProviders() {
+
+	b.crossplaneProviders = map[string]string{
+		"provider-family-aws":  "v1.8.0",
+		"provider-aws-ec2":     "v1.8.0",
+		"provider-aws-efs":     "v1.8.0",
+		"provider-aws-route53": "v1.8.0",
+		"provider-aws-iam":     "v1.8.0",
+	}
+}
+
+func (b *AWSBuilder) GetCrossplaneProviders() map[string]string {
+	b.setCrossplaneProviders()
+	return b.crossplaneProviders
 }
 
 func (b *AWSBuilder) getProvider() Provider {
@@ -369,4 +386,17 @@ func (b *AWSBuilder) postInstallPhase(n nodes.Node, k string) error {
 	}
 
 	return nil
+}
+
+func (b *AWSBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
+	awsCredentials := "[default]\naws_access_key_id = " + credentials["AccessKey"] + "\naws_secret_access_key = " + credentials["SecretKey"] + "\n"
+	return awsCredentials, nil
+}
+
+func (b *AWSBuilder) getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
+
+	// if b.capxManaged {
+	// 	return b.getCrossplaneEKSManifests(privateParams, credentials, workloadClusterInstallation)
+	// }
+	return "", nil
 }
