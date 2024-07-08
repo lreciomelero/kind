@@ -94,7 +94,7 @@ type PBuilder interface {
 	postInstallPhase(n nodes.Node, k string) error
 	getCrossplaneProviderConfigContent(credentials map[string]string) (string, error)
 	getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error)
-	GetCrossplaneProviders() map[string]string
+	GetCrossplaneProviders() ([]string, string)
 }
 
 type Provider struct {
@@ -235,7 +235,7 @@ func (i *Infra) getCrossplaneCRManifests(privateParams PrivateParams, credential
 	return i.builder.getCrossplaneCRManifests(privateParams, credentials, workloadClusterInstallation)
 }
 
-func (i *Infra) GetCrossplaneProviders() map[string]string {
+func (i *Infra) GetCrossplaneProviders() ([]string, string) {
 	return i.builder.GetCrossplaneProviders()
 }
 

@@ -47,7 +47,7 @@ type GCPBuilder struct {
 	scParameters              commons.SCParameters
 	scProvisioner             string
 	csiNamespace              string
-	crossplaneProviders       map[string]string
+	crossplaneProviders       []string
 	crossplaneProviderVersion string
 }
 
@@ -280,10 +280,11 @@ func (b *GCPBuilder) getCrossplaneCRManifests(privateParams PrivateParams, crede
 
 func (b *GCPBuilder) setCrossplaneProviders() {
 
-	b.crossplaneProviders = map[string]string{}
+	b.crossplaneProviders = []string{}
+	b.crossplaneProviderVersion = ""
 }
 
-func (b *GCPBuilder) GetCrossplaneProviders() map[string]string {
+func (b *GCPBuilder) GetCrossplaneProviders() ([]string, string) {
 	b.setCrossplaneProviders()
-	return b.crossplaneProviders
+	return b.crossplaneProviders, b.crossplaneProviderVersion
 }

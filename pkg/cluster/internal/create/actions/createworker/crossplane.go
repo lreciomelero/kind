@@ -15,13 +15,6 @@ var (
 	crossplane_provider_config_file = "/kind/crossplane-provider-creds.yaml"
 	crossplane_crs_file             = "/kind/crossplane-crs.yaml"
 	crossplane_crs_file_workload    = "/kind/crossplane-crs-workload.yaml"
-
-	crossplane_providers = map[string]string{
-		"provider-family-aws":  "v0.46.0",
-		"provider-aws-ec2":     "v0.46.0",
-		"provider-aws-efs":     "v0.46.0",
-		"provider-aws-route53": "v0.46.0",
-	}
 )
 
 type CrossplaneProviderParams struct {
@@ -29,6 +22,7 @@ type CrossplaneProviderParams struct {
 	Package  string
 	Image    string
 	Private  bool
+	Version  string
 }
 
 type CrossplaneProviderConfigParams struct {
@@ -36,7 +30,8 @@ type CrossplaneProviderConfigParams struct {
 }
 
 func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUrl string, privateRegistry bool) error {
-	for provider, version := range infra.GetCrossplaneProviders() {
+	providers, version := infra.GetCrossplaneProviders()
+	for _, provider := range providers {
 		providerFile := "/kind/" + provider + ".yaml"
 
 		params := CrossplaneProviderParams{
@@ -44,6 +39,7 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 			Package:  provider,
 			Image:    keosRegUrl + "/upbound/" + provider + ":" + version,
 			Private:  privateRegistry,
+			Version:  version,
 		}
 		providerManifest, err := getManifest("aws", "crossplane-provider.tmpl", params)
 		if err != nil {
@@ -73,15 +69,17 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 			return errors.Wrap(err, "failed to wait provider "+provider)
 		}
 
-		time.Sleep(40 * time.Second)
+		if privateRegistry {
+			time.Sleep(40 * time.Second)
 
-		c = "kubectl patch deploy -n crossplane-system " + provider + " -p '{\"spec\": {\"template\": {\"spec\":{\"containers\":[{\"name\":\"package-runtime\",\"imagePullPolicy\":\"IfNotPresent\"}]}}}}'"
-		if kubeconfigpath != "" {
-			c += " --kubeconfig " + kubeconfigpath
-		}
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to patch deployment provider "+provider)
+			c = "kubectl patch deploy -n crossplane-system " + provider + " -p '{\"spec\": {\"template\": {\"spec\":{\"containers\":[{\"name\":\"package-runtime\",\"imagePullPolicy\":\"IfNotPresent\"}]}}}}'"
+			if kubeconfigpath != "" {
+				c += " --kubeconfig " + kubeconfigpath
+			}
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to patch deployment provider "+provider)
+			}
 		}
 
 	}
@@ -114,7 +112,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 		}
 	}
 
-	// RESPONSE: Cuantos paquetes entran en el configmap?
+	// TO RESPONSE: Cuantos paquetes entran en el configmap?
 	c = "kubectl create configmap package-cache -n crossplane-system --from-file=" + crossplane_folder_path
 	if kubeconfigpath != "" {
 		c += " --kubeconfig " + kubeconfigpath
@@ -125,11 +123,11 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 	}
 
 	c = "helm install crossplane /stratio/helm/crossplane" +
-		" --namespace crossplane-system" +
-		" --set packageCache.configMap=package-cache"
+		" --namespace crossplane-system"
 
 	if privateParams.Private {
-		c += " --set image.repository=" + keosRegUrl + "/crossplane/crossplane"
+		c += " --set image.repository=" + keosRegUrl + "/crossplane/crossplane" +
+			" --set packageCache.configMap=package-cache"
 	}
 
 	if kubeconfigpath != "" {

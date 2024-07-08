@@ -40,16 +40,17 @@ var awsInternalIngress []byte
 var awsPublicIngress []byte
 
 type AWSBuilder struct {
-	capxProvider        string
-	capxVersion         string
-	capxImageVersion    string
-	capxManaged         bool
-	capxName            string
-	capxEnvVars         []string
-	scParameters        commons.SCParameters
-	scProvisioner       string
-	csiNamespace        string
-	crossplaneProviders map[string]string
+	capxProvider               string
+	capxVersion                string
+	capxImageVersion           string
+	capxManaged                bool
+	capxName                   string
+	capxEnvVars                []string
+	scParameters               commons.SCParameters
+	scProvisioner              string
+	csiNamespace               string
+	crossplaneProviders        []string
+	crossplaneProvidersVersion string
 }
 
 func newAWSBuilder() *AWSBuilder {
@@ -103,18 +104,18 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 
 func (b *AWSBuilder) setCrossplaneProviders() {
 
-	b.crossplaneProviders = map[string]string{
-		"provider-family-aws":  "v1.8.0",
-		"provider-aws-ec2":     "v1.8.0",
-		"provider-aws-efs":     "v1.8.0",
-		"provider-aws-route53": "v1.8.0",
-		"provider-aws-iam":     "v1.8.0",
-	}
+	b.crossplaneProviders = []string{
+		"provider-family-aws",
+		"provider-aws-ec2",
+		"provider-aws-efs",
+		"provider-aws-route53",
+		"provider-aws-iam"}
+	b.crossplaneProvidersVersion = "v1.8.0"
 }
 
-func (b *AWSBuilder) GetCrossplaneProviders() map[string]string {
+func (b *AWSBuilder) GetCrossplaneProviders() ([]string, string) {
 	b.setCrossplaneProviders()
-	return b.crossplaneProviders
+	return b.crossplaneProviders, b.crossplaneProvidersVersion
 }
 
 func (b *AWSBuilder) getProvider() Provider {

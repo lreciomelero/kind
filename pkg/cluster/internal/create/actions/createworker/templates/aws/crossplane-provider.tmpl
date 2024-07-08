@@ -3,12 +3,17 @@ kind: Provider
 metadata:
   name: {{ $.Provider }}
 spec:
-  package: {{ $.Provider }}
-{{- if $.Private }}
+{{- if not $.Private }}
+  package: xpkg.upbound.io/upbound/{{ $.Provider }}:{{ $.Version }}
+  runtimeConfigRef:
+    name: custom-config-{{ $.Provider }}
+{{- else }}
+  package: {{ $.Provider }}:{{ $.Version }}
   skipDependencyResolution: true
   packagePullPolicy: Never
   runtimeConfigRef:
     name: custom-config-{{ $.Provider }}
+{{- end }}
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -22,8 +27,11 @@ spec:
       selector: {}
       template:
         spec:
+          {{- if not $.Private }}
+          containers: []
+          {{- else }}
           containers:
             - name: package-runtime
               imagePullPolicy: Always 
               image: {{ $.Image }}
-{{- end }}
+          {{- end }}
