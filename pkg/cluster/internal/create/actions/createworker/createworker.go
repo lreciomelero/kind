@@ -190,16 +190,19 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return err
 		}
 		c = `sed -i 's|docker.io|` + keosRegistry.url + `|g' /kind/manifests/default-cni.yaml`
+
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return err
 		}
 		c = `sed -i 's/{{ .PodSubnet }}/10.244.0.0\/16/g' /kind/manifests/default-cni.yaml`
+
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return err
 		}
 		c = `cat /kind/manifests/default-cni.yaml | kubectl apply -f -`
+
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return err
@@ -209,6 +212,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Deleting local storage plugin 🎖️")
 		defer ctx.Status.End(false)
 		c = `kubectl delete -f ` + storageDefaultPath + ` --force`
+
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return err
@@ -245,6 +249,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		" --docker-server=" + strings.Split(keosRegistry.url, "/")[0] +
 		" --docker-username=" + keosRegistry.user +
 		" --docker-password=" + keosRegistry.pass
+
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create docker-registry secret")
@@ -256,6 +261,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Create provider-system namespace
 		c = "kubectl create namespace " + provider.capxName + "-system"
+
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create "+provider.capxName+"-system namespace")
@@ -267,6 +273,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			" --docker-username=" + keosRegistry.user +
 			" --docker-password=" + keosRegistry.pass +
 			" --namespace=" + provider.capxName + "-system"
+
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create docker-registry secret")
@@ -274,8 +281,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Add imagePullSecrets to infrastructure-components.yaml
 		c = "sed -i '/containers:/i\\      imagePullSecrets:\\n      - name: regcred' " + infraComponents
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
 
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to add imagePullSecrets to infrastructure-components.yaml")
 		}
@@ -320,7 +327,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml "
 
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
-
 		if err != nil {
 			return errors.Wrap(err, "failed to add private image registry clusterctl config")
 		}
@@ -337,7 +343,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    tag: " + provider.capxImageVersion + "\" >> /root/.cluster-api/clusterctl.yaml "
 
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
-
 		if err != nil {
 			return errors.Wrap(err, "failed to overwrite image registry clusterctl config")
 		}
@@ -369,6 +374,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	// Create namespace for CAPI clusters (it must exists)
 	c = "kubectl create ns " + capiClustersNamespace
+
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to create cluster's Namespace")
@@ -377,6 +383,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	// Create the allow-all-egress network policy file in the container
 	allowCommonEgressNetPolPath := "/kind/allow-all-egress_netpol.yaml"
 	c = "echo \"" + allowCommonEgressNetPol + "\" > " + allowCommonEgressNetPolPath
+
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to write the allow-all-egress network policy")
@@ -450,7 +457,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Create worker-kubeconfig secret for keos cluster
 		c = "kubectl -n " + capiClustersNamespace + " create secret generic worker-kubeconfig --from-file " + kubeconfigPath
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
+    _, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create worker-kubeconfig secret")
 		}
@@ -492,7 +499,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
 			ctx.Status.End(true) // End Installing Calico in workload cluster
-
 		}
 
 		ctx.Status.Start("Preparing nodes in workload cluster 📦")
@@ -545,6 +551,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		} else {
 			// Wait for all the machine deployments to be ready
 			c = "kubectl -n " + capiClustersNamespace + " wait --for=condition=Ready --timeout=15m --all md"
+
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to create the worker Cluster")
@@ -638,6 +645,42 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 				ctx.Status.End(true)
 			}
+		if awsEKSEnabled {
+                        c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
+                        awsnoderules, err := commons.ExecuteCommand(n, c, 3, 5)
+                        if err != nil {
+                                return errors.Wrap(err, "failed to get aws-node clusterrole rules")
+                        }
+                        var rules []json.RawMessage
+                        err = json.Unmarshal([]byte(awsnoderules), &rules)
+                        if err != nil {
+                                return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
+                        }
+                        rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
+                        newawsnoderules, err := json.Marshal(rules)
+                        if err != nil {
+                                return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
+                        }
+                        c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
+                        _, err = commons.ExecuteCommand(n, c, 3, 5)
+                        if err != nil {
+                                return errors.Wrap(err, "failed to patch aws-node clusterrole")
+                        }
+                }
+
+                // Ensure CoreDNS replicas are assigned to different nodes
+                // once more than 2 control planes or workers are running
+                c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
+                _, err = commons.ExecuteCommand(n, c, 3, 5)
+                if err != nil {
+                        return errors.Wrap(err, "failed to restart coredns deployment")
+                }
+
+		// Wait for CoreDNS deployment to be ready
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to wait for coredns ready")
 		}
 
 		if awsEKSEnabled && a.clusterConfig.Spec.EKSLBController {

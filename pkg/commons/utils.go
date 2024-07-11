@@ -19,6 +19,7 @@ package commons
 import (
 	"bytes"
 	"context"
+	"regexp"
 	"time"
 	"unicode"
 
@@ -246,14 +247,14 @@ func ExecuteCommand(n nodes.Node, command string, timeout int, retries int, envV
 	if len(envVars) > 0 {
 		cmd.SetEnv(envVars[0]...)
 	}
-	retryConditions := []string{"dial tcp: lookup", "NotFound", "context deadline exceeded", "timed out waiting for the condition"}
+	retryConditions := []string{"dial tcp", "NotFound", "timed out waiting", "failed calling webhook.*timeout.*"}
 	provisionCommands := strings.Contains(command, "kubectl") || strings.Contains(command, "helm") || strings.Contains(command, "clusterctl")
 	for i := 0; i < retries; i++ {
 		raw = bytes.Buffer{}
 		err = cmd.SetStdout(&raw).SetStderr(&raw).Run()
 		retry := false
 		for _, condition := range retryConditions {
-			if strings.Contains(raw.String(), condition) {
+			if regexp.MustCompile(condition).MatchString(raw.String()) {
 				retry = true
 			}
 		}

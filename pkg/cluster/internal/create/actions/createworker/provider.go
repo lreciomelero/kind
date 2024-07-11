@@ -1039,7 +1039,7 @@ func customCoreDNS(n nodes.Node, keosCluster commons.KeosCluster) error {
 	}
 
 	// Patch configmap
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system patch cm " + coreDNSPatchFile + " --patch-file " + coreDNSTemplate
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system patch cm " + coreDNSPatchFile + " --patch-file " + coreDNSTemplatem
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to customize coreDNS patching ConfigMap")
@@ -1241,7 +1241,6 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 	if err != nil {
 		return errors.Wrap(err, "failed to scale the CAPI Deployment")
 	}
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n capi-system rollout status deploy capi-controller-manager --timeout 60s"
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to check rollout status for capi-controller-manager")
@@ -1276,6 +1275,7 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 
 	c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + capiPDBPath
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
+
 	if err != nil {
 		return errors.Wrap(err, "failed to apply "+p.capxName+" PodDisruptionBudget")
 	}
@@ -1294,6 +1294,7 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 	// Allow egress in cert-manager Namespace
 	c = "kubectl --kubeconfig " + kubeconfigPath + " -n cert-manager apply -f " + allowCommonEgressNetPolPath
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
+
 	if err != nil {
 		return errors.Wrap(err, "failed to apply cert-manager's NetworkPolicy")
 	}
