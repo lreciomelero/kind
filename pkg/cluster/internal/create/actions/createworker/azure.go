@@ -246,34 +246,6 @@ func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privatePa
 		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams); err != nil {
 			return err
 		}
-	// Deploy disk CSI driver
-	c = "helm install azuredisk-csi-driver /stratio/helm/azuredisk-csi-driver " +
-		" --kubeconfig " + k +
-		" --namespace " + b.csiNamespace +
-		" --set controller.podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict-local-volumes=socket-dir\\,azure-cred\""
-
-	if privateParams.Private {
-		c += " --set image.baseRepo=" + privateParams.KeosRegUrl
-	}
-
-	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to deploy Azure Disk CSI driver Helm Chart")
-	}
-
-	// Deploy file CSI driver
-	c = "helm install azurefile-csi-driver /stratio/helm/azurefile-csi-driver " +
-		" --kubeconfig " + k +
-		" --namespace " + b.csiNamespace +
-		" --set controller.podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict-local-volumes=socket-dir\\,azure-cred\""
-
-	if privateParams.Private {
-		c += " --set image.baseRepo=" + privateParams.KeosRegUrl
-	}
-
-	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to deploy Azure File CSI driver Helm Chart")
 	}
 
 	return nil

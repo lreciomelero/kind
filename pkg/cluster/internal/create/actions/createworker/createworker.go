@@ -22,7 +22,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
@@ -307,7 +306,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	if privateParams.Private {
-
 		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cluster-api:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -325,7 +323,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cert-manager\" >> /root/.cluster-api/clusterctl.yaml "
-
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to add private image registry clusterctl config")
@@ -457,7 +454,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Create worker-kubeconfig secret for keos cluster
 		c = "kubectl -n " + capiClustersNamespace + " create secret generic worker-kubeconfig --from-file " + kubeconfigPath
-    _, err = commons.ExecuteCommand(n, c, 5, 3)
+    	_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create worker-kubeconfig secret")
 		}
@@ -520,14 +517,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			c = "kubectl --kubeconfig " + kubeconfigPath +
 				" rollout status ds aws-node" +
 				" -n kube-system --timeout=3m"
-			fmt.Println(c)
 			_, err := commons.ExecuteCommand(n, c, 5, 5)
 			if err != nil {
 				return errors.Wrap(err, "failed to wait for aws-node daemonset to be ready")
 			}
 			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node " +
 				"--type='json' -p=" + string(awsnodePatch)
-			fmt.Println(c)
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to patch aws-node clusterrole")
@@ -590,6 +585,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.Start("Configuring Flux in workload cluster 🧭")
 		defer ctx.Status.End(false)
+
 		err = configureFlux(n, kubeconfigPath, privateParams, helmRegistry, a.keosCluster.Spec, chartsList)
 		if err != nil {
 			return errors.Wrap(err, "failed to install Flux in workload cluster")
@@ -598,6 +594,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.Start("Reconciling the existing Helm charts in workload cluster 🧲")
 		defer ctx.Status.End(false)
+		
 		err = reconcileCharts(n, kubeconfigPath, privateParams, a.keosCluster.Spec, chartsList, awsEKSEnabled)
 		if err != nil {
 			return errors.Wrap(err, "failed to reconcile with Flux the existing Helm charts in workload cluster")
@@ -642,39 +639,39 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 						return errors.Wrap(err, "failed to the kubernetes RBAC internal loadbalancing")
 					}
 				}
-
 				ctx.Status.End(true)
 			}
+		}
 		if awsEKSEnabled {
-                        c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
-                        awsnoderules, err := commons.ExecuteCommand(n, c, 3, 5)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to get aws-node clusterrole rules")
-                        }
-                        var rules []json.RawMessage
-                        err = json.Unmarshal([]byte(awsnoderules), &rules)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
-                        }
-                        rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
-                        newawsnoderules, err := json.Marshal(rules)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
-                        }
-                        c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
-                        _, err = commons.ExecuteCommand(n, c, 3, 5)
-                        if err != nil {
-                                return errors.Wrap(err, "failed to patch aws-node clusterrole")
-                        }
-                }
+			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
+            awsnoderules, err := commons.ExecuteCommand(n, c, 3, 5)
+            if err != nil {
+                    return errors.Wrap(err, "failed to get aws-node clusterrole rules")
+            }
+            var rules []json.RawMessage
+            err = json.Unmarshal([]byte(awsnoderules), &rules)
+            if err != nil {
+                    return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
+            }
+            rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
+            newawsnoderules, err := json.Marshal(rules)
+            if err != nil {
+                    return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
+            }
+            c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
+            _, err = commons.ExecuteCommand(n, c, 3, 5)
+            if err != nil {
+                    return errors.Wrap(err, "failed to patch aws-node clusterrole")
+            }
+        }
 
-                // Ensure CoreDNS replicas are assigned to different nodes
-                // once more than 2 control planes or workers are running
-                c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
-                _, err = commons.ExecuteCommand(n, c, 3, 5)
-                if err != nil {
-                        return errors.Wrap(err, "failed to restart coredns deployment")
-                }
+        // Ensure CoreDNS replicas are assigned to different nodes
+        // once more than 2 control planes or workers are running
+        c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
+        _, err = commons.ExecuteCommand(n, c, 3, 5)
+        if err != nil {
+            return errors.Wrap(err, "failed to restart coredns deployment")
+        }
 
 		// Wait for CoreDNS deployment to be ready
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
