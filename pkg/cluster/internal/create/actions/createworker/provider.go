@@ -1039,7 +1039,7 @@ func customCoreDNS(n nodes.Node, keosCluster commons.KeosCluster) error {
 	}
 
 	// Patch configmap
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system patch cm " + coreDNSPatchFile + " --patch-file " + coreDNSTemplatem
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system patch cm " + coreDNSPatchFile + " --patch-file " + coreDNSTemplate
 	_, err = commons.ExecuteCommand(n, c, 5, 3)
 	if err != nil {
 		return errors.Wrap(err, "failed to customize coreDNS patching ConfigMap")
