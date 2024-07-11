@@ -454,7 +454,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Create worker-kubeconfig secret for keos cluster
 		c = "kubectl -n " + capiClustersNamespace + " create secret generic worker-kubeconfig --from-file " + kubeconfigPath
-    	_, err = commons.ExecuteCommand(n, c, 5, 3)
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
 			return errors.Wrap(err, "failed to create worker-kubeconfig secret")
 		}
