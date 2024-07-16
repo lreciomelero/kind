@@ -120,7 +120,8 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 	}
 
 	if spec.ControlPlane.Managed {
-		if !reflect.DeepEqual(spec.ControlPlane.ExtraVolumes, commons.ExtraVolume{}) {
+
+		if len(spec.ControlPlane.ExtraVolumes) > 0 {
 			return errors.New("spec.control_plane.extra_volumes: Invalid value \"extra_volumes\": unsupported, extra_volumes cannot be indicated")
 		}
 		if err = validateAKSVersion(spec, creds, providerSecrets["SubscriptionID"]); err != nil {
@@ -443,7 +444,7 @@ func validateAKSNodes(wn commons.WorkerNodes) error {
 		if n.RootVolume.Type != "" && !commons.Contains(AzureAKSVolumes, n.RootVolume.Type) {
 			return errors.New("spec.worker_nodes." + n.Name + ".root_volume: Invalid value \"type\": " + n.RootVolume.Type + " unsupported, supported types: " + fmt.Sprint(strings.Join(AzureAKSVolumes, ", ")))
 		}
-		if !reflect.DeepEqual(n.ExtraVolumes, commons.ExtraVolume{}) {
+		if len(n.ExtraVolumes) > 0 {
 			return errors.New("spec.worker_nodes." + n.Name + ".extra_volumes: Invalid value \"extra_volumes\": unsupported, extra_volumes cannot be indicated")
 		}
 	}

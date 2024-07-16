@@ -402,18 +402,31 @@ func AzureGetConfig(secrets map[string]string) (*azidentity.ClientSecretCredenti
 	return cfg, nil
 }
 
-func initControlPlaneVolumes(s KeosSpec, volumeType string) KeosSpec {
+func initControlPlaneRootVolume(s KeosSpec, volumeType string, uniqueVolume bool) KeosSpec {
+	size := RootVolumeDefaultSize
+	if uniqueVolume {
+		size = RootVolumeManagedDefaultSize
+	}
+	checkAndFill(&s.ControlPlane.RootVolume.Size, size)
+	checkAndFill(&s.ControlPlane.RootVolume.Type, volumeType)
 
+	return s
+}
+
+func initControlPlaneCRIVolume(s KeosSpec, volumeType string) KeosSpec {
 	checkAndFill(&s.ControlPlane.CRIVolume.Size, CriVolumeSize)
 	checkAndFill(&s.ControlPlane.CRIVolume.Type, volumeType)
 	s.ControlPlane.CRIVolume.Label = CriVolumeLabel
 	s.ControlPlane.CRIVolume.MountPath = CriVolumeMountPath
+
+	return s
+}
+
+func initControlPlaneETCDVolume(s KeosSpec, volumeType string) KeosSpec {
 	checkAndFill(&s.ControlPlane.ETCDVolume.Size, EtcdVolumeSize)
 	checkAndFill(&s.ControlPlane.ETCDVolume.Type, volumeType)
 	s.ControlPlane.ETCDVolume.Label = EtcdVolumeLabel
 	s.ControlPlane.ETCDVolume.MountPath = EtcdVolumeMountPath
-	checkAndFill(&s.ControlPlane.RootVolume.Size, RootVolumeDefaultSize)
-	checkAndFill(&s.ControlPlane.RootVolume.Type, volumeType)
 
 	return s
 }

@@ -144,8 +144,8 @@ type Controlplane struct {
 	Tags            []map[string]string `yaml:"tags,omitempty"`
 	AWS             AWSCP               `yaml:"aws,omitempty"`
 	Azure           AzureCP             `yaml:"azure,omitempty"`
-	CRIVolume       ExtraVolume         `yaml:"cri_volume,omitempty"  validate:"dive"`
-	ETCDVolume      ExtraVolume         `yaml:"etcd_volume,omitempty"  validate:"dive"`
+	CRIVolume       CustomVolume        `yaml:"cri_volume,omitempty"  validate:"dive"`
+	ETCDVolume      CustomVolume        `yaml:"etcd_volume,omitempty"  validate:"dive"`
 	ExtraVolumes    []ExtraVolume       `yaml:"extra_volumes,omitempty" validate:"dive"`
 }
 
@@ -207,7 +207,7 @@ type WorkerNodes []struct {
 	NodeGroupMaxSize int               `yaml:"max_size,omitempty" validate:"omitempty,required_with=NodeGroupMinSize,numeric"`
 	NodeGroupMinSize *int              `yaml:"min_size,omitempty" validate:"omitempty,required_with=NodeGroupMaxSize,numeric,gte=0"`
 	RootVolume       RootVolume        `yaml:"root_volume,omitempty"`
-	CRIVolume        ExtraVolume       `yaml:"cri_volume,omitempty"  validate:"dive"`
+	CRIVolume        CustomVolume      `yaml:"cri_volume,omitempty"  validate:"dive"`
 	ExtraVolumes     []ExtraVolume     `yaml:"extra_volumes,omitempty" validate:"dive"`
 }
 
@@ -233,6 +233,18 @@ type ExtraVolume struct {
 	Type          string `yaml:"type,omitempty"`
 	Label         string `yaml:"label,omitempty"`
 	Encrypted     bool   `yaml:"encrypted,omitempty" validate:"boolean"`
+	EncryptionKey string `yaml:"encryption_key,omitempty"`
+	MountPath     string `yaml:"mount_path,omitempty"`
+}
+
+type CustomVolume struct {
+	Enabled       *bool  `yaml:"enabled,omitempty"`
+	Name          string `yaml:"name,omitempty"`
+	DeviceName    string `yaml:"device_name,omitempty"`
+	Size          int    `yaml:"size,omitempty"`
+	Type          string `yaml:"type,omitempty"`
+	Label         string `yaml:"label,omitempty"`
+	Encrypted     bool   `yaml:"encrypted,omitempty"`
 	EncryptionKey string `yaml:"encryption_key,omitempty"`
 	MountPath     string `yaml:"mount_path,omitempty"`
 }
@@ -437,58 +449,106 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 	switch s.InfraProvider {
 	case "aws":
 		volumeType = AWSVolumeType
+
 		if !s.ControlPlane.Managed {
-			s.ControlPlane.CRIVolume.DeviceName = CriVolumeDeviceName
-			s.ControlPlane.ETCDVolume.DeviceName = EtcdVolumeDeviceName
-			s = initControlPlaneVolumes(s, volumeType)
+
+			if s.ControlPlane.CRIVolume.Enabled == nil || *s.ControlPlane.CRIVolume.Enabled {
+				s.ControlPlane.CRIVolume.Enabled = ToPtr(true)
+				s.ControlPlane.CRIVolume.DeviceName = CriVolumeDeviceName
+				s = initControlPlaneCRIVolume(s, volumeType)
+			}
+			if s.ControlPlane.ETCDVolume.Enabled == nil || *s.ControlPlane.ETCDVolume.Enabled {
+				s.ControlPlane.ETCDVolume.Enabled = ToPtr(true)
+				s.ControlPlane.ETCDVolume.DeviceName = EtcdVolumeDeviceName
+				s = initControlPlaneETCDVolume(s, volumeType)
+			}
+			s = initControlPlaneRootVolume(s, volumeType, !*s.ControlPlane.CRIVolume.Enabled)
 		}
 
 		for i := range s.WorkerNodes {
-			s.WorkerNodes[i].CRIVolume.DeviceName = CriVolumeDeviceName
-			s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-			s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
-			checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-			checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
-			checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
-			checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
+
+			if s.WorkerNodes[i].CRIVolume.Enabled == nil || *s.WorkerNodes[i].CRIVolume.Enabled {
+				s.WorkerNodes[i].CRIVolume.Enabled = ToPtr(true)
+				s.WorkerNodes[i].CRIVolume.DeviceName = CriVolumeDeviceName
+				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
+				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
+			} else {
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeManagedDefaultSize)
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
+			}
+
 		}
 
 	case "gcp":
 		if !s.ControlPlane.Managed {
 			volumeType = GCPVMsVolumeType
-			s = initControlPlaneVolumes(s, volumeType)
-			for i := range s.WorkerNodes {
-				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
-				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
-				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+			if s.ControlPlane.CRIVolume.Enabled == nil || *s.ControlPlane.CRIVolume.Enabled {
+				s.ControlPlane.CRIVolume.Enabled = ToPtr(true)
+				s = initControlPlaneCRIVolume(s, volumeType)
+			}
+			if s.ControlPlane.ETCDVolume.Enabled == nil || *s.ControlPlane.ETCDVolume.Enabled {
+				s.ControlPlane.ETCDVolume.Enabled = ToPtr(true)
+				s = initControlPlaneETCDVolume(s, volumeType)
+			}
+			s = initControlPlaneRootVolume(s, volumeType, !*s.ControlPlane.CRIVolume.Enabled)
+		}
+		for i := range s.WorkerNodes {
+			if !s.ControlPlane.Managed {
+				if s.WorkerNodes[i].CRIVolume.Enabled == nil || *s.WorkerNodes[i].CRIVolume.Enabled {
+					s.WorkerNodes[i].CRIVolume.Enabled = ToPtr(true)
+					s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+					s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
+					checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+					checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+					checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+					checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
+				}
+			} else {
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeManagedDefaultSize)
 				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
 			}
+
 		}
+
 	case "azure":
 		if !s.ControlPlane.Managed {
 			volumeType = AzureVMsVolumeType
-			checkAndFill(&s.ControlPlane.CRIVolume.Name, CriVolumeName)
-			checkAndFill(&s.ControlPlane.ETCDVolume.Name, EtcdVolumeName)
-			s = initControlPlaneVolumes(s, volumeType)
-			for i := range s.WorkerNodes {
-				s.WorkerNodes[i].CRIVolume.Name = CriVolumeName
-				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
-				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
-				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
-				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+			if s.ControlPlane.CRIVolume.Enabled == nil || *s.ControlPlane.CRIVolume.Enabled {
+				s.ControlPlane.CRIVolume.Enabled = ToPtr(true)
+				s.ControlPlane.CRIVolume.Name = CriVolumeName
+				s = initControlPlaneCRIVolume(s, volumeType)
+			}
+			if s.ControlPlane.ETCDVolume.Enabled == nil || *s.ControlPlane.ETCDVolume.Enabled {
+				s.ControlPlane.ETCDVolume.Enabled = ToPtr(true)
+				s.ControlPlane.ETCDVolume.Name = EtcdVolumeName
+				s = initControlPlaneETCDVolume(s, volumeType)
+			}
+			s = initControlPlaneRootVolume(s, volumeType, !*s.ControlPlane.CRIVolume.Enabled)
+		}
+
+		for i := range s.WorkerNodes {
+
+			if !s.ControlPlane.Managed {
+				if s.WorkerNodes[i].CRIVolume.Enabled == nil || *s.WorkerNodes[i].CRIVolume.Enabled {
+					s.WorkerNodes[i].CRIVolume.Enabled = ToPtr(true)
+					s.WorkerNodes[i].CRIVolume.Name = CriVolumeName
+					s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
+					s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
+					checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
+					checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
+					checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
+					checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
+				}
+			} else {
+				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeManagedDefaultSize)
 				checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
 			}
 		}
-	}
-	if s.ControlPlane.Managed && s.InfraProvider == "aws" {
 
-		for i := range s.WorkerNodes {
-			checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeManagedDefaultSize)
-			checkAndFill(&s.WorkerNodes[i].RootVolume.Type, volumeType)
-		}
 	}
 
 	return s
