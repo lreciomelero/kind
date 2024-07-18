@@ -1,0 +1,9 @@
+apiVersion: configs.stratio.io/v1alpha1
+kind: xZonesConfig
+metadata:
+  name: {{ .ClusterName }}-zones-config
+spec:
+  region: {{ .Region }}
+  vpcId: {{ .VPCID }}
+  externalDomain: {{ .ExternalDomain }}
+  clusterName: {{ .ClusterName }}
