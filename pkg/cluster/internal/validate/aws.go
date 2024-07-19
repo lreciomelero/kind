@@ -141,12 +141,6 @@ func validateAWS(spec commons.KeosSpec, providerSecrets map[string]string) error
 			if ev.DeviceName == "" {
 				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"device_name\": is required")
 			}
-			if ev.DeviceName == commons.CriVolumeDeviceName {
-				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"device_name\": reserved for cri_volume")
-			}
-			if ev.DeviceName == commons.EtcdVolumeDeviceName {
-				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"device_name\": reserved for etcd_volume")
-			}
 			if err := validateVolumeType(ev.Type, AWSVolumes); err != nil {
 				return errors.Wrap(err, "spec.control_plane.extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
 			}
@@ -206,9 +200,6 @@ func validateAWS(spec commons.KeosSpec, providerSecrets map[string]string) error
 			}
 			if err := validateVolumeType(ev.Type, AWSVolumes); err != nil {
 				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
-			}
-			if ev.DeviceName == commons.CriVolumeDeviceName {
-				return errors.New("spec.worker_nodes." + wn.Name + ".extra_volumes[" + strconv.Itoa(i) + "]: \"device_name\": reserved for cri_volume")
 			}
 			if ev.Size < 8 {
 				return errors.New("spec.worker_nodes." + wn.Name + ".extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"size\": must be greater or equal to 8")

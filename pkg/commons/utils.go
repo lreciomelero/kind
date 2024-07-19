@@ -416,8 +416,6 @@ func initControlPlaneRootVolume(s KeosSpec, volumeType string, uniqueVolume bool
 func initControlPlaneCRIVolume(s KeosSpec, volumeType string) KeosSpec {
 	checkAndFill(&s.ControlPlane.CRIVolume.Size, CriVolumeSize)
 	checkAndFill(&s.ControlPlane.CRIVolume.Type, volumeType)
-	s.ControlPlane.CRIVolume.Label = CriVolumeLabel
-	s.ControlPlane.CRIVolume.MountPath = CriVolumeMountPath
 
 	return s
 }
@@ -425,8 +423,6 @@ func initControlPlaneCRIVolume(s KeosSpec, volumeType string) KeosSpec {
 func initControlPlaneETCDVolume(s KeosSpec, volumeType string) KeosSpec {
 	checkAndFill(&s.ControlPlane.ETCDVolume.Size, EtcdVolumeSize)
 	checkAndFill(&s.ControlPlane.ETCDVolume.Type, volumeType)
-	s.ControlPlane.ETCDVolume.Label = EtcdVolumeLabel
-	s.ControlPlane.ETCDVolume.MountPath = EtcdVolumeMountPath
 
 	return s
 }

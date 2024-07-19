@@ -29,15 +29,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var EtcdVolumeDeviceName = "/dev/xvdb"
-var EtcdVolumeMountPath = "/var/lib/etcd"
-var EtcdVolumeName = "etcd_disk"
-var EtcdVolumeLabel = "etcd_disk"
 var EtcdVolumeSize = 8
-var CriVolumeDeviceName = "/dev/xvdc"
-var CriVolumeName = "cri_disk"
-var CriVolumeMountPath = "/var/lib/containerd"
-var CriVolumeLabel = "cri_disk"
 var CriVolumeSize = 128
 var RootVolumeDefaultSize = 128
 var RootVolumeManagedDefaultSize = 256
@@ -239,14 +231,10 @@ type ExtraVolume struct {
 
 type CustomVolume struct {
 	Enabled       *bool  `yaml:"enabled,omitempty"`
-	Name          string `yaml:"name,omitempty"`
-	DeviceName    string `yaml:"device_name,omitempty"`
 	Size          int    `yaml:"size,omitempty"`
 	Type          string `yaml:"type,omitempty"`
-	Label         string `yaml:"label,omitempty"`
 	Encrypted     bool   `yaml:"encrypted,omitempty"`
 	EncryptionKey string `yaml:"encryption_key,omitempty"`
-	MountPath     string `yaml:"mount_path,omitempty"`
 }
 
 type ETCDVolume struct {
@@ -454,12 +442,10 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 
 			if s.ControlPlane.CRIVolume.Enabled == nil || *s.ControlPlane.CRIVolume.Enabled {
 				s.ControlPlane.CRIVolume.Enabled = ToPtr(true)
-				s.ControlPlane.CRIVolume.DeviceName = CriVolumeDeviceName
 				s = initControlPlaneCRIVolume(s, volumeType)
 			}
 			if s.ControlPlane.ETCDVolume.Enabled == nil || *s.ControlPlane.ETCDVolume.Enabled {
 				s.ControlPlane.ETCDVolume.Enabled = ToPtr(true)
-				s.ControlPlane.ETCDVolume.DeviceName = EtcdVolumeDeviceName
 				s = initControlPlaneETCDVolume(s, volumeType)
 			}
 			s = initControlPlaneRootVolume(s, volumeType, !*s.ControlPlane.CRIVolume.Enabled)
@@ -469,9 +455,6 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 
 			if s.WorkerNodes[i].CRIVolume.Enabled == nil || *s.WorkerNodes[i].CRIVolume.Enabled {
 				s.WorkerNodes[i].CRIVolume.Enabled = ToPtr(true)
-				s.WorkerNodes[i].CRIVolume.DeviceName = CriVolumeDeviceName
-				s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-				s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
 				checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
 				checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
 				checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
@@ -500,8 +483,6 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			if !s.ControlPlane.Managed {
 				if s.WorkerNodes[i].CRIVolume.Enabled == nil || *s.WorkerNodes[i].CRIVolume.Enabled {
 					s.WorkerNodes[i].CRIVolume.Enabled = ToPtr(true)
-					s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-					s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
 					checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
 					checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
 					checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)
@@ -519,12 +500,10 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			volumeType = AzureVMsVolumeType
 			if s.ControlPlane.CRIVolume.Enabled == nil || *s.ControlPlane.CRIVolume.Enabled {
 				s.ControlPlane.CRIVolume.Enabled = ToPtr(true)
-				s.ControlPlane.CRIVolume.Name = CriVolumeName
 				s = initControlPlaneCRIVolume(s, volumeType)
 			}
 			if s.ControlPlane.ETCDVolume.Enabled == nil || *s.ControlPlane.ETCDVolume.Enabled {
 				s.ControlPlane.ETCDVolume.Enabled = ToPtr(true)
-				s.ControlPlane.ETCDVolume.Name = EtcdVolumeName
 				s = initControlPlaneETCDVolume(s, volumeType)
 			}
 			s = initControlPlaneRootVolume(s, volumeType, !*s.ControlPlane.CRIVolume.Enabled)
@@ -535,9 +514,6 @@ func (s KeosSpec) InitVolumes() KeosSpec {
 			if !s.ControlPlane.Managed {
 				if s.WorkerNodes[i].CRIVolume.Enabled == nil || *s.WorkerNodes[i].CRIVolume.Enabled {
 					s.WorkerNodes[i].CRIVolume.Enabled = ToPtr(true)
-					s.WorkerNodes[i].CRIVolume.Name = CriVolumeName
-					s.WorkerNodes[i].CRIVolume.MountPath = CriVolumeMountPath
-					s.WorkerNodes[i].CRIVolume.Label = CriVolumeLabel
 					checkAndFill(&s.WorkerNodes[i].CRIVolume.Size, CriVolumeSize)
 					checkAndFill(&s.WorkerNodes[i].CRIVolume.Type, volumeType)
 					checkAndFill(&s.WorkerNodes[i].RootVolume.Size, RootVolumeDefaultSize)

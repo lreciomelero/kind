@@ -154,12 +154,6 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 			if ev.Name == "" {
 				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Required value: \"name\"")
 			}
-			if ev.Name == commons.CriVolumeName {
-				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"name\":" + ev.Name + " reserved for cri_volume")
-			}
-			if ev.Name == commons.EtcdVolumeName {
-				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"name\":" + ev.Name + " reserved for etcd_volume")
-			}
 			if err := validateVolumeType(ev.Type, AzureVolumes); err != nil {
 				return errors.Wrap(err, "spec.control_plane.extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
 			}
@@ -186,9 +180,6 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 			for i, ev := range wn.ExtraVolumes {
 				if ev.Name == "" {
 					return errors.New("spec.worker_nodes." + wn.Name + ".extra_volumes[" + strconv.Itoa(i) + "]: Required value: \"name\"")
-				}
-				if ev.Name == commons.CriVolumeName {
-					return errors.New("spec.worker_nodes." + wn.Name + ".extra_volumes[" + strconv.Itoa(i) + "]: \"name\": reserved for cri_volume")
 				}
 				if err := validateVolumeType(ev.Type, AzureVolumes); err != nil {
 					return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
