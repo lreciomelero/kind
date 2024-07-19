@@ -19,6 +19,9 @@ kustomizeController:
 
 notificationController:
   create: false
+
+policies:
+  create: false
   
 sourceController:
   image: {{ if $.Private }}{{ $.KeosRegUrl }}{{ else }}ghcr.io{{ end }}/fluxcd/source-controller

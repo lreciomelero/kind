@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 
 	"sigs.k8s.io/kind/pkg/cluster/internal/create/actions"
@@ -71,7 +71,7 @@ const (
 	cniDefaultFile          = "/kind/manifests/default-cni.yaml"
 	storageDefaultPath      = "/kind/manifests/default-storage.yaml"
 	infraGCPVersion         = "v1.6.1"
-	infraAWSVersion         = "v2.2.1"
+	infraAWSVersion         = "v2.5.2"
 )
 
 var PathsToBackupLocally = []string{
@@ -86,6 +86,9 @@ var allowCommonEgressNetPol string
 
 //go:embed files/gcp/rbac-loadbalancing.yaml
 var rbacInternalLoadBalancing string
+
+//go:embed files/aws/aws-node_rbac.yaml
+var rbacAWSNode string
 
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
@@ -491,7 +494,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, false)
+			err = installCalico(n, kubeconfigPath, privateParams, false)
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
@@ -513,19 +516,19 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to wait for capa-controller-manager")
 			}
 			// Patch aws-node clusterrole with the required permissions
-			awsnodePatch := `'[{"op": "add", "path": "/rules/0", "value": {"apiGroups": [""], "resources": ["pods"], "verbs": ["patch"]}}]'`
-			c = "kubectl --kubeconfig " + kubeconfigPath +
-				" rollout status ds aws-node" +
-				" -n kube-system --timeout=3m"
-			_, err := commons.ExecuteCommand(n, c, 5, 5)
-			if err != nil {
-				return errors.Wrap(err, "failed to wait for aws-node daemonset to be ready")
-			}
-			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node " +
-				"--type='json' -p=" + string(awsnodePatch)
+			// https://github.com/aws/amazon-vpc-cni-k8s?tab=readme-ov-file#annotate_pod_ip-v193
+			rbacAWSNodePath := "/kind/aws-node_rbac.yaml"
+
+			// Deploy Kubernetes additional RBAC aws node
+			c = "echo \"" + rbacAWSNode + "\" > " + rbacAWSNodePath
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
-				return errors.Wrap(err, "failed to patch aws-node clusterrole")
+				return errors.Wrap(err, "failed to write the kubernetes additional RBAC aws node")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + rbacAWSNodePath
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply the kubernetes additional RBAC aws node")
 			}
 		}
 
@@ -572,12 +575,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return err
 		}
 
-		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)
+		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath)
 		if err != nil {
 			return err
 		}
 
-		err = provider.configCAPIWorker(n, a.keosCluster, kubeconfigPath, allowCommonEgressNetPolPath)
+		err = provider.configCAPIWorker(n, a.keosCluster, kubeconfigPath)
 		if err != nil {
 			return err
 		}
@@ -642,28 +645,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				ctx.Status.End(true)
 			}
 		}
-		if awsEKSEnabled {
-			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
-            awsnoderules, err := commons.ExecuteCommand(n, c, 3, 5)
-            if err != nil {
-                    return errors.Wrap(err, "failed to get aws-node clusterrole rules")
-            }
-            var rules []json.RawMessage
-            err = json.Unmarshal([]byte(awsnoderules), &rules)
-            if err != nil {
-                    return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
-            }
-            rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
-            newawsnoderules, err := json.Marshal(rules)
-            if err != nil {
-                    return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
-            }
-            c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
-            _, err = commons.ExecuteCommand(n, c, 3, 5)
-            if err != nil {
-                    return errors.Wrap(err, "failed to patch aws-node clusterrole")
-            }
-        }
 
         // Ensure CoreDNS replicas are assigned to different nodes
         // once more than 2 control planes or workers are running
@@ -691,29 +672,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.End(true) // End Installing AWS LB controller in workload cluster
 		}
 
-		if awsEKSEnabled {
-			c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole aws-node -o jsonpath='{.rules}'"
-			awsnoderules, err := commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to get aws-node clusterrole rules")
-			}
-			var rules []json.RawMessage
-			err = json.Unmarshal([]byte(awsnoderules), &rules)
-			if err != nil {
-				return errors.Wrap(err, "failed to parse aws-node clusterrole rules")
-			}
-			rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["pods"],"verbs": ["patch"]}`))
-			newawsnoderules, err := json.Marshal(rules)
-			if err != nil {
-				return errors.Wrap(err, "failed to marshal aws-node clusterrole rules")
-			}
-			c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole aws-node -p '{\"rules\": " + string(newawsnoderules) + "}'"
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to patch aws-node clusterrole")
-			}
-		}
-
 		ctx.Status.Start("Installing StorageClass in workload cluster 💾")
 		defer ctx.Status.End(false)
 
@@ -735,6 +693,56 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 		defer ctx.Status.End(false)
+		// Allow egress in tigera-operator namespace
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n tigera-operator apply -f " + allowCommonEgressNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply tigera-operator egress NetworkPolicy")
+		}
+			// Allow egress in calico-system namespace
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n calico-system apply -f " + allowCommonEgressNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply calico-system egress NetworkPolicy")
+		}
+
+		// Allow egress in CAPX's Namespace
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + provider.capxName + "-system apply -f " + allowCommonEgressNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply CAPX's NetworkPolicy in workload cluster")
+		}
+
+		capiDeployments := []struct {
+			name      string
+			namespace string
+		}{
+			{name: "capi-controller-manager", namespace: "capi-system"},
+			{name: "capi-kubeadm-control-plane-controller-manager", namespace: "capi-kubeadm-control-plane-system"},
+			{name: "capi-kubeadm-bootstrap-controller-manager", namespace: "capi-kubeadm-bootstrap-system"},
+		}
+		allowedNamePattern := regexp.MustCompile(`^capi-kubeadm-(control-plane|bootstrap)-controller-manager$`)
+
+		// Allow egress in CAPI's Namespaces
+		for _, deployment := range capiDeployments {
+			if !provider.capxManaged || (provider.capxManaged && !allowedNamePattern.MatchString(deployment.name)) {
+				c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + deployment.namespace + " apply -f " + allowCommonEgressNetPolPath
+				_, err = commons.ExecuteCommand(n, c, 5, 3)
+				if err != nil {
+					return errors.Wrap(err, "failed to apply CAPI's egress NetworkPolicy in namespace "+deployment.namespace)
+				}
+			}
+		}
+
+	// Allow egress in cert-manager Namespace
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n cert-manager apply -f " + allowCommonEgressNetPolPath
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to apply cert-manager's NetworkPolicy")
+	}
+
+
 		// Use Calico as network policy engine in managed systems
 		if provider.capxProvider != "azure" && !isMachinePool {
 			// Create the allow and deny (global) network policy file in the container

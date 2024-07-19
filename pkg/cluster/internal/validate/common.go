@@ -32,7 +32,7 @@ const (
 	MinWorkerNodeNameLength = 3
 )
 
-var k8sVersionSupported = []string{"1.28", "1.29"}
+var k8sVersionSupported = []string{"1.28", "1.29", "1.30"}
 
 func validateCommon(spec commons.KeosSpec, clusterConfigSpec commons.ClusterConfigSpec) error {
 	var err error

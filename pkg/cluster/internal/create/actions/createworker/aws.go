@@ -65,8 +65,8 @@ func newAWSBuilder() *AWSBuilder {
 
 func (b *AWSBuilder) setCapx(managed bool) {
 	b.capxProvider = "aws"
-	b.capxVersion = "v2.2.1"
-	b.capxImageVersion = "v2.2.1"
+	b.capxVersion = "v2.5.2"
+	b.capxImageVersion = "v2.5.2"
 	b.capxName = "capa"
 	b.capxManaged = managed
 	b.csiNamespace = "kube-system"
@@ -131,22 +131,22 @@ var awsCharts = ChartsDictionary{
 			},
 			"unmanaged": {
 				"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Namespace: "kube-system", Pull: true},
-				"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.31.0", Namespace: "kube-system", Pull: false},
+				"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.32.0", Namespace: "kube-system", Pull: false},
 				"cluster-autoscaler":           {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.35.0", Namespace: "kube-system", Pull: false},
 				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 		"30": {
 			"managed": {
-				"aws-load-balancer-controller": {Repository: "https://aws.github.io/eks-charts", Version: "1.8.0", Namespace: "kube-system", Pull: false},
+				"aws-load-balancer-controller": {Repository: "https://aws.github.io/eks-charts", Version: "1.8.1", Namespace: "kube-system", Pull: false},
 				"cluster-autoscaler":           {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
-				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: false},
+				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: false},
 			},
 			"unmanaged": {
 				"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Namespace: "kube-system", Pull: true},
 				"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.31.0", Namespace: "kube-system", Pull: false},
 				"cluster-autoscaler":           {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
-				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
+				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
 			},
 		},
 	},

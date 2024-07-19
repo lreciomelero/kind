@@ -60,7 +60,7 @@ const (
 	CAPICoreProvider         = "cluster-api"
 	CAPIBootstrapProvider    = "kubeadm"
 	CAPIControlPlaneProvider = "kubeadm"
-	CAPIVersion              = "v1.5.3"
+	CAPIVersion              = "v1.7.4"
 
 	scName = "keos"
 
@@ -460,6 +460,7 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 	return nil
 }
 
+
 func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry KeosRegistry, clusterConfig *commons.ClusterConfig, kubeconfigPath string, firstInstallation bool, helmRepoCreds HelmRegistry) error {
 	var c string
 	var err error
@@ -567,9 +568,6 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 				return errors.Wrap(err, "failed to marshal docker registries credentials")
 			}
 			c = "kubectl -n kube-system create secret generic keoscluster-registries --from-literal=credentials='" + string(jsonDockerRegistriesCredentials) + "'"
-			if kubeconfigPath != "" {
-				c = c + " --kubeconfig " + kubeconfigPath
-			}
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to create keoscluster-registries secret")
@@ -673,7 +671,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 	return nil
 }
 
-func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCommonEgressNetPolPath string, dryRun bool) error {
+func installCalico(n nodes.Node, k string, privateParams PrivateParams, dryRun bool) error {
 	var c string
 	var cmd exec.Cmd
 	var err error
@@ -714,25 +712,11 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, allowCom
 			return errors.Wrap(err, "failed to deploy Calico Helm Chart")
 		}
 
-		// Allow egress in tigera-operator namespace
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n tigera-operator apply -f " + allowCommonEgressNetPolPath
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to apply tigera-operator egress NetworkPolicy")
-		}
-
 		// Wait for calico-system namespace to be created
 		c = "kubectl --kubeconfig " + kubeconfigPath + " get ns calico-system"
 		_, err = commons.ExecuteCommand(n, c, 20, 5)
 		if err != nil {
 			return errors.Wrap(err, "failed to wait for calico-system namespace")
-		}
-
-		// Allow egress in calico-system namespace
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n calico-system apply -f " + allowCommonEgressNetPolPath
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to apply calico-system egress NetworkPolicy")
 		}
 
 		// Create calico metrics services
@@ -919,7 +903,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartVersion = entry.Version
 			// tigera-operator-helm-values.yaml is required to install Calico as Network Policy engine
 			if name == "tigera-operator" && awsEKSEnabled {
-				if err := installCalico(n, k, privateParams, "", true); err != nil {
+				if err := installCalico(n, k, privateParams, true); err != nil {
 					return err
 				}
 				// Create namespace for tigera-operator in workload cluster
@@ -1063,7 +1047,7 @@ func customCoreDNS(n nodes.Node, keosCluster commons.KeosCluster) error {
 }
 
 // installCAPXWorker installs CAPX in the worker cluster
-func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosCluster, kubeconfigPath string, allowAllEgressNetPolPath string) error {
+func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosCluster, kubeconfigPath string) error {
 	var c string
 	var err error
 
@@ -1176,17 +1160,10 @@ func (p *Provider) installCAPXWorker(n nodes.Node, keosCluster commons.KeosClust
 		return errors.Wrap(err, "failed to apply "+p.capxName+" PodDisruptionBudget")
 	}
 
-	// Allow egress in CAPX's Namespace
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + p.capxName + "-system apply -f " + allowAllEgressNetPolPath
-	_, err = commons.ExecuteCommand(n, c, 5, 3)
-	if err != nil {
-		return errors.Wrap(err, "failed to apply CAPX's NetworkPolicy in workload cluster")
-	}
-
 	return nil
 }
 
-func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluster, kubeconfigPath string, allowCommonEgressNetPolPath string) error {
+func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluster, kubeconfigPath string) error {
 	var c string
 	var err error
 	var capiKubeadmReplicas int
@@ -1278,25 +1255,6 @@ func (p *Provider) configCAPIWorker(n nodes.Node, keosCluster commons.KeosCluste
 
 	if err != nil {
 		return errors.Wrap(err, "failed to apply "+p.capxName+" PodDisruptionBudget")
-	}
-
-	// Allow egress in CAPI's Namespaces
-	for _, deployment := range capiDeployments {
-		if !p.capxManaged || (p.capxManaged && !allowedNamePattern.MatchString(deployment.name)) {
-			c = "kubectl --kubeconfig " + kubeconfigPath + " -n " + deployment.namespace + " apply -f " + allowCommonEgressNetPolPath
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to apply CAPI's egress NetworkPolicy in namespace "+deployment.namespace)
-			}
-		}
-	}
-
-	// Allow egress in cert-manager Namespace
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n cert-manager apply -f " + allowCommonEgressNetPolPath
-	_, err = commons.ExecuteCommand(n, c, 5, 3)
-
-	if err != nil {
-		return errors.Wrap(err, "failed to apply cert-manager's NetworkPolicy")
 	}
 
 	return nil

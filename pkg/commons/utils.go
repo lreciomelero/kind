@@ -19,6 +19,7 @@ package commons
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"regexp"
 	"time"
 	"unicode"
@@ -255,6 +256,7 @@ func ExecuteCommand(n nodes.Node, command string, timeout int, retries int, envV
 		retry := false
 		for _, condition := range retryConditions {
 			if regexp.MustCompile(condition).MatchString(raw.String()) {
+				fmt.Println(raw.String())
 				retry = true
 			}
 		}
