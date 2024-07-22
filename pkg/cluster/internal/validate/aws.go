@@ -105,36 +105,41 @@ func validateAWS(spec commons.KeosSpec, providerSecrets map[string]string) error
 		if err := validateVolumeType(spec.ControlPlane.RootVolume.Type, AWSVolumes); err != nil {
 			return errors.Wrap(err, "spec.control_plane.root_volume: Invalid value: \"type\"")
 		}
-		if spec.ControlPlane.CRIVolume.Enabled != nil && !*spec.ControlPlane.CRIVolume.Enabled {
-			defaultCRIVolume := commons.CustomVolume{}
-			defaultCRIVolume.Enabled = commons.ToPtr(false)
-			if !reflect.DeepEqual(spec.ControlPlane.CRIVolume, defaultCRIVolume) {
-				return errors.New("spec.control_plane.cri_volume: Invalid state: no other fields should be specified if enabled is false")
+		if spec.ControlPlane.CRIVolume.Enabled != nil {
+			if !*spec.ControlPlane.CRIVolume.Enabled {
+				defaultCRIVolume := commons.CustomVolume{}
+				defaultCRIVolume.Enabled = commons.ToPtr(false)
+				if !reflect.DeepEqual(spec.ControlPlane.CRIVolume, defaultCRIVolume) {
+					return errors.New("spec.control_plane.cri_volume: Invalid state: no other fields should be specified if enabled is false")
+				}
+			} else {
+				if err := validateVolumeType(spec.ControlPlane.CRIVolume.Type, AWSVolumes); err != nil {
+					return errors.Wrap(err, "spec.control_plane.cri_volume: Invalid value: \"type\"")
+				}
+
+				if !reflect.DeepEqual(spec.ControlPlane.CRIVolume, commons.CustomVolume{}) && spec.ControlPlane.CRIVolume.Size < 8 {
+					return errors.New("spec.control_plane.cri_volume: Invalid value: \"size\": must be greater or equal to 8")
+				}
 			}
 		}
 
-		if err := validateVolumeType(spec.ControlPlane.CRIVolume.Type, AWSVolumes); err != nil {
-			return errors.Wrap(err, "spec.control_plane.cri_volume: Invalid value: \"type\"")
-		}
+		if spec.ControlPlane.ETCDVolume.Enabled != nil {
+			if !*spec.ControlPlane.ETCDVolume.Enabled {
+				defaultETCDVolume := commons.CustomVolume{}
+				defaultETCDVolume.Enabled = commons.ToPtr(false)
+				if !reflect.DeepEqual(spec.ControlPlane.ETCDVolume, defaultETCDVolume) {
+					return errors.New("spec.control_plane.etcd_volume: Invalid state: no other fields should be specified if enabled is false")
+				}
+			} else {
 
-		if spec.ControlPlane.ETCDVolume.Enabled != nil && !*spec.ControlPlane.ETCDVolume.Enabled {
-			defaultETCDVolume := commons.CustomVolume{}
-			defaultETCDVolume.Enabled = commons.ToPtr(false)
-			if !reflect.DeepEqual(spec.ControlPlane.ETCDVolume, defaultETCDVolume) {
-				return errors.New("spec.control_plane.etcd_volume: Invalid state: no other fields should be specified if enabled is false")
+				if err := validateVolumeType(spec.ControlPlane.ETCDVolume.Type, AWSVolumes); err != nil {
+					return errors.Wrap(err, "spec.control_plane.etcd_volume: Invalid value: \"type\"")
+				}
+
+				if !reflect.DeepEqual(spec.ControlPlane.ETCDVolume, commons.CustomVolume{}) && spec.ControlPlane.ETCDVolume.Size < 8 {
+					return errors.New("spec.control_plane.etcd_volume: Invalid value: \"size\": must be greater or equal to 8")
+				}
 			}
-		}
-
-		if err := validateVolumeType(spec.ControlPlane.ETCDVolume.Type, AWSVolumes); err != nil {
-			return errors.Wrap(err, "spec.control_plane.etcd_volume: Invalid value: \"type\"")
-		}
-
-		if !reflect.DeepEqual(spec.ControlPlane.ETCDVolume, commons.CustomVolume{}) && spec.ControlPlane.ETCDVolume.Size < 8 {
-			return errors.New("spec.control_plane.cri_volume: Invalid value: \"size\": must be greater or equal to 8")
-		}
-
-		if !reflect.DeepEqual(spec.ControlPlane.CRIVolume, commons.CustomVolume{}) && spec.ControlPlane.CRIVolume.Size < 8 {
-			return errors.New("spec.control_plane.cri_volume: Invalid value: \"size\": must be greater or equal to 8")
 		}
 
 		for i, ev := range spec.ControlPlane.ExtraVolumes {
@@ -182,15 +187,20 @@ func validateAWS(spec commons.KeosSpec, providerSecrets map[string]string) error
 		if err := validateVolumeType(wn.RootVolume.Type, AWSVolumes); err != nil {
 			return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
 		}
-		if wn.CRIVolume.Enabled != nil && !*wn.CRIVolume.Enabled {
-			defaultCRIVolume := commons.CustomVolume{}
-			defaultCRIVolume.Enabled = commons.ToPtr(false)
-			if !reflect.DeepEqual(wn.CRIVolume, defaultCRIVolume) {
-				return errors.New("spec.worker_nodes." + wn.Name + ".cri_volume: Invalid state: no other fields should be specified if enabled is false")
-			}
-		} else {
-			if wn.CRIVolume.Size < 8 {
-				return errors.New("spec.worker_nodes." + wn.Name + ".cri_volume: Invalid value: \"size\": must be greater or equal to 8")
+		if wn.CRIVolume.Enabled != nil {
+			if !*wn.CRIVolume.Enabled {
+				defaultCRIVolume := commons.CustomVolume{}
+				defaultCRIVolume.Enabled = commons.ToPtr(false)
+				if !reflect.DeepEqual(wn.CRIVolume, defaultCRIVolume) {
+					return errors.New("spec.worker_nodes." + wn.Name + ".cri_volume: Invalid state: no other fields should be specified if enabled is false")
+				}
+			} else {
+				if err := validateVolumeType(wn.CRIVolume.Type, AWSVolumes); err != nil {
+					return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".cri_volume: Invalid value: \"type\"")
+				}
+				if wn.CRIVolume.Size < 8 {
+					return errors.New("spec.worker_nodes." + wn.Name + ".cri_volume: Invalid value: \"size\": must be greater or equal to 8")
+				}
 			}
 		}
 

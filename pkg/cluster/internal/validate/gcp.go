@@ -105,6 +105,9 @@ func validateGCP(spec commons.KeosSpec, providerSecrets map[string]string) error
 			if err := validateVolumeType(wn.RootVolume.Type, GCPVolumes); err != nil {
 				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
 			}
+			if err := validateVolumeType(wn.CRIVolume.Type, GCPVolumes); err != nil {
+				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".cri_volume: Invalid value: \"type\"")
+			}
 			for i, ev := range wn.ExtraVolumes {
 				if err := validateVolumeType(ev.Type, GCPVolumes); err != nil {
 					return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")

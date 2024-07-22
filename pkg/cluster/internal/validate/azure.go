@@ -172,6 +172,9 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 			if err := validateVolumeType(wn.RootVolume.Type, AzureVolumes); err != nil {
 				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
 			}
+			if err := validateVolumeType(wn.CRIVolume.Type, AzureVolumes); err != nil {
+				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".cri_volume: Invalid value: \"type\"")
+			}
 
 			premiumStorage := hasAzurePremiumStorage(wn.Size)
 			if isPremium(wn.RootVolume.Type) && !premiumStorage {
