@@ -143,7 +143,6 @@ type Controlplane struct {
 
 type Keos struct {
 	Flavour string `yaml:"flavour,omitempty"`
-	Version string `yaml:"version,omitempty"`
 }
 
 type Networks struct {
