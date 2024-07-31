@@ -194,14 +194,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 	}
 
-	ctx.Status.Start("Installing Crossplane and deploying crs🎖️")
-	_, err = installCrossplane(n, "", keosRegistry.url, providerParams.Credentials, infra, privateParams, false, allowCommonEgressNetPol)
-	if err != nil {
-		return err
-	}
-	// a.keosCluster = offlineKeosCluster
-	ctx.Status.End(true)
-
 	ctx.Status.Start("Installing CAPx 🎖️")
 	defer ctx.Status.End(false)
 
@@ -445,6 +437,13 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		ctx.Status.End(true) // End Saving the workload cluster kubeconfig
+
+		ctx.Status.Start("Installing Crossplane and deploying crs🎖️")
+		_, err = installCrossplane(n, "", keosRegistry.url, providerParams.Credentials, infra, privateParams, false, allowCommonEgressNetPol)
+		if err != nil {
+			return err
+		}
+		ctx.Status.End(true)
 
 		// Install unmanaged cluster addons
 		if !a.keosCluster.Spec.ControlPlane.Managed {

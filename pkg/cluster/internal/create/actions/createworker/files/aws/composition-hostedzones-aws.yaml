@@ -29,6 +29,9 @@ spec:
       - fromFieldPath: status.atProvider.arn
         toFieldPath: status.hostedZones.privateZoneArn
         type: ToCompositeFieldPath
+      - fromFieldPath: spec.providerConfigName
+        toFieldPath: spec.providerConfigRef.name
+        type: FromCompositeFieldPath
       base:
         apiVersion: route53.aws.upbound.io/v1beta1
         kind: Zone
@@ -56,6 +59,9 @@ spec:
       - fromFieldPath: status.atProvider.arn
         toFieldPath: status.hostedZones.publicZoneArn
         type: ToCompositeFieldPath
+      - fromFieldPath: spec.providerConfigName
+        toFieldPath: spec.providerConfigRef.name
+        type: FromCompositeFieldPath
       base:
         apiVersion: route53.aws.upbound.io/v1beta1
         kind: Zone
@@ -88,6 +94,9 @@ spec:
           strategy: string
           string:
             fmt: "%s-external-dns-prerrequisite-user"
+      - fromFieldPath: spec.providerConfigName
+        toFieldPath: spec.providerConfigRef.name
+        type: FromCompositeFieldPath
       base:
         apiVersion: iam.aws.upbound.io/v1beta1
         kind: User
@@ -122,6 +131,9 @@ spec:
           strategy: string
           string:
             fmt: "%s-external-dns-prerrequisite-policy"
+      - fromFieldPath: spec.providerConfigName
+        toFieldPath: spec.providerConfigRef.name
+        type: FromCompositeFieldPath
       - type: CombineFromComposite
         toFieldPath: spec.forProvider.policy
         combine:
@@ -195,6 +207,9 @@ spec:
           strategy: string
           string:
             fmt: "%s-external-dns-prerrequisite-user"
+      - fromFieldPath: spec.providerConfigName
+        toFieldPath: spec.providerConfigRef.name
+        type: FromCompositeFieldPath
       base:
         apiVersion: iam.aws.upbound.io/v1beta1
         kind: UserPolicyAttachment
@@ -238,6 +253,9 @@ spec:
           strategy: string
           string:
             fmt: "%s-external-dns-accesskey-secret"
+      - fromFieldPath: spec.providerConfigName
+        toFieldPath: spec.providerConfigRef.name
+        type: FromCompositeFieldPath
       base:
         apiVersion: iam.aws.upbound.io/v1beta1
         kind: AccessKey

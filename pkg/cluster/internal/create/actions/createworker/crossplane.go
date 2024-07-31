@@ -2,6 +2,7 @@ package createworker
 
 import (
 	_ "embed"
+	"fmt"
 	"time"
 
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -14,7 +15,7 @@ var (
 	crossplane_provider_creds_file  = "/kind/crossplane-provider-creds.txt"
 	crossplane_provider_config_file = "/kind/crossplane-provider-creds.yaml"
 	crossplane_crs_file             = "/kind/crossplane-crs.yaml"
-	crossplane_crs_file_workload    = "/kind/crossplane-crs-workload.yaml"
+	// crossplane_crs_file_workload    = "/kind/crossplane-crs-workload.yaml"
 )
 
 type CrossplaneProviderParams struct {
@@ -69,6 +70,7 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 			return errors.Wrap(err, "failed to wait provider "+provider)
 		}
 
+		//TODO: Check if this is necessary
 		if privateRegistry {
 			time.Sleep(40 * time.Second)
 
@@ -112,14 +114,16 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 		}
 	}
 
-	// TO RESPONSE: Cuantos paquetes entran en el configmap?
-	c = "kubectl create configmap package-cache -n crossplane-system --from-file=" + crossplane_folder_path
-	if kubeconfigpath != "" {
-		c += " --kubeconfig " + kubeconfigpath
-	}
-	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	if err != nil {
-		return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane preflights")
+	if privateParams.Private {
+		// TO RESPONSE: Cuantos paquetes entran en el configmap?
+		c = "kubectl create configmap package-cache -n crossplane-system --from-file=" + crossplane_folder_path
+		if kubeconfigpath != "" {
+			c += " --kubeconfig " + kubeconfigpath
+		}
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane preflights")
+		}
 	}
 
 	c = "helm install crossplane /stratio/helm/crossplane" +
@@ -216,24 +220,25 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 }
 
 func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, credentials map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool) (commons.KeosCluster, error) {
-	crossplaneCRManifests, err := infra.getCrossplaneCRManifests(privateParams, credentials, workloadClusterInstallation)
+	crossplaneCRManifests, err := infra.getCrossplaneCRManifests(privateParams.KeosCluster, credentials)
 	if err != nil {
 		return privateParams.KeosCluster, err
 	}
-	if crossplaneCRManifests != "" {
-		c := "echo '" + crossplaneCRManifests + "' > " + crossplane_crs_file
-		if workloadClusterInstallation {
-			c = "echo '" + crossplaneCRManifests + "' > " + crossplane_crs_file_workload
-		}
+	for _, manifest := range crossplaneCRManifests {
+		fmt.Println("manifest: ", manifest)
+		c := "echo '" + manifest + "' > " + crossplane_crs_file
+		// if workloadClusterInstallation {
+		// 	c = "echo '" + crossplaneCRManifests + "' > " + crossplane_crs_file_workload
+		// }
 		_, err = commons.ExecuteCommand(n, c, 3, 5)
 		if err != nil {
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane crs file")
 		}
 
 		c = "kubectl create -f " + crossplane_crs_file
-		if workloadClusterInstallation {
-			c = "kubectl create -f " + crossplane_crs_file_workload
-		}
+		// if workloadClusterInstallation {
+		// 	c = "kubectl create -f " + crossplane_crs_file_workload
+		// }
 		if kubeconfigpath != "" {
 			c += " --kubeconfig " + kubeconfigpath
 		}

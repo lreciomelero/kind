@@ -274,8 +274,8 @@ func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]s
 	return "", nil
 }
 
-func (b *GCPBuilder) getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
-	return "", nil
+func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string) ([]string, error) {
+	return []string{}, nil
 }
 
 func (b *GCPBuilder) setCrossplaneProviders() {

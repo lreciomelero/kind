@@ -1,12 +1,12 @@
 apiVersion:  apiextensions.crossplane.io/v1 
 kind:  CompositeResourceDefinition 
 metadata: 
-  name:  xzonesconfigs.configs.stratio.io 
+  name:  xiamconfigs.configs.stratio.io 
 spec: 
   group: configs.stratio.io
   names: 
-    kind:  xZonesConfig 
-    plural:  xzonesconfigs
+    kind:  xIamConfig 
+    plural:  xiamconfigs
   versions: 
     -  name:  v1alpha1 
        served:  true 
@@ -18,27 +18,11 @@ spec:
             spec: 
                 type:  object
                 properties:
-                  region:
-                    type: string
-                  vpcId:
-                    type: string
-                  externalDomain:
-                    type: string
                   clusterName:
                     type: string
-                  providerConfigName:
-                    type: string
-                    default: "default"
             status:
                 type: object
                 properties:
-                  hostedZones:
-                    type: object
-                    properties:
-                      publicZoneArn: 
-                        type: string
-                      privateZoneArn: 
-                        type: string
                   policy:
                     type: object
                     properties:

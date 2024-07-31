@@ -4,6 +4,7 @@ metadata:
   name: {{ .ClusterName }}-zones-config
 spec:
   region: {{ .Region }}
-  vpcId: {{ .VPCID }}
+  vpcId: {{ .VPCId }}
   externalDomain: {{ .ExternalDomain }}
   clusterName: {{ .ClusterName }}
+  providerConfigName: {{ .ProviderConfigName }}

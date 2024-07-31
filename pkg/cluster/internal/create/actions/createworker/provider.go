@@ -93,7 +93,7 @@ type PBuilder interface {
 	getRegistryCredentials(p ProviderParams, u string) (string, string, error)
 	postInstallPhase(n nodes.Node, k string) error
 	getCrossplaneProviderConfigContent(credentials map[string]string) (string, error)
-	getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error)
+	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string) ([]string, error)
 	GetCrossplaneProviders() ([]string, string)
 }
 
@@ -231,8 +231,8 @@ func (i *Infra) getCrossplaneProviderConfigContent(credentials map[string]string
 	return i.builder.getCrossplaneProviderConfigContent(credentials)
 }
 
-func (i *Infra) getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
-	return i.builder.getCrossplaneCRManifests(privateParams, credentials, workloadClusterInstallation)
+func (i *Infra) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string) ([]string, error) {
+	return i.builder.getCrossplaneCRManifests(keosCluster, credentials)
 }
 
 func (i *Infra) GetCrossplaneProviders() ([]string, string) {

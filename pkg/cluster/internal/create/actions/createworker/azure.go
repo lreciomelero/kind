@@ -365,8 +365,8 @@ func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
 	return "", nil
 }
-func (b *AzureBuilder) getCrossplaneCRManifests(privateParams PrivateParams, credentials map[string]string, workloadClusterInstallation bool) (string, error) {
-	return "", nil
+func (b *AzureBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string) ([]string, error) {
+	return []string{}, nil
 }
 
 func (b *AzureBuilder) setCrossplaneProviders() {
