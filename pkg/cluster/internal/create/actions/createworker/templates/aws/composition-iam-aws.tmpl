@@ -9,9 +9,6 @@ spec:
   resources:
     - name: User
       patches:
-      - fromFieldPath: spec.providerConfigName
-        toFieldPath: spec.providerConfigRef.name
-        type: FromCompositeFieldPath
       - fromFieldPath: status.atProvider.arn
         toFieldPath: status.user.arn
         type: ToCompositeFieldPath
@@ -37,6 +34,12 @@ spec:
           strategy: string
           string:
             fmt: "%s-crossplane-prerrequisite-user"
+      - fromFieldPath: spec.externalNames.user
+        toFieldPath: metadata.annotations["crossplane.io/external-name"]
+        type: FromCompositeFieldPath
+        condition:
+          fromFieldPath: spec.externalNames.user
+          strategy: notEmpty
       base:
         apiVersion: iam.aws.upbound.io/v1beta1
         kind: User
@@ -44,9 +47,6 @@ spec:
           forProvider: {}
     - name: UserPolicy
       patches:
-      - fromFieldPath: spec.providerConfigName
-        toFieldPath: spec.providerConfigRef.name
-        type: FromCompositeFieldPath
       - type: CombineFromComposite
         toFieldPath: metadata.name
         combine:
@@ -114,9 +114,6 @@ spec:
               }
     - name: UserPolicyAttachment
       patches:
-      - fromFieldPath: spec.providerConfigName
-        toFieldPath: spec.providerConfigRef.name
-        type: FromCompositeFieldPath
       - type: CombineFromComposite
         toFieldPath: metadata.name
         combine:
@@ -160,9 +157,6 @@ spec:
           forProvider: {}
     - name: UserAccessKey
       patches:
-      - fromFieldPath: spec.providerConfigName
-        toFieldPath: spec.providerConfigRef.name
-        type: FromCompositeFieldPath
       - type: CombineFromComposite
         toFieldPath: metadata.name
         combine:

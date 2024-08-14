@@ -55,6 +55,8 @@ type AzureBuilder struct {
 	crossplaneProvidersVersion string
 }
 
+var crossplaneAzureAddons = []string{"external-dns"}
+
 func newAzureBuilder() *AzureBuilder {
 	return &AzureBuilder{}
 }
@@ -362,11 +364,16 @@ func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 	return nil
 }
 
-func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
-	return "", nil
+func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
+	return "", false, nil
 }
-func (b *AzureBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string) ([]string, error) {
-	return []string{}, nil
+
+func (b *AzureBuilder) GetCrossplaneAddons() []string {
+	return crossplaneAzureAddons
+}
+
+func (b *AzureBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
+	return []string{}, nil, nil
 }
 
 func (b *AzureBuilder) setCrossplaneProviders() {

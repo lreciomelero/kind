@@ -51,6 +51,8 @@ type GCPBuilder struct {
 	crossplaneProviderVersion string
 }
 
+var crossplaneGCPAddons = []string{"external-dns"}
+
 func newGCPBuilder() *GCPBuilder {
 	return &GCPBuilder{}
 }
@@ -270,12 +272,16 @@ func (b *GCPBuilder) postInstallPhase(n nodes.Node, k string) error {
 	return nil
 }
 
-func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]string) (string, error) {
-	return "", nil
+func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
+	return "", false, nil
 }
 
-func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string) ([]string, error) {
-	return []string{}, nil
+func (b *GCPBuilder) GetCrossplaneAddons() []string {
+	return crossplaneGCPAddons
+}
+
+func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
+	return []string{}, nil, nil
 }
 
 func (b *GCPBuilder) setCrossplaneProviders() {

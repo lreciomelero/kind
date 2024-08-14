@@ -3,4 +3,5 @@ kind: xIamConfig
 metadata:
   name: {{ .ClusterName }}-iam-config
 spec:
+  providerConfigName: {{ .Addon }}-provider
   clusterName: {{ .ClusterName }}
