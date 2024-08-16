@@ -364,7 +364,7 @@ func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 	return nil
 }
 
-func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
+func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
 	return "", false, nil
 }
 

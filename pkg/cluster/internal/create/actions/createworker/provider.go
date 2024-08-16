@@ -93,7 +93,7 @@ type PBuilder interface {
 	getOverrideVars(p ProviderParams, networks commons.Networks, clusterConfigSpec commons.ClusterConfigSpec) (map[string][]byte, error)
 	getRegistryCredentials(p ProviderParams, u string) (string, string, error)
 	postInstallPhase(n nodes.Node, k string) error
-	getCrossplaneProviderConfigContent(credentials map[string]map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error)
+	getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error)
 	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error)
 	GetCrossplaneProviders() ([]string, string)
 	GetCrossplaneAddons() []string
@@ -229,7 +229,7 @@ func (i *Infra) getRegistryCredentials(p ProviderParams, u string) (string, stri
 	return i.builder.getRegistryCredentials(p, u)
 }
 
-func (i *Infra) getCrossplaneProviderConfigContent(credentials map[string]map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
+func (i *Infra) getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
 	return i.builder.getCrossplaneProviderConfigContent(credentials, addon, clusterName, kubeconfigString)
 }
 
@@ -595,7 +595,12 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 			c += " --set extraVolumes[0].name=aws-credentials" +
 				" --set extraVolumes[0].secret.secretName=external-dns-creds" +
 				" --set env[0].name=AWS_SHARED_CREDENTIALS_FILE" +
-				" --set env[0].value=/.aws/credentials"
+				" --set env[0].value=/.aws/credentials" +
+				" --set env[1].name=AWS_DEFAULT_REGION" +
+				" --set env[1].value=" + privateParams.KeosCluster.Spec.Region +
+				" --set extraVolumeMounts[0].name=aws-credentials" +
+				" --set extraVolumeMounts[0].mountPath=/.aws" +
+				" --set extraVolumeMounts[0].readOnly=true"
 		}
 	case "azure":
 		c += " --set extraVolumes[0].name=azure-config" +

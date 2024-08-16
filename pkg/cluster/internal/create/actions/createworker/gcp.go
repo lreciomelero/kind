@@ -272,7 +272,7 @@ func (b *GCPBuilder) postInstallPhase(n nodes.Node, k string) error {
 	return nil
 }
 
-func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
+func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
 	return "", false, nil
 }
 

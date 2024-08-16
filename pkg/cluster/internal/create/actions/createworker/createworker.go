@@ -84,6 +84,8 @@ var rbacInternalLoadBalancing string
 
 var infra *Infra
 
+var credentials map[string]*map[string]string
+
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
 	return &action{
@@ -794,10 +796,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				// 		"SecretKey": secretKey,
 				// 	}
 				// }
-				credentials := map[string]map[string]string{
-					"provisioner":  providerParams.Credentials,
-					"crossplane":   crossplaneCredsMap,
-					"external-dns": externalDnsCredsMap,
+				credentials = map[string]*map[string]string{
+					"provisioner":  commons.ToPtr(providerParams.Credentials),
+					"crossplane":   commons.ToPtr(crossplaneCredsMap),
+					"external-dns": commons.ToPtr(externalDnsCredsMap),
 				}
 
 				// fmt.Println("externalDnsCredsMap")
@@ -807,7 +809,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				// fmt.Println("credentials[\"external-dns\"]")
 				// fmt.Println(credentials["external-dns"])
 
-				if a.clusterConfig.Spec.DNS.CreateInfra && (!isEmptyCredsMap(externalDnsCredsMap) || !isEmptyCredsMap(crossplaneCredsMap)) {
+				if a.clusterConfig.Spec.DNS.CreateInfra && (!isEmptyCredsMap(*credentials["external-dns"]) || !isEmptyCredsMap(*credentials["crossplane"])) {
 
 					ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
 
@@ -816,9 +818,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 					// if err != nil {
 					// 	return errors.Wrap(err, "failed to scale to 0 crossplane controllers")
 					// }
-					if isEmptyCredsMap(externalDnsCredsMap) {
-						customParams["create-external-dns-creds"] = "true"
-					}
+
+					// if isEmptyCredsMap(externalDnsCredsMap) {
+					// 	customParams["create-external-dns-creds"] = "true"
+					// }
 
 					_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, credentials, infra, privateParams, true, allowCommonEgressNetPolPath, &customParams)
 					if err != nil {
@@ -831,31 +834,22 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				}
 
 				// externalDnsCredsMap := credentials["external-dns"]
-				// if reflect.DeepEqual(externalDnsCredsMap, map[string]string{}) {
-				// 	config, err := rest.InClusterConfig()
-				// 	if err != nil {
-				// 		panic(err.Error())
-				// 	}
-				// 	clientset, err := kubernetes.NewForConfig(config)
-				// 	if err != nil {
-				// 		panic(err.Error())
-				// 	}
-				// 	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), privateParams.KeosCluster.Metadata.Name+"-crossplane-accesskey-secret", metav1.GetOptions{})
-				// 	if err != nil {
-				// 		return errors.Wrap(err, "failed to get externalDNS credentials secret")
-				// 	}
-				// 	accessKey := string(secret.Data["username"])
-				// 	secretKey := string(secret.Data["password"])
-				// 	externalDnsCredsMap = map[string]string{
-				// 		"AccessKey": accessKey,
-				// 		"SecretKey": secretKey,
-				// 	}
-				// }
+				if isEmptyCredsMap(*credentials["external-dns"]) {
+					c = "cat " + kubeconfigPath
+					kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+					if err != nil {
+						return errors.Wrap(err, "failed to get workload kubeconfig string")
+					}
+					*credentials["external-dns"], err = getExternalDNSCreds(a.keosCluster.Metadata.Name, kubeconfigString)
+					if err != nil {
+						return errors.Wrap(err, "failed to get external-dns credentials")
+					}
+				}
 
 				ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
 				defer ctx.Status.End(false)
 
-				err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, externalDnsCredsMap)
+				err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, *credentials["external-dns"])
 				if err != nil {
 					return errors.Wrap(err, "failed to install External-DNS in workload cluster")
 				}

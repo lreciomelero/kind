@@ -1,10 +1,16 @@
 package createworker
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -92,13 +98,13 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 	return nil
 }
 
-func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, credentials map[string]map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, allowAllEgressNetPolPath string, customParams *map[string]string) (commons.KeosCluster, error) {
+func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, credentials map[string]*map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, allowAllEgressNetPolPath string, customParams *map[string]string) (commons.KeosCluster, error) {
 
 	kubeconfigString := ""
 	addons := []string{"external-dns"}
-	if (*customParams)["create-external-dns-creds"] != "" {
-		addons = []string{"iam-external-dns", "external-dns"}
-	}
+	// if (*customParams)["create-external-dns-creds"] != "" {
+	// 	addons = []string{"iam-external-dns", "external-dns"}
+	// }
 
 	c := "mkdir -p " + crossplane_directoy_path + " && chmod -R 0755 " + crossplane_directoy_path
 	_, err := commons.ExecuteCommand(n, c, 3, 5)
@@ -206,13 +212,40 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 			Secret: infra.builder.getProvider().capxProvider + "-" + addon + "-secret",
 		}
 
-		c = "kubectl create secret generic " + infra.builder.getProvider().capxProvider + "-" + addon + "-secret -n crossplane-system --from-file=creds=" + crossplane_provider_creds_file_base + addon + "-provider-creds.txt"
-		if kubeconfigpath != "" {
-			c += " --kubeconfig " + kubeconfigpath
-		}
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return privateParams.KeosCluster, errors.Wrap(err, "failed to create Crossplane Provider config secret: "+infra.builder.getProvider().capxProvider+"-secret")
+		if !credentialsFound {
+			params.Secret = infra.builder.getProvider().capxProvider + "-crossplane-secret"
+			config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+			if err != nil {
+				panic(err.Error())
+			}
+			clientset, err := kubernetes.NewForConfig(config)
+			if err != nil {
+				panic(err.Error())
+			}
+			_, err = clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), infra.builder.getProvider().capxProvider+"-crossplane-secret", metav1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					c = "kubectl create secret generic " + infra.builder.getProvider().capxProvider + "-crossplane-secret -n crossplane-system --from-file=creds=" + crossplane_provider_creds_file_base + addon + "-provider-creds.txt"
+					if kubeconfigpath != "" {
+						c += " --kubeconfig " + kubeconfigpath
+					}
+					_, err = commons.ExecuteCommand(n, c, 3, 5)
+					if err != nil {
+						return privateParams.KeosCluster, errors.Wrap(err, "failed to create Crossplane Provider config secret: "+infra.builder.getProvider().capxProvider+"-secret")
+					}
+				} else {
+					return privateParams.KeosCluster, errors.Wrap(err, "failed to get secret "+infra.builder.getProvider().capxProvider+"-crossplane-secret")
+				}
+			}
+		} else {
+			c = "kubectl create secret generic " + infra.builder.getProvider().capxProvider + "-" + addon + "-secret -n crossplane-system --from-file=creds=" + crossplane_provider_creds_file_base + addon + "-provider-creds.txt"
+			if kubeconfigpath != "" {
+				c += " --kubeconfig " + kubeconfigpath
+			}
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return privateParams.KeosCluster, errors.Wrap(err, "failed to create Crossplane Provider config secret: "+infra.builder.getProvider().capxProvider+"-secret")
+			}
 		}
 
 		providerConfigManifest, err := getManifest("aws", "crossplane-provider-config.tmpl", params)
@@ -235,7 +268,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to create provider config ")
 		}
 
-		keosCluster, err = createCrossplaneCustomResources(n, kubeconfigpath, credentials["provisioner"], infra, privateParams, workloadClusterInstallation, credentialsFound, addon)
+		keosCluster, err = createCrossplaneCustomResources(n, kubeconfigpath, *credentials["provisioner"], infra, privateParams, workloadClusterInstallation, credentialsFound, addon)
 		if err != nil {
 			return privateParams.KeosCluster, err
 		}
@@ -300,7 +333,7 @@ func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, creden
 		return privateParams.KeosCluster, err
 	}
 	for i, manifest := range crossplaneCRManifests {
-		fmt.Println("manifest: ", manifest)
+		// fmt.Println("manifest: ", manifest)
 		crossplane_crs_file := crossplane_crs_file_local_base + fmt.Sprintf("-%d.yaml", i)
 		if workloadClusterInstallation {
 			crossplane_crs_file = crossplane_crs_file_workload_base + fmt.Sprintf("-%d.yaml", i)
