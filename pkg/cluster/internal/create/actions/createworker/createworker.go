@@ -443,38 +443,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.End(true) // End Saving the workload cluster kubeconfig
 
-		// crossplaneCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.Crossplane, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
-		// if err != nil {
-		// 	return errors.Wrap(err, "failed to get crossplane credentials")
-		// }
-		// crossplaneCredsMap := convertToMapStringString(structs.Map(crossplaneCreds))
-
-		// externalDnsCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.ExternalDNS, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
-		// if err != nil {
-		// 	return errors.Wrap(err, "failed to get external-dns credentials")
-		// }
-
-		// externalDnsCredsMap := convertToMapStringString(structs.Map(externalDnsCreds))
-
-		// if a.clusterConfig.Spec.DNS.CreateInfra && !reflect.DeepEqual(crossplaneCredsMap, map[string]string{}) {
-		// 	customParams := map[string]string{}
-
-		// 	credentials := map[string]map[string]string{
-		// 		"provisioner":  providerParams.Credentials,
-		// 		"crossplane":   crossplaneCredsMap,
-		// 		"external-dns": externalDnsCredsMap,
-		// 	}
-		// 	if isEmptyCredsMap(externalDnsCredsMap) && !isEmptyCredsMap(crossplaneCredsMap) {
-		// 		ctx.Status.Start("Installing Crossplane and deploying crs🎖️")
-		// 		_, err = installCrossplane(n, "", keosRegistry.url, credentials, infra, privateParams, false, allowCommonEgressNetPol, &customParams)
-		// 		if err != nil {
-		// 			return err
-		// 		}
-		// 		ctx.Status.End(true)
-		// 	}
-
-		// }
-
 		// Install unmanaged cluster addons
 		if !a.keosCluster.Spec.ControlPlane.Managed {
 
@@ -775,65 +743,25 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 				customParams := map[string]string{}
 
-				// if reflect.DeepEqual(externalDnsCredsMap, map[string]string{}) {
-				// 	// fmt.Println("Recuperamos external-dns credentials de secret")
-				// 	config, err := rest.InClusterConfig()
-				// 	if err != nil {
-				// 		panic(err.Error())
-				// 	}
-				// 	clientset, err := kubernetes.NewForConfig(config)
-				// 	if err != nil {
-				// 		panic(err.Error())
-				// 	}
-				// 	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), privateParams.KeosCluster.Metadata.Name+"-crossplane-accesskey-secret", metav1.GetOptions{})
-				// 	if err != nil {
-				// 		return errors.Wrap(err, "failed to get external-dns credentials secret")
-				// 	}
-				// 	accessKey := string(secret.Data["username"])
-				// 	secretKey := string(secret.Data["password"])
-				// 	externalDnsCredsMap = map[string]string{
-				// 		"AccessKey": accessKey,
-				// 		"SecretKey": secretKey,
-				// 	}
-				// }
 				credentials = map[string]*map[string]string{
 					"provisioner":  commons.ToPtr(providerParams.Credentials),
 					"crossplane":   commons.ToPtr(crossplaneCredsMap),
 					"external-dns": commons.ToPtr(externalDnsCredsMap),
 				}
 
-				// fmt.Println("externalDnsCredsMap")
-
-				// fmt.Println(externalDnsCredsMap)
-
-				// fmt.Println("credentials[\"external-dns\"]")
-				// fmt.Println(credentials["external-dns"])
-
 				if a.clusterConfig.Spec.DNS.CreateInfra && (!isEmptyCredsMap(*credentials["external-dns"]) || !isEmptyCredsMap(*credentials["crossplane"])) {
 
 					ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
-
-					// c = "kubectl scale deployment crossplane crossplane-rbac-manager provider-family-aws provider-aws-route53 -n crossplane-system --replicas=0"
-					// _, err = commons.ExecuteCommand(n, c, 3, 5)
-					// if err != nil {
-					// 	return errors.Wrap(err, "failed to scale to 0 crossplane controllers")
-					// }
-
-					// if isEmptyCredsMap(externalDnsCredsMap) {
-					// 	customParams["create-external-dns-creds"] = "true"
-					// }
 
 					_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, credentials, infra, privateParams, true, allowCommonEgressNetPolPath, &customParams)
 					if err != nil {
 						return err
 					}
 
-					// a.keosCluster = offlineKeosCluster
 					ctx.Status.End(true)
 
 				}
 
-				// externalDnsCredsMap := credentials["external-dns"]
 				if isEmptyCredsMap(*credentials["external-dns"]) {
 					c = "cat " + kubeconfigPath
 					kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
