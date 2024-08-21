@@ -726,7 +726,15 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to deploy cluster-autoscaler in workload cluster")
 			}
 
-			if a.keosCluster.Spec.Dns.ManageZone {
+			ctx.Status.End(true)
+
+			addonEnabled := map[string]*bool{
+				"external-dns": &a.keosCluster.Spec.Dns.ManageZone,
+			}
+
+			addons := infra.getAddons(a.keosCluster.Spec.ControlPlane.Managed, addonEnabled)
+
+			if len(addons) > 0 {
 
 				crossplaneCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.Crossplane, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
 				if err != nil {
@@ -753,7 +761,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 					ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
 
-					_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, credentials, infra, privateParams, true, allowCommonEgressNetPolPath, &customParams)
+					_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, credentials, infra, privateParams, true, allowCommonEgressNetPolPath, &customParams, addons)
 					if err != nil {
 						return err
 					}
@@ -762,7 +770,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 				}
 
-				if isEmptyCredsMap(*credentials["external-dns"]) {
+				if a.clusterConfig.Spec.DNS.CreateInfra && !isEmptyCredsMap(*credentials["crossplane"]) && isEmptyCredsMap(*credentials["external-dns"]) {
 					c = "cat " + kubeconfigPath
 					kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
 					if err != nil {
@@ -774,14 +782,21 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 					}
 				}
 
-				ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
-				defer ctx.Status.End(false)
+				for _, addon := range addons {
+					switch addon {
+					case "external-dns":
+						if !isEmptyCredsMap(*credentials["external-dns"]) {
+							ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
+							defer ctx.Status.End(false)
 
-				err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, *credentials["external-dns"])
-				if err != nil {
-					return errors.Wrap(err, "failed to install External-DNS in workload cluster")
+							err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, *credentials["external-dns"])
+							if err != nil {
+								return errors.Wrap(err, "failed to install External-DNS in workload cluster")
+							}
+							ctx.Status.End(true)
+						}
+					}
 				}
-				ctx.Status.End(true)
 			}
 
 			if !a.moveManagement {

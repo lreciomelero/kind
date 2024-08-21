@@ -21,10 +21,9 @@ var (
 	crossplane_directoy_path            = "/kind/crossplane"
 	crossplane_provider_creds_file_base = "/kind/crossplane/crossplane-"
 	crossplane_provider_config_file     = "/kind/crossplane/crossplane-provider-creds.yaml"
-	// crossplane_crs_file               = "/kind/crossplane/crossplane-crs.yaml"
-	crossplane_custom_creds_file      = "/kind/crossplane/crossplane-custom-creds.yaml"
-	crossplane_crs_file_local_base    = "/kind/crossplane/crossplane-crs-local"
-	crossplane_crs_file_workload_base = "/kind/crossplane/crossplane-crs-workload"
+	crossplane_custom_creds_file        = "/kind/crossplane/crossplane-custom-creds.yaml"
+	crossplane_crs_file_local_base      = "/kind/crossplane/crossplane-crs-local"
+	crossplane_crs_file_workload_base   = "/kind/crossplane/crossplane-crs-workload"
 )
 
 type CrossplaneProviderParams struct {
@@ -40,8 +39,8 @@ type CrossplaneProviderConfigParams struct {
 	Secret string
 }
 
-func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUrl string, privateRegistry bool, infraProvider string) error {
-	providers, version := infra.GetCrossplaneProviders()
+func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUrl string, privateRegistry bool, infraProvider string, addons []string) error {
+	providers, version := infra.GetCrossplaneProviders(addons)
 	for _, provider := range providers {
 		providerFile := "/kind/" + provider + ".yaml"
 
@@ -98,13 +97,10 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 	return nil
 }
 
-func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, credentials map[string]*map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, allowAllEgressNetPolPath string, customParams *map[string]string) (commons.KeosCluster, error) {
+func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, credentials map[string]*map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, allowAllEgressNetPolPath string, customParams *map[string]string, addons []string) (commons.KeosCluster, error) {
 
 	kubeconfigString := ""
-	addons := []string{"external-dns"}
-	// if (*customParams)["create-external-dns-creds"] != "" {
-	// 	addons = []string{"iam-external-dns", "external-dns"}
-	// }
+	// addons := []string{"external-dns"}
 
 	c := "mkdir -p " + crossplane_directoy_path + " && chmod -R 0755 " + crossplane_directoy_path
 	_, err := commons.ExecuteCommand(n, c, 3, 5)
@@ -130,25 +126,11 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 		}
 	}
 
-	// if privateParams.Private {
-	// 	// TO RESPONSE: Cuantos paquetes entran en el configmap?
-	// 	c = "kubectl create configmap package-cache -n crossplane-system --from-file=" + crossplane_folder_path
-	// 	if kubeconfigpath != "" {
-	// 		c += " --kubeconfig " + kubeconfigpath
-	// 	}
-	// 	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	// 	if err != nil {
-	// 		return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane preflights")
-	// 	}
-	// }
-
 	c = "helm install crossplane /stratio/helm/crossplane" +
 		" --namespace crossplane-system"
 
 	if privateParams.Private {
 		c += " --set image.repository=" + keosRegUrl + "/crossplane/crossplane"
-		// c += " --set image.repository=" + keosRegUrl + "/crossplane/crossplane" +
-		// 	" --set packageCache.configMap=package-cache"
 	}
 
 	if kubeconfigpath != "" {
@@ -181,7 +163,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 	}
 
 	// Crea los providers de Crossplane
-	err = configureCrossPlaneProviders(n, kubeconfigpath, keosRegUrl, privateParams.Private, privateParams.KeosCluster.Spec.InfraProvider)
+	err = configureCrossPlaneProviders(n, kubeconfigpath, keosRegUrl, privateParams.Private, privateParams.KeosCluster.Spec.InfraProvider, addons)
 	if err != nil {
 		return privateParams.KeosCluster, errors.Wrap(err, "failed to configure Crossplane Provider")
 	}
@@ -216,11 +198,11 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 			params.Secret = infra.builder.getProvider().capxProvider + "-crossplane-secret"
 			config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
 			if err != nil {
-				panic(err.Error())
+				return privateParams.KeosCluster, errors.Wrap(err, "failed to get workload kubeconfig")
 			}
 			clientset, err := kubernetes.NewForConfig(config)
 			if err != nil {
-				panic(err.Error())
+				return privateParams.KeosCluster, errors.Wrap(err, "failed to create clientset for workload kubeconfig")
 			}
 			_, err = clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), infra.builder.getProvider().capxProvider+"-crossplane-secret", metav1.GetOptions{})
 			if err != nil {
@@ -274,55 +256,6 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 		}
 	}
 
-	// if !credentialsFound {
-	// 	addon = "iam"
-	// }
-
-	// SECRET con las credenciales del cloud-provisioner
-
-	// if workloadClusterInstallation && reflect.DeepEqual(credentials["external-dns"], map[string]string{}) { // EN EL WORLOADCLUSTER
-	// 	// Como no existe el secret de external-dns, se crea uno con las credenciales de Crossplane y debemos hererdarlo en el workload cluster
-	// 	config, err := rest.InClusterConfig()
-	// 	if err != nil {
-	// 		panic(err.Error())
-	// 	}
-	// 	clientset, err := kubernetes.NewForConfig(config)
-	// 	if err != nil {
-	// 		return privateParams.KeosCluster, errors.Wrap(err, "failed to create workload cluster clientset")
-	// 	}
-	// 	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), privateParams.KeosCluster.Metadata.Name+"-crossplane-accesskey-secret", metav1.GetOptions{})
-	// 	if err != nil {
-	// 		return privateParams.KeosCluster, errors.Wrap(err, "failed to get workload cluster secret")
-	// 	}
-	// 	accessKey := string(secret.Data["username"])
-	// 	secretKey := string(secret.Data["password"])
-	// 	awsCrossplaneCredentials := "[default]\naws_access_key_id = " + accessKey + "\naws_secret_access_key = " + secretKey + "\n"
-	// 	c = "echo '" + awsCrossplaneCredentials + "' > " + crossplane_custom_creds_file
-	// 	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	// 	if err != nil {
-	// 		return privateParams.KeosCluster, errors.Wrap(err, "failed to create Crossplane Provider custom config file")
-	// 	}
-
-	// 	c = "kubectl create secret generic " + infra.builder.getProvider().capxProvider + "external-dns-secret -n crossplane-system --from-file=creds=" + crossplane_custom_creds_file + " --kubeconfig " + kubeconfigpath
-
-	// }
-
-	// _, err = commons.ExecuteCommand(n, c, 3, 5)
-	// if err != nil {
-	// 	return privateParams.KeosCluster, errors.Wrap(err, "failed to create Crossplane Provider config secret: "+infra.builder.getProvider().capxProvider+"-secret")
-	// }
-
-	// if _, err := os.Stat(crossplane_provider_config_file); err == nil {
-	// 	// Si ya existe el fichero es por que antes lo hemos creado en local, tenemos que crearlo tambien en el workload cluster
-	// 	c = "kubectl create -f " + crossplane_provider_config_file + " --kubeconfig " + kubeconfigpath
-
-	// 	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	// 	if err != nil {
-	// 		return privateParams.KeosCluster, errors.Wrap(err, "failed to create provider config ")
-	// 	}
-
-	// }
-
 	return keosCluster, nil
 
 }
@@ -333,36 +266,18 @@ func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, creden
 		return privateParams.KeosCluster, err
 	}
 	for i, manifest := range crossplaneCRManifests {
-		// fmt.Println("manifest: ", manifest)
 		crossplane_crs_file := crossplane_crs_file_local_base + fmt.Sprintf("-%d.yaml", i)
 		if workloadClusterInstallation {
 			crossplane_crs_file = crossplane_crs_file_workload_base + fmt.Sprintf("-%d.yaml", i)
 		}
-		// _, err := os.Stat(crossplane_crs_file)
-		// if os.IsNotExist(err) {
-		// 	// El archivo no existe, crearlo
-		// 	file, err := os.Create(crossplane_crs_file)
-		// 	if err != nil {
-		// 		return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane crs file")
-		// 	}
-		// 	defer file.Close()
-		// } else {
-		// 	return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane crs file")
-		// }
 
 		c := "echo '" + manifest + "' > " + crossplane_crs_file
-		// if workloadClusterInstallation {
-		// 	c = "echo '" + crossplaneCRManifests + "' > " + crossplane_crs_file_workload
-		// }
 		_, err = commons.ExecuteCommand(n, c, 3, 5)
 		if err != nil {
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane crs file")
 		}
 
 		c = "kubectl create -f " + crossplane_crs_file
-		// if workloadClusterInstallation {
-		// 	c = "kubectl create -f " + crossplane_crs_file_workload
-		// }
 		if kubeconfigpath != "" {
 			c += " --kubeconfig " + kubeconfigpath
 		}
@@ -371,15 +286,6 @@ func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, creden
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to create crossplane crs ")
 		}
 
-		// if !workloadClusterInstallation {
-		// 	keosCluster, err := infra.addCrsReferences(n, kubeconfigpath, privateParams.KeosCluster)
-		// 	if err != nil {
-		// 		return commons.KeosCluster{}, err
-		// 	}
-
-		// 	return keosCluster, nil
-
-		// }
 	}
 
 	for kind, name := range compositionsToWait {

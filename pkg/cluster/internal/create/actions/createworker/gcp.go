@@ -276,21 +276,29 @@ func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]*
 	return "", false, nil
 }
 
-func (b *GCPBuilder) GetCrossplaneAddons() []string {
-	return crossplaneGCPAddons
+func (b *GCPBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
+	var addons []string
+	switch clusterManaged {
+	case true:
+		return addons
+	case false:
+		return addons
+	}
+
+	return addons
 }
 
 func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
 	return []string{}, nil, nil
 }
 
-func (b *GCPBuilder) setCrossplaneProviders() {
+func (b *GCPBuilder) setCrossplaneProviders(addons []string) {
 
 	b.crossplaneProviders = []string{}
 	b.crossplaneProviderVersion = ""
 }
 
-func (b *GCPBuilder) GetCrossplaneProviders() ([]string, string) {
-	b.setCrossplaneProviders()
+func (b *GCPBuilder) GetCrossplaneProviders(addons []string) ([]string, string) {
+	b.setCrossplaneProviders(addons)
 	return b.crossplaneProviders, b.crossplaneProviderVersion
 }

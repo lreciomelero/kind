@@ -50,12 +50,6 @@ var awsCRDHostedZones []byte
 //go:embed files/aws/composition-hostedzones-aws.yaml
 var awsCompositionHostedZones []byte
 
-//go:embed files/aws/composition-iam-aws.yaml
-var awsCompositionIAM []byte
-
-//go:embed files/aws/compositionresourcedefinition-iam-aws.yaml
-var awsCRDIAM []byte
-
 type AWSBuilder struct {
 	capxProvider               string
 	capxVersion                string
@@ -130,17 +124,24 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 	}
 }
 
-func (b *AWSBuilder) setCrossplaneProviders() {
+func (b *AWSBuilder) setCrossplaneProviders(addons []string) {
 
 	b.crossplaneProviders = []string{
 		"provider-family-aws",
-		"provider-aws-route53",
-		"provider-aws-iam"}
+	}
+
+	for _, addon := range addons {
+		switch addon {
+		case "external-dns":
+			b.crossplaneProviders = append(b.crossplaneProviders, "provider-aws-route53")
+			b.crossplaneProviders = append(b.crossplaneProviders, "provider-aws-iam")
+		}
+	}
 	b.crossplaneProvidersVersion = "v1.8.0"
 }
 
-func (b *AWSBuilder) GetCrossplaneProviders() ([]string, string) {
-	b.setCrossplaneProviders()
+func (b *AWSBuilder) GetCrossplaneProviders(addons []string) ([]string, string) {
+	b.setCrossplaneProviders(addons)
 	return b.crossplaneProviders, b.crossplaneProvidersVersion
 }
 
@@ -426,8 +427,21 @@ func (b *AWSBuilder) getCrossplaneProviderConfigContent(credentials map[string]*
 	return awsCredentials, credentialsFound, nil
 }
 
-func (b *AWSBuilder) GetCrossplaneAddons() []string {
-	return crossplaneAwsAddons
+func (b *AWSBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
+	var addons []string
+	switch clusterManaged {
+	case true:
+		return addons
+	case false:
+		for _, addon := range crossplaneAwsAddons {
+			enabled := addonsParams[addon]
+			if (enabled != nil && *enabled) || enabled == nil {
+				addons = append(addons, addon)
+			}
+		}
+	}
+
+	return addons
 }
 
 func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {

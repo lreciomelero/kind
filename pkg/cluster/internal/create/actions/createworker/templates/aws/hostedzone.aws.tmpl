@@ -2,6 +2,8 @@ apiVersion: configs.stratio.io/v1alpha1
 kind: xZonesConfig
 metadata:
   name: {{ .ClusterName }}-zones-config
+  labels:
+    keos.stratio.com/cluster: "{{ .ClusterName }}"
 spec:
   region: {{ .Region }}
   vpcId: {{ .VPCId }}

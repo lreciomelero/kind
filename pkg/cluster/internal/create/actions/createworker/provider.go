@@ -84,7 +84,7 @@ type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
-	setCrossplaneProviders()
+	setCrossplaneProviders(addons []string)
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
 	installCSI(n nodes.Node, k string, privateParams PrivateParams) error
 	getProvider() Provider
@@ -95,8 +95,8 @@ type PBuilder interface {
 	postInstallPhase(n nodes.Node, k string) error
 	getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error)
 	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error)
-	GetCrossplaneProviders() ([]string, string)
-	GetCrossplaneAddons() []string
+	GetCrossplaneProviders(addons []string) ([]string, string)
+	getAddons(clusterManaged bool, addonsParams map[string]*bool) []string
 }
 
 type Provider struct {
@@ -237,12 +237,12 @@ func (i *Infra) getCrossplaneCRManifests(keosCluster commons.KeosCluster, creden
 	return i.builder.getCrossplaneCRManifests(keosCluster, credentials, workloadClusterInstallation, credentialsFound, addon)
 }
 
-func (i *Infra) GetCrossplaneProviders() ([]string, string) {
-	return i.builder.GetCrossplaneProviders()
+func (i *Infra) GetCrossplaneProviders(addons []string) ([]string, string) {
+	return i.builder.GetCrossplaneProviders(addons)
 }
 
-func (i *Infra) GetCrossplaneAddons() []string {
-	return i.builder.GetCrossplaneAddons()
+func (i *Infra) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
+	return i.builder.getAddons(clusterManaged, addonsParams)
 }
 
 func (i *Infra) postInstallPhase(n nodes.Node, k string) error {
