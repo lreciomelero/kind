@@ -47,9 +47,6 @@ var awsPublicIngress []byte
 //go:embed files/aws/compositeresourcedefinition-hostedzones-aws.yaml
 var awsCRDHostedZones []byte
 
-//go:embed files/aws/composition-hostedzones-aws.yaml
-var awsCompositionHostedZones []byte
-
 type AWSBuilder struct {
 	capxProvider               string
 	capxVersion                string
