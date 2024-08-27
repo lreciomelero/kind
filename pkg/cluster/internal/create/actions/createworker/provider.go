@@ -94,7 +94,7 @@ type PBuilder interface {
 	getRegistryCredentials(p ProviderParams, u string) (string, string, error)
 	postInstallPhase(n nodes.Node, k string) error
 	getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error)
-	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error)
+	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error)
 	GetCrossplaneProviders(addons []string) ([]string, string)
 	getAddons(clusterManaged bool, addonsParams map[string]*bool) []string
 }
@@ -233,8 +233,8 @@ func (i *Infra) getCrossplaneProviderConfigContent(credentials map[string]*map[s
 	return i.builder.getCrossplaneProviderConfigContent(credentials, addon, clusterName, kubeconfigString)
 }
 
-func (i *Infra) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
-	return i.builder.getCrossplaneCRManifests(keosCluster, credentials, workloadClusterInstallation, credentialsFound, addon)
+func (i *Infra) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error) {
+	return i.builder.getCrossplaneCRManifests(keosCluster, credentials, workloadClusterInstallation, credentialsFound, addon, customParams)
 }
 
 func (i *Infra) GetCrossplaneProviders(addons []string) ([]string, string) {
@@ -583,14 +583,12 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 		c += " --kubeconfig " + kubeconfigPath
 	}
 
-	if privateParams.KeosCluster.Spec.InfraProvider == "aws" && privateParams.KeosCluster.Spec.ControlPlane.Managed {
-		c += " --set annotations.eks.amazonaws.com/role-arn=" + customParams["roleArn"]
-	}
-
 	switch privateParams.KeosCluster.Spec.InfraProvider {
 	case "aws":
 		if privateParams.KeosCluster.Spec.ControlPlane.Managed {
-			c += " --set annotations.eks.amazonaws.com/role-arn=" + customParams["roleArn"]
+			c += " --set annotations.eks.amazonaws.com/role-arn=" + customParams["roleArn"] +
+				" --set env[0].name=AWS_DEFAULT_REGION" +
+				" --set env[0].value=" + privateParams.KeosCluster.Spec.Region
 		} else {
 			c += " --set extraVolumes[0].name=aws-credentials" +
 				" --set extraVolumes[0].secret.secretName=external-dns-creds" +

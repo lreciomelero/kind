@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -46,6 +48,9 @@ var awsPublicIngress []byte
 
 //go:embed files/aws/compositeresourcedefinition-hostedzones-aws.yaml
 var awsCRDHostedZones []byte
+
+//go:embed files/aws/compositeresourcedefinition-hostedzones-eks.yaml
+var eksCRDHostedZones []byte
 
 type AWSBuilder struct {
 	capxProvider               string
@@ -72,9 +77,12 @@ type CrossplaneAwsParams struct {
 	ExternalDomain    string
 	CreateCredentials bool
 	Addon             string
+	AccountID         string
+	oidcProviderID    string
 }
 
 var crossplaneAwsAddons = []string{"external-dns"}
+var crossplaneEKSAddons = []string{"external-dns"}
 
 func (b *AWSBuilder) setCapx(managed bool) {
 	b.capxProvider = "aws"
@@ -428,7 +436,12 @@ func (b *AWSBuilder) getAddons(clusterManaged bool, addonsParams map[string]*boo
 	var addons []string
 	switch clusterManaged {
 	case true:
-		return addons
+		for _, addon := range crossplaneEKSAddons {
+			enabled := addonsParams[addon]
+			if (enabled != nil && *enabled) || enabled == nil {
+				addons = append(addons, addon)
+			}
+		}
 	case false:
 		for _, addon := range crossplaneAwsAddons {
 			enabled := addonsParams[addon]
@@ -441,50 +454,64 @@ func (b *AWSBuilder) getAddons(clusterManaged bool, addonsParams map[string]*boo
 	return addons
 }
 
-func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
+func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error) {
 	var manifests = []string{}
 	compositionsToWait := make(map[string]string)
+	var err error = nil
 	params := CrossplaneAwsParams{
 		Region:            keosCluster.Spec.Region,
 		ClusterName:       keosCluster.Metadata.Name,
 		ExternalDomain:    keosCluster.Spec.ExternalDomain,
 		CreateCredentials: !credentialsFound,
 		Addon:             addon,
+		AccountID:         credentials["account_id"],
 	}
 
 	switch addon {
 	case "external-dns":
 		vpcId := keosCluster.Spec.Networks.VPCID
+
 		if vpcId == "" {
-			var ctx = context.TODO()
-			cfg, err := commons.AWSGetConfig(ctx, credentials, keosCluster.Spec.Region)
+			vpcId, err = getVpcId(keosCluster, credentials)
 			if err != nil {
 				return nil, nil, err
 			}
-			vpcs, _ := getAWSVPCByName(cfg, keosCluster.Metadata.Name+"-vpc")
-			if len(vpcs) == 0 {
-				return nil, nil, errors.New("Cannot create Crossplane Resources: No VPCs found")
-			}
-			if len(vpcs) > 1 {
-				return nil, nil, errors.New("Cannot create Crossplane Resources: More than one VPC found")
-			}
-			vpcId = vpcs[0]
-
 		}
 
 		params.VPCId = vpcId
-		manifests = append(manifests, string(awsCRDHostedZones))
-		compositionsToWait["xZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
-		compositionHostedZones, err := getManifest("aws", "composition-hostedzones-aws.tmpl", params)
-		if err != nil {
-			return nil, nil, err
+		if !keosCluster.Spec.ControlPlane.Managed {
+			manifests = append(manifests, string(awsCRDHostedZones))
+			compositionsToWait["xZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
+			compositionHostedZones, err := getManifest("aws", "composition-hostedzones-aws.tmpl", params)
+			if err != nil {
+				return nil, nil, err
+			}
+			manifests = append(manifests, compositionHostedZones)
+			hostedZone, err := getManifest("aws", "hostedzone.aws.tmpl", params)
+			if err != nil {
+				return nil, nil, err
+			}
+			manifests = append(manifests, hostedZone)
+		} else {
+			oidcProviderId, err := getOIDCProviderId(keosCluster.Metadata.Name, customParams["localKubeconfigString"])
+			if err != nil {
+				return nil, nil, err
+			}
+			params.oidcProviderID = oidcProviderId
+			manifests = append(manifests, string(eksCRDHostedZones))
+			compositionsToWait["xZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
+			compositionHostedZones, err := getManifest("aws", "composition-hostedzones-eks.tmpl", params)
+			if err != nil {
+				return nil, nil, err
+			}
+			manifests = append(manifests, compositionHostedZones)
+			hostedZone, err := getManifest("aws", "hostedzone.aws.tmpl", params)
+			if err != nil {
+				return nil, nil, err
+			}
+			manifests = append(manifests, hostedZone)
 		}
-		manifests = append(manifests, compositionHostedZones)
-		hostedZone, err := getManifest("aws", "hostedzone.aws.tmpl", params)
-		if err != nil {
-			return nil, nil, err
-		}
-		manifests = append(manifests, hostedZone)
+
 	}
 
 	return manifests, compositionsToWait, nil
@@ -531,4 +558,84 @@ func getExternalDNSCreds(clusterName string, kubeconfigString string) (map[strin
 		"SecretKey": secretKey,
 	}
 	return externalDnsCredsMap, nil
+}
+
+func getObject(name string, kubeconfigString string, gvr schema.GroupVersionResource, namespaced bool, namespace string) (map[string]interface{}, error) {
+
+	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+	if err != nil {
+		panic(err.Error())
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	resource := dynamicClient.Resource(gvr)
+	resourceNamespace := dynamic.ResourceInterface(resource)
+	if namespaced {
+		if namespace == "" {
+			resourceNamespace = resource.Namespace("default")
+		} else {
+			resourceNamespace = resource.Namespace(namespace)
+		}
+	}
+	object, err := resourceNamespace.Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return object.Object, nil
+}
+
+func getRoleArn(clusterName string, kubeconfigString string) (string, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "configs.stratio.io", // Cambia esto según tu CRD
+		Version:  "v1alpha1",
+		Resource: "xzonesconfigs", // Este es el nombre plural de tu CRD
+	}
+	xZonesConfig, err := getObject(clusterName+"-zones-config", kubeconfigString, gvr, false, "")
+	if err != nil {
+		return "", err
+	}
+	roleArn := xZonesConfig["status"].(map[string]interface{})["role"].(map[string]interface{})["arn"].(string)
+	if roleArn != "" {
+		return roleArn, nil
+	}
+	return "", errors.New("Role ARN not found")
+}
+
+func getVpcId(keosCluster commons.KeosCluster, credentials map[string]string) (string, error) {
+	var ctx = context.TODO()
+	cfg, err := commons.AWSGetConfig(ctx, credentials, keosCluster.Spec.Region)
+	if err != nil {
+		return "", err
+	}
+	vpcs, _ := getAWSVPCByName(cfg, keosCluster.Metadata.Name+"-vpc")
+	if len(vpcs) == 0 {
+		return "", errors.New("Cannot create Crossplane Resources: No VPCs found")
+	}
+	if len(vpcs) > 1 {
+		return "", errors.New("Cannot create Crossplane Resources: More than one VPC found")
+	}
+	return vpcs[0], nil
+}
+
+func getOIDCProviderId(clusterName string, kubeconfigString string) (string, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "cluster.x-k8s.io", // Cambia esto según tu CRD
+		Version:  "v1beta1",
+		Resource: "clusters", // Este es el nombre plural de tu CRD
+	}
+	cluster, err := getObject(clusterName, kubeconfigString, gvr, true, "cluster-"+clusterName)
+	if err != nil {
+		return "", err
+	}
+	controlplaneHost := cluster["spec"].(map[string]interface{})["controlPlaneEndpoint"].(map[string]interface{})["host"].(string)
+	if controlplaneHost == "" {
+		return "", errors.New("oidcProviderId cannot be found")
+	}
+	oidcProviderId := strings.Split(strings.Split(controlplaneHost, "//")[1], ".")[0]
+	return oidcProviderId, nil
 }

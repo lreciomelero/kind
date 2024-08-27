@@ -288,7 +288,7 @@ func (b *GCPBuilder) getAddons(clusterManaged bool, addonsParams map[string]*boo
 	return addons
 }
 
-func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
+func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error) {
 	return []string{}, nil, nil
 }
 

@@ -60,6 +60,7 @@ type HelmRegistry struct {
 
 const (
 	kubeconfigPath          = "/kind/worker-cluster.kubeconfig"
+	localKubeconfigPath     = "/etc/kubernetes/admin.conf"
 	workKubeconfigPath      = ".kube/config"
 	CAPILocalRepository     = "/root/.cluster-api/local-repository"
 	cloudProviderBackupPath = "/kind/backup/objects"
@@ -727,9 +728,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			ctx.Status.End(true)
+			enabledExternalDNS := a.keosCluster.Spec.Dns.ManageZone || awsEKSEnabled
 
 			addonEnabled := map[string]*bool{
-				"external-dns": &a.keosCluster.Spec.Dns.ManageZone,
+				"external-dns": &enabledExternalDNS,
 			}
 
 			addons := infra.getAddons(a.keosCluster.Spec.ControlPlane.Managed, addonEnabled)
@@ -757,6 +759,28 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 					"external-dns": commons.ToPtr(externalDnsCredsMap),
 				}
 
+				// Get the workload cluster kubeconfig
+				c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + a.keosCluster.Metadata.Name + " | tee " + kubeconfigPath
+				kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+				if err != nil || kubeconfig == "" {
+					return errors.Wrap(err, "failed to get workload cluster kubeconfig")
+				}
+
+				// c = "cat " + kubeconfigPath
+				// kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+				// if err != nil {
+				// 	return errors.Wrap(err, "failed to get workload kubeconfig string")
+				// }
+				c = "cat " + localKubeconfigPath
+				localKubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+				if err != nil {
+					return errors.Wrap(err, "failed to get workload kubeconfig string")
+				}
+
+				if awsEKSEnabled {
+					customParams["localKubeconfigString"] = localKubeconfigString
+				}
+
 				if a.clusterConfig.Spec.DNS.CreateInfra && (!isEmptyCredsMap(*credentials["external-dns"]) || !isEmptyCredsMap(*credentials["crossplane"])) {
 
 					ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
@@ -770,12 +794,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 				}
 
-				if a.clusterConfig.Spec.DNS.CreateInfra && !isEmptyCredsMap(*credentials["crossplane"]) && isEmptyCredsMap(*credentials["external-dns"]) {
-					c = "cat " + kubeconfigPath
-					kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-					if err != nil {
-						return errors.Wrap(err, "failed to get workload kubeconfig string")
-					}
+				if !awsEKSEnabled && a.clusterConfig.Spec.DNS.CreateInfra && !isEmptyCredsMap(*credentials["crossplane"]) && isEmptyCredsMap(*credentials["external-dns"]) {
+
 					*credentials["external-dns"], err = getExternalDNSCreds(a.keosCluster.Metadata.Name, kubeconfigString)
 					if err != nil {
 						return errors.Wrap(err, "failed to get external-dns credentials")
@@ -785,9 +805,16 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				for _, addon := range addons {
 					switch addon {
 					case "external-dns":
-						if !isEmptyCredsMap(*credentials["external-dns"]) {
+						if !isEmptyCredsMap(*credentials["external-dns"]) || (awsEKSEnabled && !isEmptyCredsMap(*credentials["crossplane"])) {
 							ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
 							defer ctx.Status.End(false)
+							if awsEKSEnabled {
+								roleArn, err := getRoleArn(a.keosCluster.Metadata.Name, kubeconfigString)
+								if err != nil {
+									return errors.Wrap(err, "failed to get roleArn")
+								}
+								customParams["roleArn"] = roleArn
+							}
 
 							err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, *credentials["external-dns"])
 							if err != nil {

@@ -380,7 +380,7 @@ func (b *AzureBuilder) getAddons(clusterManaged bool, addonsParams map[string]*b
 	return addons
 }
 
-func (b *AzureBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string) ([]string, map[string]string, error) {
+func (b *AzureBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error) {
 	return []string{}, nil, nil
 }
 

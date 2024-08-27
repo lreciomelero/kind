@@ -98,7 +98,6 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 }
 
 func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, credentials map[string]*map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, allowAllEgressNetPolPath string, customParams *map[string]string, addons []string) (commons.KeosCluster, error) {
-
 	kubeconfigString := ""
 	// addons := []string{"external-dns"}
 
@@ -250,7 +249,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to create provider config ")
 		}
 
-		keosCluster, err = createCrossplaneCustomResources(n, kubeconfigpath, *credentials["provisioner"], infra, privateParams, workloadClusterInstallation, credentialsFound, addon)
+		keosCluster, err = createCrossplaneCustomResources(n, kubeconfigpath, *credentials["provisioner"], infra, privateParams, workloadClusterInstallation, credentialsFound, addon, *customParams)
 		if err != nil {
 			return privateParams.KeosCluster, err
 		}
@@ -260,8 +259,8 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 
 }
 
-func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, credentials map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, credentialsFound bool, addon string) (commons.KeosCluster, error) {
-	crossplaneCRManifests, compositionsToWait, err := infra.getCrossplaneCRManifests(privateParams.KeosCluster, credentials, workloadClusterInstallation, credentialsFound, addon)
+func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, credentials map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) (commons.KeosCluster, error) {
+	crossplaneCRManifests, compositionsToWait, err := infra.getCrossplaneCRManifests(privateParams.KeosCluster, credentials, workloadClusterInstallation, credentialsFound, addon, customParams)
 	if err != nil {
 		return privateParams.KeosCluster, err
 	}
