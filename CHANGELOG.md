@@ -1,5 +1,11 @@
 # Changelog
 
+
+
+## 0.17.0-0.5.3 (upcoming)
+
+* [Core] Adapted for GKE support
+
 ## 0.17.0-0.5.2 (2024-06-25)
 
 * [Core] Delete cluster autoscaler references in the upgrade script
