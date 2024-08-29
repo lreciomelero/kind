@@ -60,7 +60,7 @@ var azureCharts = ChartsDictionary{
 			"unmanaged": {
 				"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.28.7", Pull: false},
 				"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.28.7", Pull: false},
-				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.28.9", Pull: true},
+				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.28.5", Pull: true},
 				"cluster-autoscaler":   {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.34.1", Namespace: "kube-system", Pull: false},
 				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
@@ -78,9 +78,9 @@ var azureCharts = ChartsDictionary{
 		"30": {
 			"managed": {},
 			"unmanaged": {
-				"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.30.0", Pull: false},
+				"azuredisk-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azuredisk-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.30.1", Pull: false},
 				"azurefile-csi-driver": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/azurefile-csi-driver/master/charts", Namespace: "kube-system", Version: "v1.30.2", Pull: false},
-				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.30.2", Pull: true},
+				"cloud-provider-azure": {Repository: "https://raw.githubusercontent.com/kubernetes-sigs/cloud-provider-azure/master/helm/repo", Namespace: "kube-system", Version: "v1.30.4", Pull: true},
 				"cluster-autoscaler":   {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
 				"tigera-operator":      {Repository: "https://docs.projectcalico.org/charts", Version: "v3.28.0", Namespace: "tigera-operator", Pull: true},
 			},
@@ -126,8 +126,8 @@ func (b *AzureBuilder) setSC(p ProviderParams) {
 	}
 }
 
-func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
-	return pullGenericCharts(n, clusterConfigSpec, keosSpec, azureCharts, clusterType)
+func (b *AzureBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials, clusterType string) error {
+	return pullGenericCharts(n, clusterConfigSpec, keosSpec, clusterCredentials, azureCharts, clusterType)
 }
 
 func (b *AzureBuilder) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
@@ -204,7 +204,7 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
 	}
 
-	c = "helm install cloud-provider-azure /stratio/helm/cloud-provider-azure" +
+	c = "helm install azure-cloud-controller-manager /stratio/helm/cloud-provider-azure" +
 		" --kubeconfig " + k +
 		" --namespace kube-system" +
 		" --set cloudControllerManager.replicas=1" +

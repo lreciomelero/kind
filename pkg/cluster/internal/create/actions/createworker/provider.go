@@ -90,7 +90,7 @@ type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
-	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error
+	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials, clusterType string) error
 	getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry
 	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
@@ -288,17 +288,17 @@ func (i *Infra) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, 
 	return completedChartsList
 }
 
-func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec) error {
+func (i *Infra) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials) error {
 	clusterType := "managed"
 	if !keosSpec.ControlPlane.Managed {
 		clusterType = "unmanaged"
 	}
 
-	if err := pullGenericCharts(n, clusterConfigSpec, keosSpec, commonsCharts, clusterType); err != nil {
+	if err := pullGenericCharts(n, clusterConfigSpec, keosSpec, clusterCredentials, commonsCharts, clusterType); err != nil {
 		return err
 	}
 
-	if err := i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, clusterType); err != nil {
+	if err := i.builder.pullProviderCharts(n, clusterConfigSpec, keosSpec, clusterCredentials, clusterType); err != nil {
 		return err
 	}
 	clusterConfigSpec.Charts = i.getOverriddenCharts(clusterConfigSpec, clusterType)
@@ -353,9 +353,9 @@ func getGenericCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec com
 	return chartsToInstall
 }
 
-func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, chartDictionary ChartsDictionary, clusterType string) error {
+func pullGenericCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials, chartDictionary ChartsDictionary, clusterType string) error {
 	chartsToInstall := getGenericCharts(clusterConfigSpec, keosSpec, chartDictionary, clusterType)
-	return pullCharts(n, chartsToInstall)
+	return pullCharts(n, chartsToInstall, keosSpec, clusterCredentials)
 }
 
 func (i *Infra) installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error {
@@ -867,7 +867,9 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 			// Update fluxHelmRepositoryParams if not private
 			fluxHelmRepositoryParams.ChartName = name
 			fluxHelmRepositoryParams.ChartRepoScheme = chartRepoScheme
-			fluxHelmRepositoryParams.ChartRepoUrl = entry.Repository
+			if entry.Repository != "default" {
+				fluxHelmRepositoryParams.ChartRepoUrl = entry.Repository
+			}
 
 			// Create Helm repository using the fluxHelmRepositoryParams
 			if err := configureHelmRepository(n, k, "flux2_helmrepository.tmpl", fluxHelmRepositoryParams); err != nil {
@@ -894,7 +896,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartRepoRef = name
 		}
 
-		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|cloud-provider-.+|flux2|cert-manager)$`)
+		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|.+-cloud-controller-manager|flux2|cert-manager)$`)
 
 		// Adopt helm charts already deployed: tigera-operator and cloud-provider
 		if fluxAdoptedCharts.MatchString(name) {
@@ -1436,19 +1438,32 @@ func installCorednsPdb(n nodes.Node) error {
 	return nil
 }
 
-func pullCharts(n nodes.Node, charts map[string]commons.ChartEntry) error {
+func pullCharts(n nodes.Node, charts map[string]commons.ChartEntry, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials) error {
 	for name, chart := range charts {
+        // Set default repository if needed
+        if chart.Repository == "default" {
+            chart.Repository = keosSpec.HelmRepository.URL
+        }
+		// Check if the chart needs to be pulled
 		if chart.Pull {
-			c := "helm pull " + name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
-			if strings.HasPrefix(chart.Repository, "oci://") {
-				c = "helm pull " + chart.Repository + "/" + name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+			var c string
+            if strings.HasPrefix(chart.Repository, "oci://") {
+                c = "helm pull " + chart.Repository + "/" + name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+            } else {
+                c = "helm pull " + name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
+            }
+			// Add authentication if required
+            if chart.Repository == keosSpec.HelmRepository.URL && keosSpec.HelmRepository.AuthRequired {
+				if keosSpec.HelmRepository.AuthRequired {
+					c = c + " --username " + clusterCredentials.HelmRepositoryCredentials["User"] + " --password " + clusterCredentials.HelmRepositoryCredentials["Pass"]
+				}
 			}
+			// Execute the command
 			_, err := commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to pull the helm chart: "+fmt.Sprint(chart))
 			}
 		}
-
 	}
 	return nil
 }

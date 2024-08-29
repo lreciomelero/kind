@@ -137,7 +137,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return err
 	}
 
-	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec)
+	err = infra.pullProviderCharts(n, &a.clusterConfig.Spec, a.keosCluster.Spec, a.clusterCredentials)
 	if err != nil {
 		return err
 	}
@@ -425,7 +425,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Apply cluster manifests
 		c = "kubectl apply -f " + manifestsPath + "/keoscluster.yaml"
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		_, err = commons.ExecuteCommand(n, c, 10, 5)
 		if err != nil {
 			return errors.Wrap(err, "failed to apply keoscluster manifests")
 		}
@@ -564,13 +564,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
 				return errors.Wrap(err, "failed to create the worker Cluster")
-			}
-			if a.keosCluster.Spec.InfraProvider == "azure" {
-				c = "kubectl --kubeconfig " + kubeconfigPath + " scale deployment cloud-controller-manager -n kube-system --replicas=2"
-				_, err = commons.ExecuteCommand(n, c, 3, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to scale deployment cloud-controller-manager")
-				}
 			}
 		}
 		ctx.Status.End(true) // End Preparing nodes in workload cluster

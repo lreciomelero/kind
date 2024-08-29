@@ -49,6 +49,7 @@ type GCPBuilder struct {
 	csiNamespace     string
 }
 
+
 var googleCharts = ChartsDictionary{
 	Charts: map[string]map[string]map[string]commons.ChartEntry{
 		"28": {
@@ -68,6 +69,8 @@ var googleCharts = ChartsDictionary{
 		"30": {
 			"managed": {},
 			"unmanaged": {
+				// "default" repository defaults to the descriptor Helm repository
+				//"gcp-cloud-controller-manager": {Repository: "default", Version: "1.30.0", Namespace: "kube-system", Pull: true},
 				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
 				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
@@ -134,8 +137,8 @@ func (b *GCPBuilder) setSC(p ProviderParams) {
 	}
 }
 
-func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
-	return pullGenericCharts(n, clusterConfigSpec, keosSpec, googleCharts, clusterType)
+func (b *GCPBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials, clusterType string) error {
+	return pullGenericCharts(n, clusterConfigSpec, keosSpec, clusterCredentials, googleCharts, clusterType)
 }
 
 func (b *GCPBuilder) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry {
@@ -170,6 +173,42 @@ func (b *GCPBuilder) getProvider() Provider {
 }
 
 func (b *GCPBuilder) installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error {
+	var podsCidrBlock string
+	keosCluster := privateParams.KeosCluster
+	if keosCluster.Spec.Networks.PodsCidrBlock != "" {
+		podsCidrBlock = keosCluster.Spec.Networks.PodsCidrBlock
+	} else {
+		podsCidrBlock = "192.168.0.0/16"
+	}
+
+	cloudControllerManagerValuesFile := "/kind/gcp-cloud-controller-manager-helm-values.yaml"
+	cloudControllerManagerHelmParams := cloudControllerHelmParams{
+		ClusterName: privateParams.KeosCluster.Metadata.Name,
+		Private:     privateParams.Private,
+		KeosRegUrl:  privateParams.KeosRegUrl,
+		PodsCidr:    podsCidrBlock,
+	}
+
+	// Generate the CCM helm values
+	cloudControllerManagerHelmValues, err := getManifest(b.capxProvider, "gcp-cloud-controller-manager-helm-values.tmpl", majorVersion, cloudControllerManagerHelmParams)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
+	}
+	c := "echo '" + cloudControllerManagerHelmValues + "' > " + cloudControllerManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
+	if err != nil {
+		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
+	}
+
+	c = "helm install gcp-cloud-controller-manager /stratio/helm/gcp-cloud-controller-manager" +
+		" --kubeconfig " + k +
+		" --namespace kube-system" +
+		" --values " + cloudControllerManagerValuesFile
+	_, err = commons.ExecuteCommand(n, c, 5, 3)
+	if err != nil {
+		return errors.Wrap(err, "failed to deploy gcp-cloud-controller-manager Helm Chart")
+	}
+
 	return nil
 }
 

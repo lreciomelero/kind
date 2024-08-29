@@ -152,7 +152,7 @@ var awsCharts = ChartsDictionary{
 	},
 }
 
-func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) error {
+func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials, clusterType string) error {
 	if clusterConfigSpec.EKSLBController && clusterType == "managed" {
 		for name, chart := range awsCharts.Charts[majorVersion][clusterType] {
 			if name == "aws-load-balancer-controller" {
@@ -161,7 +161,7 @@ func (b *AWSBuilder) pullProviderCharts(n nodes.Node, clusterConfigSpec *commons
 			}
 		}
 	}
-	return pullGenericCharts(n, clusterConfigSpec, keosSpec, awsCharts, clusterType)
+	return pullGenericCharts(n, clusterConfigSpec, keosSpec, clusterCredentials, awsCharts, clusterType)
 
 }
 
