@@ -18,6 +18,7 @@ package validate
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -202,8 +203,27 @@ func validateWorkersType(wns commons.WorkerNodes) error {
 }
 
 func validateVolumes(spec commons.KeosSpec) error {
+
+	if spec.ControlPlane.Managed {
+		if !reflect.DeepEqual(spec.ControlPlane.CRIVolume, commons.CustomVolume{}) {
+			return errors.New("spec.control_plane.cri_volume: Invalid value: cannot be set with managed control plane")
+		}
+		if !reflect.DeepEqual(spec.ControlPlane.ETCDVolume, commons.CustomVolume{}) {
+			return errors.New("spec.control_plane.etcd_volume: Invalid value: cannot be set with managed control plane")
+		}
+	}
+
 	if !spec.ControlPlane.Managed {
 		for i, ev := range spec.ControlPlane.ExtraVolumes {
+			if ev.MountPath == "" {
+				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"mount_path\": cannot be empty")
+			}
+			if ev.Label == "" {
+				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"label\": cannot be empty")
+			}
+			if ev.Size == 0 {
+				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"size\": cannot be empty or 0")
+			}
 			for _, ev2 := range spec.ControlPlane.ExtraVolumes[i+1:] {
 				if ev.Label == ev2.Label {
 					return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"label\": is duplicated")
@@ -215,7 +235,21 @@ func validateVolumes(spec commons.KeosSpec) error {
 		}
 	}
 	for _, wn := range spec.WorkerNodes {
+		if spec.ControlPlane.Managed && spec.InfraProvider != "aws" {
+			if !reflect.DeepEqual(wn.CRIVolume, commons.CustomVolume{}) {
+				return errors.New("spec.worker_nodes." + wn.Name + ".cri_volume: Invalid value: cannot be set in workernodes with managed control plane in " + spec.InfraProvider)
+			}
+		}
 		for i, ev := range wn.ExtraVolumes {
+			if ev.MountPath == "" {
+				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"mount_path\": cannot be empty")
+			}
+			if ev.Label == "" {
+				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"label\": cannot be empty")
+			}
+			if ev.Size == 0 {
+				return errors.New("spec.control_plane.extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"size\": cannot be empty or 0")
+			}
 			for _, ev2 := range wn.ExtraVolumes[i+1:] {
 				if ev.Label == ev2.Label {
 					return errors.New("spec.worker_nodes." + wn.Name + ".extra_volumes[" + strconv.Itoa(i) + "]: Invalid value: \"label\": is duplicated")

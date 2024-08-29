@@ -86,6 +86,13 @@ func validateGCP(spec commons.KeosSpec, providerSecrets map[string]string) error
 		if err := validateVolumeType(spec.ControlPlane.RootVolume.Type, GCPVolumes); err != nil {
 			return errors.Wrap(err, "spec.control_plane.root_volume: Invalid value: \"type\"")
 		}
+		if err := validateVolumeType(spec.ControlPlane.CRIVolume.Type, GCPVolumes); err != nil {
+			return errors.Wrap(err, "spec.control_plane.cri_volume: Invalid value: \"type\"")
+		}
+		if err := validateVolumeType(spec.ControlPlane.ETCDVolume.Type, GCPVolumes); err != nil {
+			return errors.Wrap(err, "spec.control_plane.etcd_volume: Invalid value: \"type\"")
+		}
+
 		for i, ev := range spec.ControlPlane.ExtraVolumes {
 			if err := validateVolumeType(ev.Type, GCPVolumes); err != nil {
 				return errors.Wrap(err, "spec.control_plane.extra_volumes["+strconv.Itoa(i)+"]: Invalid value: \"type\"")
@@ -97,6 +104,9 @@ func validateGCP(spec commons.KeosSpec, providerSecrets map[string]string) error
 			}
 			if err := validateVolumeType(wn.RootVolume.Type, GCPVolumes); err != nil {
 				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
+			}
+			if err := validateVolumeType(wn.CRIVolume.Type, GCPVolumes); err != nil {
+				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".cri_volume: Invalid value: \"type\"")
 			}
 			for i, ev := range wn.ExtraVolumes {
 				if err := validateVolumeType(ev.Type, GCPVolumes); err != nil {

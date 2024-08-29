@@ -62,6 +62,7 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 	if err != nil {
 		return err
 	}
+
 	if !commons.Contains(regions, spec.Region) {
 		return errors.New("spec.region: " + spec.Region + " region does not exist")
 	}
@@ -119,6 +120,10 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 	}
 
 	if spec.ControlPlane.Managed {
+
+		if len(spec.ControlPlane.ExtraVolumes) > 0 {
+			return errors.New("spec.control_plane.extra_volumes: Invalid value \"extra_volumes\": unsupported, extra_volumes cannot be indicated")
+		}
 		if err = validateAKSVersion(spec, creds, providerSecrets["SubscriptionID"]); err != nil {
 			return err
 		}
@@ -138,6 +143,12 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 		}
 		if err := validateVolumeType(spec.ControlPlane.RootVolume.Type, AzureVolumes); err != nil {
 			return errors.Wrap(err, "spec.control_plane.root_volume: Invalid value: \"type\"")
+		}
+		if err := validateVolumeType(spec.ControlPlane.CRIVolume.Type, AzureVolumes); err != nil {
+			return errors.Wrap(err, "spec.control_plane.cri_volume: Invalid value: \"type\"")
+		}
+		if err := validateVolumeType(spec.ControlPlane.ETCDVolume.Type, AzureVolumes); err != nil {
+			return errors.Wrap(err, "spec.control_plane.etcd_volume: Invalid value: \"type\"")
 		}
 		for i, ev := range spec.ControlPlane.ExtraVolumes {
 			if ev.Name == "" {
@@ -160,6 +171,9 @@ func validateAzure(spec commons.KeosSpec, providerSecrets map[string]string, clu
 			}
 			if err := validateVolumeType(wn.RootVolume.Type, AzureVolumes); err != nil {
 				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".root_volume: Invalid value: \"type\"")
+			}
+			if err := validateVolumeType(wn.CRIVolume.Type, AzureVolumes); err != nil {
+				return errors.Wrap(err, "spec.worker_nodes."+wn.Name+".cri_volume: Invalid value: \"type\"")
 			}
 
 			premiumStorage := hasAzurePremiumStorage(wn.Size)
@@ -423,6 +437,9 @@ func validateAKSNodes(wn commons.WorkerNodes) error {
 		}
 		if n.RootVolume.Type != "" && !commons.Contains(AzureAKSVolumes, n.RootVolume.Type) {
 			return errors.New("spec.worker_nodes." + n.Name + ".root_volume: Invalid value \"type\": " + n.RootVolume.Type + " unsupported, supported types: " + fmt.Sprint(strings.Join(AzureAKSVolumes, ", ")))
+		}
+		if len(n.ExtraVolumes) > 0 {
+			return errors.New("spec.worker_nodes." + n.Name + ".extra_volumes: Invalid value \"extra_volumes\": unsupported, extra_volumes cannot be indicated")
 		}
 	}
 	if numberOfSystemPool == 0 {
