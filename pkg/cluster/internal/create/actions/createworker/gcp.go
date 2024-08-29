@@ -70,7 +70,7 @@ var googleCharts = ChartsDictionary{
 			"managed": {},
 			"unmanaged": {
 				// "default" repository defaults to the descriptor Helm repository
-				//"gcp-cloud-controller-manager": {Repository: "default", Version: "1.30.0", Namespace: "kube-system", Pull: true},
+				"gcp-cloud-controller-manager": {Repository: "default", Version: "1.30.0", Namespace: "kube-system", Pull: true},
 				"cluster-autoscaler": {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.37.0", Namespace: "kube-system", Pull: false},
 				"tigera-operator":    {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
