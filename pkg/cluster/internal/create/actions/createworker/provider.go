@@ -859,21 +859,21 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 	if !privateParams.HelmPrivate {
 		// Iterate through charts and create Helm repositories and releases
 		for name, entry := range chartsList {
-			// Set repository scheme if it's oci
-			if strings.HasPrefix(entry.Repository, "oci://") {
-				chartRepoScheme = "oci"
-			}
-
-			// Update fluxHelmRepositoryParams if not private
-			fluxHelmRepositoryParams.ChartName = name
-			fluxHelmRepositoryParams.ChartRepoScheme = chartRepoScheme
 			if entry.Repository != "default" {
-				fluxHelmRepositoryParams.ChartRepoUrl = entry.Repository
-			}
+				// Set repository scheme if it's oci
+				if strings.HasPrefix(entry.Repository, "oci://") {
+					chartRepoScheme = "oci"
+				}
 
-			// Create Helm repository using the fluxHelmRepositoryParams
-			if err := configureHelmRepository(n, k, "flux2_helmrepository.tmpl", fluxHelmRepositoryParams); err != nil {
-				return err
+				// Update fluxHelmRepositoryParams if not private
+				fluxHelmRepositoryParams.ChartName = name
+				fluxHelmRepositoryParams.ChartRepoScheme = chartRepoScheme
+				fluxHelmRepositoryParams.ChartRepoUrl = entry.Repository
+
+				// Create Helm repository using the fluxHelmRepositoryParams
+				if err := configureHelmRepository(n, k, "flux2_helmrepository.tmpl", fluxHelmRepositoryParams); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -892,7 +892,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 	// Iterate through charts and create Helm repositories and releases
 	for name, entry := range chartsList {
 		// Update fluxHelmRepositoryParams if not private
-		if !privateParams.HelmPrivate {
+		if !privateParams.HelmPrivate && entry.Repository != "default" {
 			fluxHelmReleaseParams.ChartRepoRef = name
 		}
 

@@ -8,5 +8,6 @@ args:
 - --cloud-config=/etc/kubernetes/gce.conf
 
 image:
-  repository: {{ if $.Private }}{{ $.KeosRegUrl }}{{ else }}gcr.io{{ end }}/k8s-staging-cloud-provider-gcp/cloud-controller-manager
+  registry: {{ if $.Private }}{{ $.KeosRegUrl }}{{ else }}gcr.io{{ end }}
+  repository: k8s-staging-cloud-provider-gcp/cloud-controller-manager
   tag: release-1.30
