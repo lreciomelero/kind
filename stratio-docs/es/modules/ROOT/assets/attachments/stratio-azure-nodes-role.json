@@ -3,16 +3,23 @@
     "IsCustom": true,
     "Description": "Stratio azure workers permissions",
     "Actions": [
-        "Microsoft.ManagedIdentity/userAssignedIdentities/*/read",
-        "Microsoft.ManagedIdentity/userAssignedIdentities/*/assign/action",
         "Microsoft.Authorization/*/read",
-        "Microsoft.Insights/alertRules/*",
-        "Microsoft.Resources/subscriptions/resourceGroups/read",
-        "Microsoft.Resources/deployments/*",
-        "Microsoft.Support/*",
-        "Microsoft.ContainerRegistry/registries/pull/read",
         "Microsoft.Compute/disks/read",
-        "Microsoft.Compute/disks/write"
+        "Microsoft.Compute/disks/write",
+        "Microsoft.ContainerRegistry/registries/pull/read",
+        "Microsoft.Insights/alertRules/*",
+        "Microsoft.ManagedIdentity/userAssignedIdentities/*/assign/action",
+        "Microsoft.ManagedIdentity/userAssignedIdentities/*/read",
+        "Microsoft.Resources/deployments/*",
+        "Microsoft.Resources/subscriptions/resourceGroups/read",
+        "Microsoft.Storage/storageAccounts/delete",
+        "Microsoft.Storage/storageAccounts/fileServices/shares/delete",
+        "Microsoft.Storage/storageAccounts/fileServices/shares/read",
+        "Microsoft.Storage/storageAccounts/fileServices/shares/write",
+        "Microsoft.Storage/storageAccounts/listKeys/action",
+        "Microsoft.Storage/storageAccounts/read",
+        "Microsoft.Storage/storageAccounts/write",
+        "Microsoft.Support/*"
     ],
     "NotActions": [
         "Microsoft.Compute/galleries/share/action"

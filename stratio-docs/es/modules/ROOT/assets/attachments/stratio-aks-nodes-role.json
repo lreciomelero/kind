@@ -8,6 +8,8 @@
     "NotActions": [
         "Microsoft.Compute/galleries/share/action"
     ],
+    "dataActions": [],
+    "NotDataActions": [],
     "AssignableScopes": [
         "/subscriptions/6e2a38cd-ef16-47b3-a75e-5a4960cedf65/"
     ]

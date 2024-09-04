@@ -24,6 +24,7 @@
         "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
         "Microsoft.ContainerService/managedClusters/agentPools/read",
         "Microsoft.ContainerService/managedClusters/agentPools/write",
+        "Microsoft.ContainerService/managedClusters/agentPools/delete",
         "Microsoft.ContainerService/managedClusters/delete",
         "Microsoft.Compute/virtualMachineScaleSets/*"
     ],
@@ -35,7 +36,6 @@
         "Microsoft.ContainerRegistry/registries/repositories/content/write",
         "Microsoft.ContainerRegistry/registries/repositories/metadata/read"
     ],
-    "NotDataActions": [],  
     "AssignableScopes": [
         "/subscriptions/6e2a38cd-ef16-47b3-a75e-5a4960cedf65"
     ]
