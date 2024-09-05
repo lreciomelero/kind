@@ -771,7 +771,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			c = "echo \"" + allowEgressIMDSGNetPol + "\" > " + allowCAPXEgressIMDSGNetPolPath
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
 			if err != nil {
-				return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds-capa global network policy")
+				return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds global network policy")
 			}
 
 			// Deny CAPA egress to AWS IMDS
