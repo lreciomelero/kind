@@ -4,6 +4,8 @@
 
 * [Core] Ensure CoreDNS replicas are assigned to different nodes
 * [Core] Added the default creation of volumes for containerd, etcd and root, if not indicated in the keoscluster
+* [Core] Support k8s v1.30
+* [Core] Deprecated Kubernetes versions prior to 1.28
 
 ## 0.17.0-0.5.2 (2024-06-25)
 

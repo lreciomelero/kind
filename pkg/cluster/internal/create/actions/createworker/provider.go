@@ -174,11 +174,12 @@ type cloudControllerHelmParams struct {
 }
 
 type fluxHelmRepositoryParams struct {
-	ChartName       string
-	ChartRepoUrl    string
-	ChartRepoScheme string
-	Spec            commons.KeosSpec
-	HelmRepoCreds   HelmRegistry
+	ChartName          string
+	ChartRepoUrl       string
+	ChartRepoScheme    string
+	Spec               commons.KeosSpec
+	HelmRepoCreds      HelmRegistry
+	RepositoryInterval string
 }
 
 type fluxHelmReleaseParams struct {
@@ -653,7 +654,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 			ChartVersion:   chartVersion,
 		}
 		// Create Helm release using the fluxHelmReleaseParams
-		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", clusterOperatorHelmReleaseParams); err != nil {
+		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", clusterOperatorHelmReleaseParams, privateParams.KeosCluster.Spec.HelmRepository); err != nil {
 			return err
 		}
 	}
@@ -751,7 +752,7 @@ func deployClusterAutoscaler(n nodes.Node, chartsList map[string]commons.ChartEn
 		return errors.Wrap(err, "failed to create CA helm values file")
 	}
 	// Create Helm release using the fluxHelmReleaseParams
-	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", clusterAutoscalerHelmReleaseParams); err != nil {
+	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", clusterAutoscalerHelmReleaseParams, privateParams.KeosCluster.Spec.HelmRepository); err != nil {
 		return err
 	}
 	if !moveManagement {
@@ -841,13 +842,20 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 		keosChartRepoScheme = "oci"
 	}
 
+	var helmRepositoryInterval = "10m"
+
 	// Create fluxHelmRepositoryParams for the private case
 	fluxHelmRepositoryParams := fluxHelmRepositoryParams{
-		ChartName:       "keos",
-		ChartRepoUrl:    helmRepoCreds.URL,
-		ChartRepoScheme: keosChartRepoScheme,
-		Spec:            keosClusterSpec,
-		HelmRepoCreds:   helmRepoCreds,
+		ChartName:          "keos",
+		ChartRepoUrl:       helmRepoCreds.URL,
+		ChartRepoScheme:    keosChartRepoScheme,
+		Spec:               keosClusterSpec,
+		HelmRepoCreds:      helmRepoCreds,
+		RepositoryInterval: helmRepositoryInterval,
+	}
+
+	if fluxHelmRepositoryParams.ChartName == "keos" && keosClusterSpec.HelmRepository.RepositoryInterval != "" {
+		fluxHelmRepositoryParams.RepositoryInterval = keosClusterSpec.HelmRepository.RepositoryInterval
 	}
 
 	// Create Helm repository using the fluxHelmRepositoryParams
@@ -896,7 +904,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartRepoRef = name
 		}
 
-		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|.+-cloud-controller-manager|flux2|cert-manager)$`)
+		fluxAdoptedCharts := regexp.MustCompile(`^(tigera-operator|.+-cloud-controller-manager|cloud-provider-azure|flux2|cert-manager)$`)
 
 		// Adopt helm charts already deployed: tigera-operator and cloud-provider
 		if fluxAdoptedCharts.MatchString(name) {
@@ -915,7 +923,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 					return errors.Wrap(err, "failed to create "+entry.Namespace+" namespace")
 				}
 			}
-			if err := configureHelmRelease(n, k, "flux2_helmrelease.tmpl", fluxHelmReleaseParams); err != nil {
+			if err := configureHelmRelease(n, k, "flux2_helmrelease.tmpl", fluxHelmReleaseParams, keosClusterSpec.HelmRepository); err != nil {
 				return err
 			}
 		}
@@ -947,7 +955,7 @@ func configureHelmRepository(n nodes.Node, k string, templatePath string, params
 	return nil
 }
 
-func configureHelmRelease(n nodes.Node, k string, templatePath string, params fluxHelmReleaseParams) error {
+func configureHelmRelease(n nodes.Node, k string, templatePath string, params fluxHelmReleaseParams, helmRepository commons.HelmRepository) error {
 	valuesFile := "/kind/" + params.ChartName + "-helm-values.yaml"
 
 	// Create default HelmRelease configmap
@@ -969,8 +977,43 @@ func configureHelmRelease(n nodes.Node, k string, templatePath string, params fl
 	if err != nil {
 		return errors.Wrap(err, "failed to deploy "+params.ChartName+" HelmRelease override configmap")
 	}
+
+	var defaultHelmReleaseInterval = "1m"
+	var defaultHelmReleaseRetries = 3
+	var defaultHelmReleaseSourceInterval = "1m"
+
+	completedfluxHelmReleaseParams := struct {
+		ChartName				  string
+		ChartNamespace            string
+		ChartRepoRef              string
+		ChartVersion			  string
+		HelmReleaseInterval       string
+		HelmReleaseRetries        int
+		HelmReleaseSourceInterval string
+	}{
+		ChartName: 				   params.ChartName,
+		ChartNamespace: 		   params.ChartNamespace,
+		ChartRepoRef: 			   params.ChartRepoRef,
+		ChartVersion: 			   params.ChartVersion,
+		HelmReleaseInterval: 	   defaultHelmReleaseInterval,
+		HelmReleaseRetries: 	   defaultHelmReleaseRetries,
+		HelmReleaseSourceInterval: defaultHelmReleaseSourceInterval,
+	}
+
+	if completedfluxHelmReleaseParams.ChartRepoRef == "keos" {
+		if helmRepository.ReleaseInterval != "" {
+			completedfluxHelmReleaseParams.HelmReleaseInterval = helmRepository.ReleaseInterval
+		}
+		if helmRepository.ReleaseSourceInterval != "" {
+			completedfluxHelmReleaseParams.HelmReleaseSourceInterval = helmRepository.ReleaseSourceInterval
+		}
+		if helmRepository.ReleaseRetries != nil {
+			completedfluxHelmReleaseParams.HelmReleaseRetries = *helmRepository.ReleaseRetries
+		}
+	}
+
 	// Generate HelmRelease manifest
-	fluxHelmHelmRelease, err := getManifest("common", templatePath, majorVersion, params)
+	fluxHelmHelmRelease, err := getManifest("common", templatePath, majorVersion, completedfluxHelmReleaseParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate "+params.ChartName+" HelmHelmRelease")
 	}

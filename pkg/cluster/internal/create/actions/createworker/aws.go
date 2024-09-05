@@ -131,7 +131,7 @@ var awsCharts = ChartsDictionary{
 			},
 			"unmanaged": {
 				"aws-cloud-controller-manager": {Repository: "https://kubernetes.github.io/cloud-provider-aws", Version: "0.0.8", Namespace: "kube-system", Pull: true},
-				"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.32.0", Namespace: "kube-system", Pull: false},
+				"aws-ebs-csi-driver":           {Repository: "https://kubernetes-sigs.github.io/aws-ebs-csi-driver", Version: "2.31.0", Namespace: "kube-system", Pull: false},
 				"cluster-autoscaler":           {Repository: "https://kubernetes.github.io/autoscaler", Version: "9.35.0", Namespace: "kube-system", Pull: false},
 				"tigera-operator":              {Repository: "https://docs.projectcalico.org/charts", Version: "v3.27.3", Namespace: "tigera-operator", Pull: true},
 			},
@@ -260,7 +260,7 @@ func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivatePar
 	if err != nil {
 		return errors.Wrap(err, "failed to create "+csiName+" Helm chart values file")
 	}
-	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams); err != nil {
+	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams, privateParams.KeosCluster.Spec.HelmRepository); err != nil {
 		return err
 	}
 	return nil
@@ -301,7 +301,7 @@ func installLBController(n nodes.Node, k string, privateParams PrivateParams, p 
 	if err != nil {
 		return errors.Wrap(err, "failed to create "+lbControllerName+" Helm chart values file")
 	}
-	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", lbControllerHelmReleaseParams); err != nil {
+	if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", lbControllerHelmReleaseParams, privateParams.KeosCluster.Spec.HelmRepository); err != nil {
 		return err
 	}
 	return nil

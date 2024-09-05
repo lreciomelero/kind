@@ -204,7 +204,7 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 		return errors.Wrap(err, "failed to create cloud controller manager Helm chart values file")
 	}
 
-	c = "helm install azure-cloud-controller-manager /stratio/helm/cloud-provider-azure" +
+	c = "helm install cloud-provider-azure /stratio/helm/cloud-provider-azure" +
 		" --kubeconfig " + k +
 		" --namespace kube-system" +
 		" --set cloudControllerManager.replicas=1" +
@@ -243,7 +243,7 @@ func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privatePa
 		if err != nil {
 			return errors.Wrap(err, "failed to create "+csiName+" Helm chart values file")
 		}
-		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams); err != nil {
+		if err := configureHelmRelease(n, kubeconfigPath, "flux2_helmrelease.tmpl", csiHelmReleaseParams, privateParams.KeosCluster.Spec.HelmRepository); err != nil {
 			return err
 		}
 	}
