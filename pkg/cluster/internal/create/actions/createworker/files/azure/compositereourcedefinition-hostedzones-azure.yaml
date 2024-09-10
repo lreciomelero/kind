@@ -1,0 +1,105 @@
+apiVersion:  apiextensions.crossplane.io/v1 
+kind:  CompositeResourceDefinition 
+metadata: 
+  name:  xazurezonesconfigs.configs.stratio.io 
+spec: 
+  group: configs.stratio.io
+  names: 
+    kind:  xAzureZonesConfig 
+    plural:  xazurezonesconfigs
+  versions: 
+    -  name:  v1alpha1 
+       served:  true 
+       referenceable:  true 
+       schema: 
+         openAPIV3Schema: 
+           type:  object 
+           properties: 
+            spec: 
+                type:  object
+                properties:
+                  subscriptionId:
+                    type: string
+                  externalDomain:
+                    type: string
+                  clusterName:
+                    type: string
+                  providerConfigName:
+                    type: string
+                    default: "default"
+            status:
+                type: object
+                properties:
+                  dnsZones:
+                    type: object
+                    properties:
+                      externalDomain: 
+                        type: string
+                      publicDnsZoneId: 
+                        type: string
+                      privateDnsZoneId: 
+                        type: string
+                      resourceGroupName:
+                        type: string
+                  privateDnsZoneVirtualNetworkLink:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      privateDnsZoneName:
+                        type: string
+                      virtualNetworkId:
+                        type: string
+                      resourceGroupName:
+                        type: string
+                  principal:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      tenantId:
+                        type: string
+                      objectId:
+                        type: string
+                      displayName:
+                        type: string
+                  application:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      applicationId:
+                        type: string
+                      clientId:
+                        type: string
+                      displayName:
+                        type: string
+                      password:
+                        type: object
+                        properties:
+                          displayName:
+                            type: string
+                          keyId:
+                            type: string
+                          secretName:
+                            type: string
+                          secretNamespace:
+                            type: string
+                  roleAssignments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        roleDefinitionId:
+                          type: string
+                        principalId:
+                          type: string
+                        principalType:
+                          type: string
+                        scope:
+                          type: string
+                        roleDefinitionName:
+                          type: string      
+---

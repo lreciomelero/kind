@@ -20,6 +20,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -31,7 +32,6 @@ import (
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -53,17 +53,16 @@ var awsCRDHostedZones []byte
 var eksCRDHostedZones []byte
 
 type AWSBuilder struct {
-	capxProvider               string
-	capxVersion                string
-	capxImageVersion           string
-	capxManaged                bool
-	capxName                   string
-	capxEnvVars                []string
-	scParameters               commons.SCParameters
-	scProvisioner              string
-	csiNamespace               string
-	crossplaneProviders        []string
-	crossplaneProvidersVersion string
+	capxProvider        string
+	capxVersion         string
+	capxImageVersion    string
+	capxManaged         bool
+	capxName            string
+	capxEnvVars         []string
+	scParameters        commons.SCParameters
+	scProvisioner       string
+	csiNamespace        string
+	crossplaneProviders map[string]string
 }
 
 func newAWSBuilder() *AWSBuilder {
@@ -78,7 +77,7 @@ type CrossplaneAwsParams struct {
 	CreateCredentials bool
 	Addon             string
 	AccountID         string
-	oidcProviderID    string
+	OIDCProviderID    string
 }
 
 var crossplaneAwsAddons = []string{"external-dns"}
@@ -131,23 +130,22 @@ func (b *AWSBuilder) setSC(p ProviderParams) {
 
 func (b *AWSBuilder) setCrossplaneProviders(addons []string) {
 
-	b.crossplaneProviders = []string{
-		"provider-family-aws",
+	b.crossplaneProviders = map[string]string{
+		"provider-family-aws": "v1.8.0",
 	}
 
 	for _, addon := range addons {
 		switch addon {
 		case "external-dns":
-			b.crossplaneProviders = append(b.crossplaneProviders, "provider-aws-route53")
-			b.crossplaneProviders = append(b.crossplaneProviders, "provider-aws-iam")
+			b.crossplaneProviders["provider-aws-route53"] = "v1.8.0"
+			b.crossplaneProviders["provider-aws-iam"] = "v1.8.0"
 		}
 	}
-	b.crossplaneProvidersVersion = "v1.8.0"
 }
 
-func (b *AWSBuilder) GetCrossplaneProviders(addons []string) ([]string, string) {
+func (b *AWSBuilder) getCrossplaneProviders(addons []string) map[string]string {
 	b.setCrossplaneProviders(addons)
-	return b.crossplaneProviders, b.crossplaneProvidersVersion
+	return b.crossplaneProviders
 }
 
 func (b *AWSBuilder) getProvider() Provider {
@@ -424,7 +422,7 @@ func (b *AWSBuilder) postInstallPhase(n nodes.Node, k string) error {
 func (b *AWSBuilder) getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
 	credentialsFound := true
 	addonCredentials := credentials[addon]
-	if isEmptyCredsMap(*addonCredentials) {
+	if isEmptyCredsMap(*addonCredentials, b.capxProvider) {
 		credentialsFound = false
 		addonCredentials = credentials["crossplane"]
 	}
@@ -464,7 +462,7 @@ func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 		ExternalDomain:    keosCluster.Spec.ExternalDomain,
 		CreateCredentials: !credentialsFound,
 		Addon:             addon,
-		AccountID:         credentials["account_id"],
+		AccountID:         credentials["AccountID"],
 	}
 
 	switch addon {
@@ -493,11 +491,7 @@ func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 			}
 			manifests = append(manifests, hostedZone)
 		} else {
-			oidcProviderId, err := getOIDCProviderId(keosCluster.Metadata.Name, customParams["localKubeconfigString"])
-			if err != nil {
-				return nil, nil, err
-			}
-			params.oidcProviderID = oidcProviderId
+			params.OIDCProviderID = customParams["oidcProviderId"]
 			manifests = append(manifests, string(eksCRDHostedZones))
 			compositionsToWait["xZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
 			compositionHostedZones, err := getManifest("aws", "composition-hostedzones-eks.tmpl", params)
@@ -505,7 +499,7 @@ func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 				return nil, nil, err
 			}
 			manifests = append(manifests, compositionHostedZones)
-			hostedZone, err := getManifest("aws", "hostedzone.aws.tmpl", params)
+			hostedZone, err := getManifest("aws", "hostedzone.eks.tmpl", params)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -537,7 +531,7 @@ func getAWSVPCByName(config aws.Config, vpcName string) ([]string, error) {
 	return vpcs, nil
 }
 
-func getExternalDNSCreds(clusterName string, kubeconfigString string) (map[string]string, error) {
+func (b *AWSBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
 
 	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
 	if err != nil {
@@ -558,35 +552,6 @@ func getExternalDNSCreds(clusterName string, kubeconfigString string) (map[strin
 		"SecretKey": secretKey,
 	}
 	return externalDnsCredsMap, nil
-}
-
-func getObject(name string, kubeconfigString string, gvr schema.GroupVersionResource, namespaced bool, namespace string) (map[string]interface{}, error) {
-
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
-	if err != nil {
-		panic(err.Error())
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-
-	resource := dynamicClient.Resource(gvr)
-	resourceNamespace := dynamic.ResourceInterface(resource)
-	if namespaced {
-		if namespace == "" {
-			resourceNamespace = resource.Namespace("default")
-		} else {
-			resourceNamespace = resource.Namespace(namespace)
-		}
-	}
-	object, err := resourceNamespace.Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return object.Object, nil
 }
 
 func getRoleArn(clusterName string, kubeconfigString string) (string, error) {
@@ -622,16 +587,18 @@ func getVpcId(keosCluster commons.KeosCluster, credentials map[string]string) (s
 	return vpcs[0], nil
 }
 
-func getOIDCProviderId(clusterName string, kubeconfigString string) (string, error) {
+func getOIDCProviderId(clusterName string) (string, error) {
 	gvr := schema.GroupVersionResource{
 		Group:    "cluster.x-k8s.io", // Cambia esto según tu CRD
 		Version:  "v1beta1",
 		Resource: "clusters", // Este es el nombre plural de tu CRD
 	}
-	cluster, err := getObject(clusterName, kubeconfigString, gvr, true, "cluster-"+clusterName)
+	cluster, err := getObject(clusterName, "", gvr, true, "cluster-"+clusterName)
 	if err != nil {
 		return "", err
 	}
+	fmt.Println("cluster")
+	fmt.Println(cluster)
 	controlplaneHost := cluster["spec"].(map[string]interface{})["controlPlaneEndpoint"].(map[string]interface{})["host"].(string)
 	if controlplaneHost == "" {
 		return "", errors.New("oidcProviderId cannot be found")

@@ -143,7 +143,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		keosRegistry.user = a.clusterCredentials.KeosRegistryCredentials["User"]
 		keosRegistry.pass = a.clusterCredentials.KeosRegistryCredentials["Pass"]
 	}
-
+	// awsNotManaged := a.keosCluster.Spec.InfraProvider == "aws" && !a.keosCluster.Spec.ControlPlane.Managed
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	gcpGKEEnabled := a.keosCluster.Spec.InfraProvider == "gcp" && a.keosCluster.Spec.ControlPlane.Managed
@@ -705,6 +705,113 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.End(true) // End Installing Network Policy Engine in workload cluster
 		}
 
+		enabledExternalDNS := a.keosCluster.Spec.Dns.ManageZone || awsEKSEnabled
+
+		addonEnabled := map[string]*bool{
+			"external-dns": &enabledExternalDNS,
+		}
+
+		addons := infra.getAddons(a.keosCluster.Spec.ControlPlane.Managed, addonEnabled)
+
+		if len(addons) > 0 {
+			crossplaneCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.Crossplane, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
+			if err != nil {
+				return errors.Wrap(err, "failed to get crossplane credentials")
+			}
+			crossplaneCredsMap := convertToMapStringString(structs.Map(crossplaneCreds))
+
+			externalDnsCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.ExternalDNS, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
+			if err != nil {
+				return errors.Wrap(err, "failed to get external-dns credentials")
+			}
+
+			externalDnsCredsMap := convertToMapStringString(structs.Map(externalDnsCreds))
+
+			customParams := map[string]string{}
+
+			credentials = map[string]*map[string]string{
+				"provisioner":  commons.ToPtr(providerParams.Credentials),
+				"crossplane":   commons.ToPtr(crossplaneCredsMap),
+				"external-dns": commons.ToPtr(externalDnsCredsMap),
+			}
+
+			// Get the workload cluster kubeconfig
+			c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + a.keosCluster.Metadata.Name + " | tee " + kubeconfigPath
+			kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil || kubeconfig == "" {
+				return errors.Wrap(err, "failed to get workload cluster kubeconfig")
+			}
+
+			// c = "cat " + kubeconfigPath
+			// kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+			// if err != nil {
+			// 	return errors.Wrap(err, "failed to get workload kubeconfig string")
+			// }
+			// c = "cat " + localKubeconfigPath
+			// localKubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+			// if err != nil {
+			// 	return errors.Wrap(err, "failed to get workload kubeconfig string")
+			// }
+
+			if awsEKSEnabled {
+				c = "kubectl get cluster -n cluster-" + a.keosCluster.Metadata.Name + " " + a.keosCluster.Metadata.Name + " -o jsonpath='{.spec.controlPlaneEndpoint.host}'"
+				controlplaneHost, err := commons.ExecuteCommand(n, c, 3, 5)
+				if err != nil {
+					return errors.Wrap(err, "failed to get controlplane host")
+				}
+				oidcProviderId := strings.Split(strings.Split(controlplaneHost, "//")[1], ".")[0]
+				customParams["oidcProviderId"] = oidcProviderId
+			}
+
+			if a.clusterConfig.Spec.DNS.CreateInfra && (!isEmptyCredsMap(*credentials["external-dns"], a.keosCluster.Spec.InfraProvider) || !isEmptyCredsMap(*credentials["crossplane"], a.keosCluster.Spec.InfraProvider)) {
+
+				ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
+
+				_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, credentials, infra, privateParams, true, allowCommonEgressNetPolPath, &customParams, addons)
+				if err != nil {
+					return err
+				}
+
+				ctx.Status.End(true)
+
+			}
+
+			if a.clusterConfig.Spec.DNS.CreateInfra && !isEmptyCredsMap(*credentials["crossplane"], a.keosCluster.Spec.InfraProvider) && isEmptyCredsMap(*credentials["external-dns"], a.keosCluster.Spec.InfraProvider) {
+
+				*credentials["external-dns"], err = infra.getExternalDNSCreds(n, a.keosCluster.Metadata.Name, kubeconfigString, *credentials["crossplane"])
+				if err != nil {
+					return errors.Wrap(err, "failed to get external-dns credentials")
+				}
+
+			}
+
+			for _, addon := range addons {
+				switch addon {
+				case "external-dns":
+					if !isEmptyCredsMap(*credentials["external-dns"], a.keosCluster.Spec.InfraProvider) || (awsEKSEnabled && !isEmptyCredsMap(*credentials["crossplane"], a.keosCluster.Spec.InfraProvider)) {
+						ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
+						defer ctx.Status.End(false)
+						if awsEKSEnabled {
+							c = "kubectl --kubeconfig " + kubeconfigPath + " get xzonesconfigs " + providerParams.ClusterName + "-zones-config -o jsonpath='{.status.role.arn}'"
+							roleArn, err := commons.ExecuteCommand(n, c, 3, 5)
+							if err != nil {
+								return errors.Wrap(err, "failed to get roleArn")
+							}
+
+							// roleArn, err := getRoleArn(a.keosCluster.Metadata.Name, kubeconfigString)
+							customParams["roleArn"] = roleArn
+						}
+
+						err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, *credentials["external-dns"])
+						if err != nil {
+							return errors.Wrap(err, "failed to install External-DNS in workload cluster")
+						}
+						ctx.Status.End(true)
+					}
+				}
+			}
+		}
+
 		if a.keosCluster.Spec.DeployAutoscaler && !isMachinePool {
 			ctx.Status.Start("Installing cluster-autoscaler in workload cluster 🗚")
 			defer ctx.Status.End(false)
@@ -728,103 +835,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			ctx.Status.End(true)
-			enabledExternalDNS := a.keosCluster.Spec.Dns.ManageZone || awsEKSEnabled
-
-			addonEnabled := map[string]*bool{
-				"external-dns": &enabledExternalDNS,
-			}
-
-			addons := infra.getAddons(a.keosCluster.Spec.ControlPlane.Managed, addonEnabled)
-
-			if len(addons) > 0 {
-
-				crossplaneCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.Crossplane, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
-				if err != nil {
-					return errors.Wrap(err, "failed to get crossplane credentials")
-				}
-				crossplaneCredsMap := convertToMapStringString(structs.Map(crossplaneCreds))
-
-				externalDnsCreds, err := reflections.GetField(a.keosCluster.Spec.Credentials.ExternalDNS, strings.ToUpper(a.keosCluster.Spec.InfraProvider))
-				if err != nil {
-					return errors.Wrap(err, "failed to get external-dns credentials")
-				}
-
-				externalDnsCredsMap := convertToMapStringString(structs.Map(externalDnsCreds))
-
-				customParams := map[string]string{}
-
-				credentials = map[string]*map[string]string{
-					"provisioner":  commons.ToPtr(providerParams.Credentials),
-					"crossplane":   commons.ToPtr(crossplaneCredsMap),
-					"external-dns": commons.ToPtr(externalDnsCredsMap),
-				}
-
-				// Get the workload cluster kubeconfig
-				c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + a.keosCluster.Metadata.Name + " | tee " + kubeconfigPath
-				kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-				if err != nil || kubeconfig == "" {
-					return errors.Wrap(err, "failed to get workload cluster kubeconfig")
-				}
-
-				// c = "cat " + kubeconfigPath
-				// kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-				// if err != nil {
-				// 	return errors.Wrap(err, "failed to get workload kubeconfig string")
-				// }
-				c = "cat " + localKubeconfigPath
-				localKubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to get workload kubeconfig string")
-				}
-
-				if awsEKSEnabled {
-					customParams["localKubeconfigString"] = localKubeconfigString
-				}
-
-				if a.clusterConfig.Spec.DNS.CreateInfra && (!isEmptyCredsMap(*credentials["external-dns"]) || !isEmptyCredsMap(*credentials["crossplane"])) {
-
-					ctx.Status.Start("Installing Crossplane and deploying crs in workload cluster🎖️")
-
-					_, err = installCrossplane(n, kubeconfigPath, keosRegistry.url, credentials, infra, privateParams, true, allowCommonEgressNetPolPath, &customParams, addons)
-					if err != nil {
-						return err
-					}
-
-					ctx.Status.End(true)
-
-				}
-
-				if !awsEKSEnabled && a.clusterConfig.Spec.DNS.CreateInfra && !isEmptyCredsMap(*credentials["crossplane"]) && isEmptyCredsMap(*credentials["external-dns"]) {
-
-					*credentials["external-dns"], err = getExternalDNSCreds(a.keosCluster.Metadata.Name, kubeconfigString)
-					if err != nil {
-						return errors.Wrap(err, "failed to get external-dns credentials")
-					}
-				}
-
-				for _, addon := range addons {
-					switch addon {
-					case "external-dns":
-						if !isEmptyCredsMap(*credentials["external-dns"]) || (awsEKSEnabled && !isEmptyCredsMap(*credentials["crossplane"])) {
-							ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
-							defer ctx.Status.End(false)
-							if awsEKSEnabled {
-								roleArn, err := getRoleArn(a.keosCluster.Metadata.Name, kubeconfigString)
-								if err != nil {
-									return errors.Wrap(err, "failed to get roleArn")
-								}
-								customParams["roleArn"] = roleArn
-							}
-
-							err = installExternalDNS(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, customParams, *credentials["external-dns"])
-							if err != nil {
-								return errors.Wrap(err, "failed to install External-DNS in workload cluster")
-							}
-							ctx.Status.End(true)
-						}
-					}
-				}
-			}
 
 			if !a.moveManagement {
 
@@ -1029,12 +1039,19 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	return nil
 }
 
-func isEmptyCredsMap(creds map[string]string) bool {
+func isEmptyCredsMap(creds map[string]string, infra string) bool {
 	if reflect.DeepEqual(creds, map[string]string{}) {
 		return true
 	}
-	if creds["AccessKey"] == "" || creds["SecretKey"] == "" {
-		return true
+	switch infra {
+	case "aws":
+		if creds["AccessKey"] == "" || creds["SecretKey"] == "" {
+			return true
+		}
+	case "azure":
+		if creds["ClientID"] == "" || creds["ClientSecret"] == "" || creds["TenantID"] == "" || creds["SubscriptionID"] == "" {
+			return true
+		}
 	}
 	return false
 }

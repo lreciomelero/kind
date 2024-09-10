@@ -113,18 +113,18 @@ spec:
           strategy: string
           string:
             fmt: |
-            {
+              {
                 "Version": "2012-10-17",
                 "Statement": [
                     {
                         "Effect": "Allow",
                         "Principal": {
-                            "Federated": "arn:aws:iam::%s:oidc-provider/oidc.eks.%s.amazonaws.com/id/%s"
+                            "Federated": "arn:aws:iam::%d:oidc-provider/oidc.eks.%s.amazonaws.com/id/%s"
                         },
                         "Action": "sts:AssumeRoleWithWebIdentity",
                         "Condition": {
                             "StringEquals": {
-                                "oidc.eks.%s.amazonaws.com/id/%s:sub": "system:serviceaccount:kube-system:external-dns",
+                                "oidc.eks.%s.amazonaws.com/id/%s:sub": "system:serviceaccount:external-dns:external-dns",
                                 "oidc.eks.%s.amazonaws.com/id/%s:aud": "sts.amazonaws.com"
                             }
                         }
@@ -246,7 +246,7 @@ spec:
         type: FromCompositeFieldPath
       base:
         apiVersion: iam.aws.upbound.io/v1beta1
-        kind: UserPolicyAttachment
+        kind: RolePolicyAttachment
         spec:
           forProvider: {}
    

@@ -1,0 +1,12 @@
+apiVersion: configs.stratio.io/v1alpha1
+kind: xAzureZonesConfig
+metadata:
+  name: {{ .ClusterName }}-zones-config
+  labels:
+    keos.stratio.com/cluster: "{{ .ClusterName }}"
+spec:
+  externalDomain: {{ .ExternalDomain }}
+  clusterName: {{ .ClusterName }}
+  providerConfigName: {{ .Addon }}-provider
+  subscriptionId: {{ .SubscriptionID }}
+

@@ -29,6 +29,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -41,18 +45,28 @@ var azureStorageClasses string
 //go:embed files/azure/internal-ingress-nginx.yaml
 var azureInternalIngress []byte
 
+//go:embed files/azure/compositereourcedefinition-hostedzones-azure.yaml
+var azureCRDHostedZones []byte
+
 type AzureBuilder struct {
-	capxProvider               string
-	capxVersion                string
-	capxImageVersion           string
-	capxManaged                bool
-	capxName                   string
-	capxEnvVars                []string
-	scParameters               commons.SCParameters
-	scProvisioner              string
-	csiNamespace               string
-	crossplaneProviders        []string
-	crossplaneProvidersVersion string
+	capxProvider        string
+	capxVersion         string
+	capxImageVersion    string
+	capxManaged         bool
+	capxName            string
+	capxEnvVars         []string
+	scParameters        commons.SCParameters
+	scProvisioner       string
+	csiNamespace        string
+	crossplaneProviders map[string]string
+}
+
+type CrossplaneAzureParams struct {
+	ClusterName    string
+	ExternalDomain string
+	Addon          string
+	SubscriptionID string
+	Managed        bool
 }
 
 var crossplaneAzureAddons = []string{"external-dns"}
@@ -365,32 +379,125 @@ func (b *AzureBuilder) postInstallPhase(n nodes.Node, k string) error {
 }
 
 func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
-	return "", false, nil
+	credentialsFound := true
+	addonCredentials := credentials[addon]
+	if isEmptyCredsMap(*addonCredentials, b.capxProvider) {
+		credentialsFound = false
+		addonCredentials = credentials["crossplane"]
+	}
+	azureCredentials := "{\n\"clientId\": \"" + (*addonCredentials)["ClientID"] + "\",\n" + "\"clientSecret\": \"" + (*addonCredentials)["ClientSecret"] + "\",\n" + "\"subscriptionId\": \"" + (*addonCredentials)["SubscriptionID"] + "\",\n" + "\"tenantId\": \"" + (*addonCredentials)["TenantID"] + "\"\n}"
+	return azureCredentials, credentialsFound, nil
 }
 
 func (b *AzureBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
 	var addons []string
-	switch clusterManaged {
-	case true:
-		return addons
-	case false:
-		return addons
+
+	for _, addon := range crossplaneAzureAddons {
+		enabled := addonsParams[addon]
+		if (enabled != nil && *enabled) || enabled == nil {
+			addons = append(addons, addon)
+		}
 	}
 
 	return addons
 }
 
 func (b *AzureBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error) {
-	return []string{}, nil, nil
+	var manifests = []string{}
+	compositionsToWait := make(map[string]string)
+	params := CrossplaneAzureParams{
+		ClusterName:    keosCluster.Metadata.Name,
+		ExternalDomain: keosCluster.Spec.ExternalDomain,
+		Addon:          addon,
+		SubscriptionID: credentials["SubscriptionID"],
+		Managed:        keosCluster.Spec.ControlPlane.Managed,
+	}
+	switch addon {
+	case "external-dns":
+		manifests = append(manifests, string(azureCRDHostedZones))
+		compositionsToWait["xAzureZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
+		compositionHostedZones, err := getManifest("azure", "composition-hostedzones-azure.tmpl", params)
+		if err != nil {
+			return nil, nil, err
+		}
+		manifests = append(manifests, compositionHostedZones)
+		hostedZone, err := getManifest("azure", "hostedzone.azure.tmpl", params)
+		if err != nil {
+			return nil, nil, err
+		}
+		manifests = append(manifests, hostedZone)
+	}
+
+	return manifests, compositionsToWait, nil
 }
 
 func (b *AzureBuilder) setCrossplaneProviders(addons []string) {
 
-	b.crossplaneProviders = []string{}
-	b.crossplaneProvidersVersion = ""
+	b.crossplaneProviders = map[string]string{
+		"provider-family-azure": "v1.5.0",
+	}
+
+	for _, addon := range addons {
+		switch addon {
+		case "external-dns":
+			b.crossplaneProviders["provider-azure-network"] = "v1.5.0"
+			b.crossplaneProviders["provider-azuread"] = "v1.4.0"
+			b.crossplaneProviders["provider-azure-authorization"] = "v1.5.0"
+		}
+	}
 }
 
-func (b *AzureBuilder) GetCrossplaneProviders(addons []string) ([]string, string) {
+func (b *AzureBuilder) getCrossplaneProviders(addons []string) map[string]string {
 	b.setCrossplaneProviders(addons)
-	return b.crossplaneProviders, b.crossplaneProvidersVersion
+	return b.crossplaneProviders
+}
+
+func (b *AzureBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
+
+	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+	if err != nil {
+		panic(err.Error())
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), clusterName+"-external-dns-principal-application-secret", metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get external-dns credentials secret")
+	}
+	secretKey := string(secret.Data["attribute.value"])
+	// applicationId, err := getApplicationId(clusterName, kubeconfigString)
+	// if err != nil {
+	// 	return nil, errors.Wrap(err, "failed to get applicationId")
+	// }
+	c := "kubectl --kubeconfig " + kubeconfigPath + " get xazurezonesconfigs " + clusterName + "-zones-config -o jsonpath='{.status.application.applicationId}'"
+	applicationId, err := commons.ExecuteCommand(n, c, 3, 5)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get applicationId")
+	}
+	externalDnsCredsMap := map[string]string{
+		"ClientID":       applicationId,
+		"ClientSecret":   secretKey,
+		"SubscriptionID": credentials["SubscriptionID"], // Not needed for external-dns
+		"TenantID":       credentials["TenantID"],       // Not needed for external-dns
+	}
+	return externalDnsCredsMap, nil
+}
+
+func getApplicationId(clusterName string, kubeconfigString string) (string, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "configs.stratio.io",
+		Version:  "v1alpha1",
+		Resource: "xazurezonesconfigs",
+	}
+	xZonesConfig, err := getObject(clusterName+"-zones-config", kubeconfigString, gvr, false, "")
+	if err != nil {
+		return "", err
+	}
+	applicationId := xZonesConfig["status"].(map[string]interface{})["application"].(map[string]interface{})["applicationId"].(string)
+	if applicationId != "" {
+		return applicationId, nil
+	}
+	return "", errors.New("ApplicationID not found")
 }

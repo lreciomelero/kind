@@ -1,0 +1,441 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xazurezonesconfigs
+  labels:
+    keos.stratio.com/cluster: {{ .ClusterName }}
+spec:
+  compositeTypeRef:
+    apiVersion: configs.stratio.io/v1alpha1
+    kind: xAzureZonesConfig
+  resources:
+  - name: PublicDnsZone
+    base:
+      apiVersion: network.azure.upbound.io/v1beta1
+      kind: DNSZone
+      spec:
+        forProvider: {}
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-public-dns-zone" 
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.clusterName
+      toFieldPath: spec.forProvider.resourceGroupName
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.externalDomain
+      toFieldPath: metadata.annotations['crossplane.io/external-name']
+      type: FromCompositeFieldPath
+    - fromFieldPath: status.atProvider.soaRecord[0].fqdn
+      toFieldPath: status.dnsZones.externalDomain
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.dnsZones.publicDnsZoneId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.resourceGroupName
+      toFieldPath: status.dnsZones.resourceGroupName
+      type: ToCompositeFieldPath
+  - name: PrivateDNSZone
+    base:
+      apiVersion: network.azure.upbound.io/v1beta1
+      kind: PrivateDNSZone
+      spec:
+        forProvider: {}
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-private-dns-zone" 
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.clusterName
+      toFieldPath: spec.forProvider.resourceGroupName
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.externalDomain
+      toFieldPath: metadata.annotations['crossplane.io/external-name']
+      type: FromCompositeFieldPath
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.dnsZones.privateDnsZoneId
+      type: ToCompositeFieldPath
+  - name: PrivateDNSZoneVirtualNetworkLink
+    base:
+      apiVersion: network.azure.upbound.io/v1beta1
+      kind: PrivateDNSZoneVirtualNetworkLink
+      spec:
+        forProvider: 
+            registrationEnabled: true
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-private-dns-zone-vnlink" 
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.clusterName
+      toFieldPath: spec.forProvider.resourceGroupName
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.externalDomain
+      toFieldPath: spec.forProvider.privateDnsZoneName
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.privateDnsZoneNameRef.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-private-zone"
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: spec.subscriptionId
+          - fromFieldPath: spec.clusterName
+          - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+        {{- if .Managed }}
+          fmt: "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s" 
+        {{- else }}
+          fmt: "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s-vnet" 
+        {{- end }}
+      toFieldPath: spec.forProvider.virtualNetworkId
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.privateDnsZoneVirtualNetworkLink.id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.privateDnsZoneName
+      toFieldPath: status.privateDnsZoneVirtualNetworkLink.privateDnsZoneName
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.virtualNetworkId
+      toFieldPath: status.privateDnsZoneVirtualNetworkLink.virtualNetworkId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.resourceGroupName
+      toFieldPath: status.privateDnsZoneVirtualNetworkLink.resourceGroupName
+      type: ToCompositeFieldPath
+  - name: Principal
+    base:
+      apiVersion: serviceprincipals.azuread.upbound.io/v1beta1
+      kind: Principal
+      spec:
+        forProvider: 
+          appRoleAssignmentRequired: false
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal"
+    - type: CombineFromComposite
+      toFieldPath: metadata.labels["keos.stratio.com/principal-name"]
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal"
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.applicationIdSelector.matchLabels['keos.stratio.com/principal-app-name']
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application"
+    - fromFieldPath: status.atProvider.applicationId
+      toFieldPath: status.principal.applicationId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.applicationTenantId
+      toFieldPath: status.principal.tenantId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.objectId
+      toFieldPath: status.principal.objectId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.displayName
+      toFieldPath: status.principal.displayName
+      type: ToCompositeFieldPath
+  - name: Application
+    base:
+      apiVersion: applications.azuread.upbound.io/v1beta1
+      kind: Application
+      spec:
+        forProvider: {}
+    patches:
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application"
+    - type: CombineFromComposite
+      toFieldPath: metadata.labels["keos.stratio.com/principal-app-name"]
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application"
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.displayName
+      combine:
+        variables:
+          - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+            fmt: "%s-external-dns-principal-application"
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.description
+      combine:
+        variables:
+          - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+            fmt: "Application to manage DNS Zones by External-DNS in cluster %s"
+    - fromFieldPath: status.atProvider.applicationId
+      toFieldPath: status.application.applicationId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.application.id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.clientId
+      toFieldPath: status.application.clientId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.displayName
+      toFieldPath: status.application.displayName
+      type: ToCompositeFieldPath
+  - name: ApplicationPassword
+    base:
+      apiVersion: applications.azuread.upbound.io/v1beta1
+      kind: Password
+      spec:
+        writeConnectionSecretToRef:
+            namespace: crossplane-system
+        forProvider: {}
+    patches:
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application-secret"
+    - type: CombineFromComposite
+      toFieldPath: metadata.labels["keos.stratio.com/principal-app-password"]
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application-secret"
+    - type: CombineFromComposite
+      toFieldPath: spec.writeConnectionSecretToRef.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application-secret"
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.displayName
+      combine:
+        variables:
+          - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+            fmt: "%s-external-dns-principal-application"
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.applicationObjectIdSelector.matchLabels['keos.stratio.com/principal-app-name']
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-external-dns-principal-application"
+    - fromFieldPath: status.atProvider.displayName
+      toFieldPath: status.application.password.displayName
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.keyId
+      toFieldPath: status.application.password.keyId
+      type: ToCompositeFieldPath
+    - fromFieldPath: spec.writeConnectionSecretToRef.name
+      toFieldPath: status.application.password.secretName
+      type: ToCompositeFieldPath
+    - fromFieldPath: spec.writeConnectionSecretToRef.namespace
+      toFieldPath: status.application.password.secretNamespace
+      type: ToCompositeFieldPath
+  - name: RoleAssignmentDNSZoneContributorPublicDnsZone
+    base:
+      apiVersion: authorization.azure.upbound.io/v1beta1
+      kind: RoleAssignment
+      spec:
+        forProvider: 
+          skipServicePrincipalAadCheck: true
+          principalType: ServicePrincipal
+          roleDefinitionName: "DNS Zone Contributor"
+    patches:
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-contributor-public-dns-zone"
+    - fromFieldPath: status.principal.objectId
+      toFieldPath: spec.forProvider.principalId
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.scope
+      combine:
+        variables:
+          - fromFieldPath: spec.subscriptionId
+          - fromFieldPath: spec.clusterName
+          - fromFieldPath: spec.externalDomain
+        strategy: string
+        string:
+          fmt: "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnsZones/%s"
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.roleAssignments[0].id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.roleDefinitionId
+      toFieldPath: status.roleAssignments[0].roleDefinitionId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.principalType
+      toFieldPath: status.roleAssignments[0].principalType
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.scope
+      toFieldPath: status.roleAssignments[0].scope
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.roleDefinitionName
+      toFieldPath: status.roleAssignments[0].roleDefinitionName
+      type: ToCompositeFieldPath
+  - name: RoleAssignmentReaderRG
+    base:
+      apiVersion: authorization.azure.upbound.io/v1beta1
+      kind: RoleAssignment
+      spec:
+        forProvider: 
+          skipServicePrincipalAadCheck: true
+          principalType: ServicePrincipal
+          roleDefinitionName: Reader
+    patches:
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-reader-rg"
+    - fromFieldPath: status.principal.objectId
+      toFieldPath: spec.forProvider.principalId
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.scope
+      combine:
+        variables:
+          - fromFieldPath: spec.subscriptionId
+          - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "/subscriptions/%s/resourceGroups/%s"
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.roleAssignments[1].id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.roleDefinitionId
+      toFieldPath: status.roleAssignments[1].roleDefinitionId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.principalType
+      toFieldPath: status.roleAssignments[1].principalType
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.scope
+      toFieldPath: status.roleAssignments[1].scope
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.roleDefinitionName
+      toFieldPath: status.roleAssignments[1].roleDefinitionName
+      type: ToCompositeFieldPath
+  - name: RoleAssignmentDNSZoneContributorPrivateDnsZone
+    base:
+      apiVersion: authorization.azure.upbound.io/v1beta1
+      kind: RoleAssignment
+      spec:
+        forProvider: 
+          skipServicePrincipalAadCheck: true
+          principalType: ServicePrincipal
+          roleDefinitionName: "DNS Zone Contributor"
+    patches:
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-contributor-private-dns-zone"
+    - fromFieldPath: status.principal.objectId
+      toFieldPath: spec.forProvider.principalId
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.scope
+      combine:
+        variables:
+          - fromFieldPath: spec.subscriptionId
+          - fromFieldPath: spec.clusterName
+          - fromFieldPath: spec.externalDomain
+        strategy: string
+        string:
+          fmt: "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/privateDnsZones/%s"
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.roleAssignments[2].id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.roleDefinitionId
+      toFieldPath: status.roleAssignments[2].roleDefinitionId
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.principalType
+      toFieldPath: status.roleAssignments[2].principalType
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.scope
+      toFieldPath: status.roleAssignments[2].scope
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.roleDefinitionName
+      toFieldPath: status.roleAssignments[2].roleDefinitionName
+      type: ToCompositeFieldPath

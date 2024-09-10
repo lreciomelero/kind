@@ -18,6 +18,7 @@ package createworker
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -32,6 +33,11 @@ import (
 	"text/template"
 
 	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -95,8 +101,9 @@ type PBuilder interface {
 	postInstallPhase(n nodes.Node, k string) error
 	getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error)
 	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error)
-	GetCrossplaneProviders(addons []string) ([]string, string)
+	getCrossplaneProviders(addons []string) map[string]string
 	getAddons(clusterManaged bool, addonsParams map[string]*bool) []string
+	getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error)
 }
 
 type Provider struct {
@@ -237,8 +244,12 @@ func (i *Infra) getCrossplaneCRManifests(keosCluster commons.KeosCluster, creden
 	return i.builder.getCrossplaneCRManifests(keosCluster, credentials, workloadClusterInstallation, credentialsFound, addon, customParams)
 }
 
-func (i *Infra) GetCrossplaneProviders(addons []string) ([]string, string) {
-	return i.builder.GetCrossplaneProviders(addons)
+func (i *Infra) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
+	return i.builder.getExternalDNSCreds(n, clusterName, kubeconfigString, credentials)
+}
+
+func (i *Infra) getCrossplaneProviders(addons []string) map[string]string {
+	return i.builder.getCrossplaneProviders(addons)
 }
 
 func (i *Infra) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
@@ -520,6 +531,19 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams PrivateParams, allowCommonEgressNetPolPath string, customParams map[string]string, credentials map[string]string) error {
 	var c string
 	var err error
+	type ExternalDNSProvider struct {
+		Provider string
+		Releases []string
+	}
+	providers := map[string][]ExternalDNSProvider{}
+	switch privateParams.KeosCluster.Spec.InfraProvider {
+	case "gcp":
+		providers["gcp"] = []ExternalDNSProvider{{Provider: "google", Releases: []string{"external-dns", "private-external-dns"}}}
+	case "aws":
+		providers["aws"] = []ExternalDNSProvider{{Provider: "aws", Releases: []string{"external-dns"}}}
+	case "azure":
+		providers["azure"] = []ExternalDNSProvider{{Provider: "azure", Releases: []string{"external-dns"}}, {Provider: "azure-private-dns", Releases: []string{"private-external-dns"}}}
+	}
 
 	c = "kubectl create ns external-dns"
 	if kubeconfigPath != "" {
@@ -528,6 +552,15 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 	_, err = commons.ExecuteCommand(n, c, 3, 5)
 	if err != nil {
 		return errors.Wrap(err, "failed to create external-dns namespace")
+	}
+
+	if kubeconfigPath != "" {
+		// Allow egress in external-dns namespace
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns apply -f " + allowCommonEgressNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply external-dns egress NetworkPolicy")
+		}
 	}
 
 	switch privateParams.KeosCluster.Spec.InfraProvider {
@@ -544,78 +577,90 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 				" --from-file=credentials=" + externalDnsWorkloadCredsFile
 			_, err = commons.ExecuteCommand(n, c, 3, 5)
 			if err != nil {
-				return errors.Wrap(err, "failed to create external-dns credentials secret")
+				return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
 			}
 		}
 	case "azure":
 		// Create secret for Azure credentials
+		c = "echo \"{\n\"aadClientId\": \"" + credentials["ClientID"] + "\",\n" + "\"aadClientSecret\": \"" + credentials["ClientSecret"] + "\",\n" + "\"subscriptionId\": \"" + credentials["SubscriptionID"] + "\",\n" + "\"resourceGroup\": \"" + privateParams.KeosCluster.Metadata.Name + "\",\n" + "\"tenantId\": \"" + credentials["TenantID"] + "\"\n}\" > " + externalDnsWorkloadCredsFile
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to create external-dns credentials secret")
+		}
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
+			" --from-file=azure.json=" + externalDnsWorkloadCredsFile
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
+		}
+
 	case "gcp":
 		// Create secret for GCP credentials
 
 	}
 
-	if kubeconfigPath != "" {
-		// Allow egress in external-dns namespace
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns apply -f " + allowCommonEgressNetPolPath
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to apply external-dns egress NetworkPolicy")
+	for _, installation := range providers[privateParams.KeosCluster.Spec.InfraProvider] {
+		for _, releaseName := range installation.Releases {
+
+			c = "helm install " + releaseName + " /stratio/helm/external-dns" +
+				" --namespace external-dns" +
+				" --set provider=" + installation.Provider +
+				" --set domainFilters={" + privateParams.KeosCluster.Spec.ExternalDomain + "}" +
+				" --set image.tag=v0.13.6" +
+				" --set-string podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict\"=true" +
+				" --set securityContext.runAsNonRoot=false" +
+				" --set replicaCount=2" +
+				" --set securityContext.runAsUser=0"
+			// PRIORITY CLASS "{{ keos_priorityclasses.core.name }}" ?¿
+
+			if privateParams.Private {
+				c += " --set image.repository=" + privateParams.KeosRegUrl + "/external-dns/external-dns"
+			}
+
+			if kubeconfigPath != "" {
+				c += " --kubeconfig " + kubeconfigPath
+			}
+
+			switch privateParams.KeosCluster.Spec.InfraProvider {
+			case "aws":
+				if privateParams.KeosCluster.Spec.ControlPlane.Managed {
+					c += " --set serviceAccount.annotations.\"eks\\.amazonaws\\.com/role-arn\"=" + customParams["roleArn"] +
+						" --set env[0].name=AWS_DEFAULT_REGION" +
+						" --set env[0].value=" + privateParams.KeosCluster.Spec.Region
+				} else {
+					c += " --set extraVolumes[0].name=aws-credentials" +
+						" --set extraVolumes[0].secret.secretName=external-dns-creds" +
+						" --set env[0].name=AWS_SHARED_CREDENTIALS_FILE" +
+						" --set env[0].value=/.aws/credentials" +
+						" --set env[1].name=AWS_DEFAULT_REGION" +
+						" --set env[1].value=" + privateParams.KeosCluster.Spec.Region +
+						" --set extraVolumeMounts[0].name=aws-credentials" +
+						" --set extraVolumeMounts[0].mountPath=/.aws" +
+						" --set extraVolumeMounts[0].readOnly=true"
+				}
+			case "azure":
+				c += " --set extraVolumes[0].name=azure-config" +
+					" --set extraVolumes[0].secret.secretName=external-dns-creds" +
+					" --set extraVolumeMounts[0].name=azure-config" +
+					" --set extraVolumeMounts[0].mountPath=/etc/kubernetes/" +
+					" --set extraVolumeMounts[0].readOnly=true"
+			case "gcp":
+				c += " --set extraVolumes[0].name=google-service-account" +
+					" --set extraVolumes[0].secret.secretName=" + customParams["external_dns_gcp_config_secret_name"] +
+					" --set extraVolumeMounts[0].name=google-service-account" +
+					" --set extraVolumeMounts[0].mountPath=/etc/secrets/service-account/" +
+					" --set extraVolumeMounts[0].readOnly=true" +
+					" --set env[0].name=GOOGLE_APPLICATION_CREDENTIALS" +
+					" --set env[0].value=/etc/secrets/service-account/gcp.json"
+			}
+
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to deploy "+releaseName+" Helm Chart")
+			}
+
 		}
-	}
 
-	// Deploy external-dns
-	c = "helm install external-dns /stratio/helm/external-dns" +
-		" --namespace external-dns" +
-		" --set provider=" + privateParams.KeosCluster.Spec.InfraProvider +
-		" --set domainFilters={" + privateParams.KeosCluster.Spec.ExternalDomain + "}" +
-		" --set image.tag=v0.13.6" +
-		" --set cluster-autoscaler.kubernetes.io/safe-to-evict=true" +
-		" --set securityContext.runAsNonRoot=false" +
-		" --set securityContext.runAsUser=0"
-	// PRIORITY CLASS "{{ keos_priorityclasses.core.name }}" ?¿
-	// CUANDO SE INSTALA CON NOMBRE private-external-dns ?¿
-
-	if privateParams.Private {
-		c += " --set image.repository=" + privateParams.KeosRegUrl + "/external-dns/external-dns"
-	}
-
-	if kubeconfigPath != "" {
-		c += " --kubeconfig " + kubeconfigPath
-	}
-
-	switch privateParams.KeosCluster.Spec.InfraProvider {
-	case "aws":
-		if privateParams.KeosCluster.Spec.ControlPlane.Managed {
-			c += " --set annotations.eks.amazonaws.com/role-arn=" + customParams["roleArn"] +
-				" --set env[0].name=AWS_DEFAULT_REGION" +
-				" --set env[0].value=" + privateParams.KeosCluster.Spec.Region
-		} else {
-			c += " --set extraVolumes[0].name=aws-credentials" +
-				" --set extraVolumes[0].secret.secretName=external-dns-creds" +
-				" --set env[0].name=AWS_SHARED_CREDENTIALS_FILE" +
-				" --set env[0].value=/.aws/credentials" +
-				" --set env[1].name=AWS_DEFAULT_REGION" +
-				" --set env[1].value=" + privateParams.KeosCluster.Spec.Region +
-				" --set extraVolumeMounts[0].name=aws-credentials" +
-				" --set extraVolumeMounts[0].mountPath=/.aws" +
-				" --set extraVolumeMounts[0].readOnly=true"
-		}
-	case "azure":
-		c += " --set extraVolumes[0].name=azure-config" +
-			" --set extraVolumes[0].secret.secretName=" + customParams["external_dns_azure_config_secret_name"]
-	case "gcp":
-		c += " --set extraVolumes[0].name=google-service-account" +
-			" --set extraVolumes[0].secret.secretName=" + customParams["external_dns_gcp_config_secret_name"] +
-			" --set extraVolumeMounts[0].name=google-service-account" +
-			" --set extraVolumeMounts[0].mountPath=/etc/secrets/service-account/" +
-			" --set extraVolumeMounts[0].readOnly=true" +
-			" --set env[0].name=GOOGLE_APPLICATION_CREDENTIALS" +
-			" --set env[0].value=/etc/secrets/service-account/gcp.json"
-	}
-
-	_, err = commons.ExecuteCommand(n, c, 3, 5)
-	if err != nil {
-		return errors.Wrap(err, "failed to deploy external-dns Helm Chart")
 	}
 
 	return nil
@@ -1151,4 +1196,40 @@ func convertToMapStringString(m map[string]interface{}) map[string]string {
 		m2[k] = v.(string)
 	}
 	return m2
+}
+
+func getObject(name string, kubeconfigString string, gvr schema.GroupVersionResource, namespaced bool, namespace string) (map[string]interface{}, error) {
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if kubeconfigString != "" {
+		config, err = clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	resource := dynamicClient.Resource(gvr)
+	resourceNamespace := dynamic.ResourceInterface(resource)
+	if namespaced {
+		if namespace == "" {
+			resourceNamespace = resource.Namespace("default")
+		} else {
+			resourceNamespace = resource.Namespace(namespace)
+		}
+	}
+	object, err := resourceNamespace.Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return object.Object, nil
 }

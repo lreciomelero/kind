@@ -27,8 +27,9 @@ spec:
                   clusterName:
                     type: string
                   accountId:
-                    type: string
-                  oicdProviderId:
+                    type: integer
+                    format: int64
+                  oidcProviderId:
                     type: string
                   providerConfigName:
                     type: string

@@ -38,17 +38,16 @@ import (
 var gcpInternalIngress []byte
 
 type GCPBuilder struct {
-	capxProvider              string
-	capxVersion               string
-	capxImageVersion          string
-	capxManaged               bool
-	capxName                  string
-	capxEnvVars               []string
-	scParameters              commons.SCParameters
-	scProvisioner             string
-	csiNamespace              string
-	crossplaneProviders       []string
-	crossplaneProviderVersion string
+	capxProvider        string
+	capxVersion         string
+	capxImageVersion    string
+	capxManaged         bool
+	capxName            string
+	capxEnvVars         []string
+	scParameters        commons.SCParameters
+	scProvisioner       string
+	csiNamespace        string
+	crossplaneProviders map[string]string
 }
 
 var crossplaneGCPAddons = []string{"external-dns"}
@@ -294,11 +293,14 @@ func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 
 func (b *GCPBuilder) setCrossplaneProviders(addons []string) {
 
-	b.crossplaneProviders = []string{}
-	b.crossplaneProviderVersion = ""
+	b.crossplaneProviders = map[string]string{}
 }
 
-func (b *GCPBuilder) GetCrossplaneProviders(addons []string) ([]string, string) {
+func (b *GCPBuilder) getCrossplaneProviders(addons []string) map[string]string {
 	b.setCrossplaneProviders(addons)
-	return b.crossplaneProviders, b.crossplaneProviderVersion
+	return b.crossplaneProviders
+}
+
+func (b *GCPBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
+	return nil, nil
 }

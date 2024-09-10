@@ -40,8 +40,8 @@ type CrossplaneProviderConfigParams struct {
 }
 
 func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUrl string, privateRegistry bool, infraProvider string, addons []string) error {
-	providers, version := infra.GetCrossplaneProviders(addons)
-	for _, provider := range providers {
+	providers := infra.getCrossplaneProviders(addons)
+	for provider, version := range providers {
 		providerFile := "/kind/" + provider + ".yaml"
 
 		params := CrossplaneProviderParams{
@@ -51,7 +51,7 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 			Private:  privateRegistry,
 			Version:  version,
 		}
-		providerManifest, err := getManifest(infraProvider, "crossplane-provider.tmpl", params)
+		providerManifest, err := getManifest("common", "crossplane-provider.tmpl", params)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate provider manifest "+provider)
 		}
@@ -70,7 +70,7 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 			return errors.Wrap(err, "failed to create provider "+provider)
 		}
 
-		c = "kubectl wait providers.pkg.crossplane.io/" + provider + " --for=condition=healthy=False --timeout=3m"
+		c = "kubectl wait providers.pkg.crossplane.io/" + provider + " --for=condition=healthy=True --timeout=5m"
 		if kubeconfigpath != "" {
 			c += " --kubeconfig " + kubeconfigpath
 		}
@@ -99,7 +99,6 @@ func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUr
 
 func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, credentials map[string]*map[string]string, infra *Infra, privateParams PrivateParams, workloadClusterInstallation bool, allowAllEgressNetPolPath string, customParams *map[string]string, addons []string) (commons.KeosCluster, error) {
 	kubeconfigString := ""
-	// addons := []string{"external-dns"}
 
 	c := "mkdir -p " + crossplane_directoy_path + " && chmod -R 0755 " + crossplane_directoy_path
 	_, err := commons.ExecuteCommand(n, c, 3, 5)
@@ -229,7 +228,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 			}
 		}
 
-		providerConfigManifest, err := getManifest("aws", "crossplane-provider-config.tmpl", params)
+		providerConfigManifest, err := getManifest(privateParams.KeosCluster.Spec.InfraProvider, "crossplane-provider-config.tmpl", params)
 		if err != nil {
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to generate provider config manifest ")
 		}
@@ -265,9 +264,9 @@ func createCrossplaneCustomResources(n nodes.Node, kubeconfigpath string, creden
 		return privateParams.KeosCluster, err
 	}
 	for i, manifest := range crossplaneCRManifests {
-		crossplane_crs_file := crossplane_crs_file_local_base + fmt.Sprintf("-%d.yaml", i)
+		crossplane_crs_file := crossplane_crs_file_local_base + fmt.Sprintf(""+addon+"-%d.yaml", i)
 		if workloadClusterInstallation {
-			crossplane_crs_file = crossplane_crs_file_workload_base + fmt.Sprintf("-%d.yaml", i)
+			crossplane_crs_file = crossplane_crs_file_workload_base + fmt.Sprintf(""+addon+"-%d.yaml", i)
 		}
 
 		c := "echo '" + manifest + "' > " + crossplane_crs_file

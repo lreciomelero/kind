@@ -60,6 +60,14 @@ func validateClusterConfig(spec commons.KeosSpec, clusterConfigSpec commons.Clus
 	}
 	switch spec.InfraProvider {
 	case "aws":
+		if spec.ControlPlane.Managed {
+			if clusterConfigSpec.DNS.CreateInfra && reflect.DeepEqual(spec.Credentials.Crossplane.AWS, commons.AWSCredentials{}) {
+				return errors.New("spec: Invalid value: \"keoscluster.spec.credentials.crossplane.aws\" must be defined for aws infra provider")
+			}
+			if !reflect.DeepEqual(spec.Credentials.ExternalDNS.AWS, commons.AWSCredentials{}) {
+				return errors.New("spec: Invalid value: \"keoscluster.spec.credentials.external_dns.aws\" must not be defined for aws infra provider with eks flavour")
+			}
+		}
 		if reflect.DeepEqual(spec.Credentials.Crossplane.AWS, commons.AWSCredentials{}) && reflect.DeepEqual(spec.Credentials.ExternalDNS.AWS, commons.AWSCredentials{}) && clusterConfigSpec.DNS.CreateInfra {
 			return errors.New("spec: Invalid value: \"keoscluster.spec.credentials.crossplane.aws\" or \"keoscluster.spec.credentials.external_dns.aws\" must be defined for aws infra provider")
 		}
