@@ -155,9 +155,10 @@ type helmRepository struct {
 }
 
 type calicoHelmParams struct {
-	Spec        commons.KeosSpec
-	KeosRegUrl  string
-	Private     bool
+	Spec           commons.KeosSpec
+	KeosRegUrl     string
+	Private        bool
+	IsNetPolEngine bool
 	Annotations map[string]string
 }
 
@@ -672,7 +673,7 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 	return nil
 }
 
-func installCalico(n nodes.Node, k string, privateParams PrivateParams, dryRun bool) error {
+func installCalico(n nodes.Node, k string, privateParams PrivateParams, isNetPolEngine bool, dryRun bool) error {
 	var c string
 	var cmd exec.Cmd
 	var err error
@@ -681,10 +682,11 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, dryRun b
 	calicoTemplate := "/kind/tigera-operator-helm-values.yaml"
 
 	calicoHelmParams := calicoHelmParams{
-		Spec:       keosCluster.Spec,
-		KeosRegUrl: privateParams.KeosRegUrl,
-		Private:    privateParams.Private,
-		Annotations: map[string]string{
+		Spec:           keosCluster.Spec,
+		KeosRegUrl:     privateParams.KeosRegUrl,
+		Private:        privateParams.Private,
+		IsNetPolEngine: isNetPolEngine,
+		Annotations:    map[string]string{
 			postInstallAnnotation: "var-lib-calico",
 		},
 	}
@@ -913,7 +915,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartVersion = entry.Version
 			// tigera-operator-helm-values.yaml is required to install Calico as Network Policy engine
 			if name == "tigera-operator" && awsEKSEnabled {
-				if err := installCalico(n, k, privateParams, true); err != nil {
+				if err := installCalico(n, k, privateParams, false, true); err != nil {
 					return err
 				}
 				// Create namespace for tigera-operator in workload cluster

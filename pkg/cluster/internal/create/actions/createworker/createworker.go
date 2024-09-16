@@ -20,7 +20,10 @@ package createworker
 import (
 	"bytes"
 	"context"
+	"embed"
 	_ "embed"
+	"encoding/json"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -89,6 +92,10 @@ var rbacInternalLoadBalancing string
 
 //go:embed files/aws/aws-node_rbac.yaml
 var rbacAWSNode string
+
+//go:embed files/gcp/coredns_*.yaml
+var gcpCoreDNSDeploy embed.FS
+
 
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
@@ -487,20 +494,48 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to install external cloud-provider in workload cluster")
 			}
+
 			ctx.Status.End(true) // End Installing cloud-provider in workload cluster
 
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, privateParams, false)
+			err = installCalico(n, kubeconfigPath, privateParams, true, false)
+
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
+			}
+
+			// After calico is installed and network policies are applied, patch the tigera-operator clusterrole to allow resourcequotas creation
+			if gcpGKEEnabled {
+				c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole tigera-operator -o jsonpath='{.rules}'"
+				tigerarules, err := commons.ExecuteCommand(n, c, 3, 5)
+				if err != nil {
+					return errors.Wrap(err, "failed to get tigera-operator clusterrole rules")
+				}
+				var rules []json.RawMessage
+				err = json.Unmarshal([]byte(tigerarules), &rules)
+				if err != nil {
+					return errors.Wrap(err, "failed to parse tigera-operator clusterrole rules")
+				}
+				// create, delete
+				rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["resourcequotas"],"verbs": ["create"]}`))
+				newtigerarules, err := json.Marshal(rules)
+				if err != nil {
+					return errors.Wrap(err, "failed to marshal tigera-operator clusterrole rules")
+				}
+				c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole tigera-operator -p '{\"rules\": " + string(newtigerarules) + "}'"
+				_, err = commons.ExecuteCommand(n, c, 3, 5)
+				if err != nil {
+					return errors.Wrap(err, "failed to patch tigera-operator clusterrole")
+				}
 			}
 			ctx.Status.End(true) // End Installing Calico in workload cluster
 		}
 
 		ctx.Status.Start("Preparing nodes in workload cluster 📦")
 		defer ctx.Status.End(false)
+
 
 		if awsEKSEnabled {
 			c = "kubectl -n capa-system rollout restart deployment capa-controller-manager"
@@ -563,25 +598,97 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to create the worker Cluster")
 			}
 		}
+
+		// Ensure CoreDNS replicas are assigned to different nodes
+        // once more than 2 control planes or workers are running
+        c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
+        _, err = commons.ExecuteCommand(n, c, 3, 5)
+        if err != nil {
+            return errors.Wrap(err, "failed to restart coredns deployment")
+        }
+
+		// Wait for CoreDNS deployment to be ready
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to wait for coredns ready")
+		}
+
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
 
-		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
-		defer ctx.Status.End(false)
-		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, privateParams, chartsList)
-		if err != nil {
-			return err
-		}
+		if gcpGKEEnabled {
+			ctx.Status.Start("Enabling CoreDNS as DNS server 📡")
+			defer ctx.Status.End(false)
 
-		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath)
-		if err != nil {
-			return err
-		}
+			gcpCoreDNSDeploymentPath := "files/gcp/coredns_deployment.yaml"
+			gcpCoreDNSRBACPath := "files/gcp/coredns_rbac.yaml"
+			combinedCoreDNSPath := "/kind/coredns-deployment.yaml"
 
-		err = provider.configCAPIWorker(n, a.keosCluster, kubeconfigPath)
-		if err != nil {
-			return err
+			gcpCoreDNSRBAC, err := gcpCoreDNSDeploy.Open(gcpCoreDNSRBACPath)
+			if err != nil {
+				return errors.Wrap(err, "error opening the CoreDNS RBAC file")
+			}
+			defer gcpCoreDNSRBAC.Close()
+			gcpCoreDNSDeployment, err := gcpCoreDNSDeploy.Open(gcpCoreDNSDeploymentPath)
+			if err != nil {
+				return errors.Wrap(err, "error opening the CoreDNS deployment file")
+			}
+			defer gcpCoreDNSDeployment.Close()
+
+			// Create a buffer to hold the combined contents
+			var combinedCoreDNSContents bytes.Buffer
+
+			// Combine the contents of gcpCoreDNSRBAC and gcpCoreDNSDeployment with a newline in between
+			combinedReader := io.MultiReader(gcpCoreDNSRBAC, strings.NewReader("\n"), gcpCoreDNSDeployment)
+
+			// Read all combined contents into the buffer
+			if _, err := combinedCoreDNSContents.ReadFrom(combinedReader); err != nil {
+				return errors.Wrap(err, "error reading the combined CoreDNS files")
+			}
+			combinedCoreDNS := combinedCoreDNSContents.String()
+
+			coreDNSTemplate := "/kind/coredns-configmap.yaml"
+			coreDNSConfigmap, err := getManifest(a.keosCluster.Spec.InfraProvider, "coredns_configmap.tmpl", majorVersion,a.keosCluster.Spec)
+			if err != nil {
+				return errors.Wrap(err, "failed to get CoreDNS file")
+			}
+			c = "echo '" + coreDNSConfigmap + "' > " + coreDNSTemplate
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to create CoreDNS configmap file")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + coreDNSTemplate
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply CoreDNS configmap")
+			}
+			c := "echo '" + combinedCoreDNS + "' > " + combinedCoreDNSPath
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to create CoreDNS deployment and RBAC file")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + combinedCoreDNSPath
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply CoreDNS deployment and RBAC")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deploy/coredns --timeout=3m"
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to wait for the CoreDNS deployment to be ready")
+			}
+
+			c = "kubectl --kubeconfig " + kubeconfigPath + " scale deployment kube-dns-autoscaler -n kube-system --replicas=0"
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to disable kube-dns-autoscaler deployment")
+			}
+			c = "kubectl --kubeconfig " + kubeconfigPath + " scale deployment kube-dns -n kube-system --replicas=0"
+			_, err = commons.ExecuteCommand(n, c, 3, 5)
+			if err != nil {
+				return errors.Wrap(err, "failed to disable kube-dns deployment")
+			}
 		}
-		ctx.Status.End(true) // End Installing CAPx in workload cluster
 
 		ctx.Status.Start("Configuring Flux in workload cluster 🧭")
 		defer ctx.Status.End(false)
@@ -601,82 +708,23 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 		ctx.Status.End(true) // End Installing Flux in workload cluster
 
-		if !a.keosCluster.Spec.ControlPlane.Managed {
-
-			ctx.Status.Start("Installing CSI in workload cluster 💾")
-			defer ctx.Status.End(false)
-
-			err = infra.installCSI(n, kubeconfigPath, privateParams, chartsList)
-			if err != nil {
-				return errors.Wrap(err, "failed to install CSI in workload cluster")
-			}
-
-			ctx.Status.End(true)
-
-			if provider.capxProvider == "gcp" {
-				// XXX Ref kubernetes/kubernetes#86793 Starting from v1.18, gcp cloud-controller-manager requires RBAC to patch,update service/status (in-tree)
-				ctx.Status.Start("Creating Kubernetes RBAC for internal loadbalancing 🔐")
-				defer ctx.Status.End(false)
-
-				requiredInternalNginx, err := infra.internalNginx(providerParams, a.keosCluster.Spec.Networks)
-				if err != nil {
-					return err
-				}
-
-				if requiredInternalNginx {
-					rbacInternalLoadBalancingPath := "/kind/internalloadbalancing_rbac.yaml"
-
-					// Deploy Kubernetes RBAC internal loadbalancing
-					c = "echo \"" + rbacInternalLoadBalancing + "\" > " + rbacInternalLoadBalancingPath
-					_, err = commons.ExecuteCommand(n, c, 5, 3)
-					if err != nil {
-						return errors.Wrap(err, "failed to write the kubernetes RBAC internal loadbalancing")
-					}
-
-					c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + rbacInternalLoadBalancingPath
-					_, err = commons.ExecuteCommand(n, c, 5, 3)
-					if err != nil {
-						return errors.Wrap(err, "failed to the kubernetes RBAC internal loadbalancing")
-					}
-				}
-				ctx.Status.End(true)
-			}
-		}
-
-        // Ensure CoreDNS replicas are assigned to different nodes
-        // once more than 2 control planes or workers are running
-        c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
-        _, err = commons.ExecuteCommand(n, c, 3, 5)
-        if err != nil {
-            return errors.Wrap(err, "failed to restart coredns deployment")
-        }
-
-		// Wait for CoreDNS deployment to be ready
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to wait for coredns ready")
-		}
-
-		if awsEKSEnabled && a.clusterConfig.Spec.EKSLBController {
-			ctx.Status.Start("Installing AWS LB controller in workload cluster ⚖️")
-			defer ctx.Status.End(false)
-			err = installLBController(n, kubeconfigPath, privateParams, providerParams, chartsList)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to install AWS LB controller in workload cluster")
-			}
-			ctx.Status.End(true) // End Installing AWS LB controller in workload cluster
-		}
-
-		ctx.Status.Start("Installing StorageClass in workload cluster 💾")
+		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
 		defer ctx.Status.End(false)
-
-		err = infra.configureStorageClass(n, kubeconfigPath)
+		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, privateParams, chartsList)
 		if err != nil {
-			return errors.Wrap(err, "failed to configure StorageClass in workload cluster")
+			return err
 		}
-		ctx.Status.End(true) // End Installing StorageClass in workload cluster
+
+		err = provider.installCAPXWorker(n, a.keosCluster, kubeconfigPath)
+		if err != nil {
+			return err
+		}
+
+		err = provider.configCAPIWorker(n, a.keosCluster, kubeconfigPath)
+		if err != nil {
+			return err
+		}
+		ctx.Status.End(true) // End Installing CAPx in workload cluster
 
 		ctx.Status.Start("Enabling workload cluster's self-healing 🏥")
 		defer ctx.Status.End(false)
@@ -690,6 +738,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 		defer ctx.Status.End(false)
+
 		// Allow egress in tigera-operator namespace
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n tigera-operator apply -f " + allowCommonEgressNetPolPath
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
@@ -731,64 +780,38 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 		}
 
-	// Allow egress in cert-manager Namespace
-	c = "kubectl --kubeconfig " + kubeconfigPath + " -n cert-manager apply -f " + allowCommonEgressNetPolPath
-	_, err = commons.ExecuteCommand(n, c, 5, 3)
+		// Allow egress in cert-manager Namespace
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n cert-manager apply -f " + allowCommonEgressNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
 
-	if err != nil {
-		return errors.Wrap(err, "failed to apply cert-manager's NetworkPolicy")
-	}
-
-
-		// Use Calico as network policy engine in managed systems
-		if provider.capxProvider != "azure" && !isMachinePool {
-			// Create the allow and deny (global) network policy file in the container
-			denyallEgressIMDSGNetPolPath := "/kind/deny-all-egress-imds_gnetpol.yaml"
-			allowCAPXEgressIMDSGNetPolPath := "/kind/allow-egress-imds_gnetpol.yaml"
-
-			// Allow egress in kube-system Namespace
-			c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system apply -f " + allowCommonEgressNetPolPath
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to apply kube-system egress NetworkPolicy")
-			}
-			denyEgressIMDSGNetPol, err := provider.getDenyAllEgressIMDSGNetPol()
-			if err != nil {
-				return err
-			}
-
-			c = "echo \"" + denyEgressIMDSGNetPol + "\" > " + denyallEgressIMDSGNetPolPath
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to write the deny-all-traffic-to-aws-imds global network policy")
-			}
-			allowEgressIMDSGNetPol, err := provider.getAllowCAPXEgressIMDSGNetPol()
-			if err != nil {
-				return err
-			}
-
-			c = "echo \"" + allowEgressIMDSGNetPol + "\" > " + allowCAPXEgressIMDSGNetPolPath
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds global network policy")
-			}
-
-			// Deny CAPA egress to AWS IMDS
-			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + denyallEgressIMDSGNetPolPath
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to apply deny IMDS traffic GlobalNetworkPolicy")
-			}
-
-			// Allow CAPA egress to AWS IMDS
-			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + allowCAPXEgressIMDSGNetPolPath
-			_, err = commons.ExecuteCommand(n, c, 5, 3)
-			if err != nil {
-				return errors.Wrap(err, "failed to apply allow CAPX as egress GlobalNetworkPolicy")
-			}
-
-			ctx.Status.End(true) // End Installing Network Policy Engine in workload cluster
+		if err != nil {
+			return errors.Wrap(err, "failed to apply cert-manager's NetworkPolicy")
 		}
+
+		ctx.Status.End(true) // End Configuring Network Policy Engine in workload cluster
+
+		if !a.keosCluster.Spec.ControlPlane.Managed {
+
+			ctx.Status.Start("Installing CSI in workload cluster 💾")
+			defer ctx.Status.End(false)
+
+			err = infra.installCSI(n, kubeconfigPath, privateParams, chartsList)
+			if err != nil {
+				return errors.Wrap(err, "failed to install CSI in workload cluster")
+			}
+
+			ctx.Status.End(true)
+
+		}
+
+		ctx.Status.Start("Installing StorageClass in workload cluster 💾")
+		defer ctx.Status.End(false)
+
+		err = infra.configureStorageClass(n, kubeconfigPath)
+		if err != nil {
+			return errors.Wrap(err, "failed to configure StorageClass in workload cluster")
+		}
+		ctx.Status.End(true) // End Installing StorageClass in workload cluster
 
 		if a.keosCluster.Spec.DeployAutoscaler && !isMachinePool {
 			ctx.Status.Start("Installing cluster-autoscaler in workload cluster 🗚")
@@ -799,7 +822,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to install cluster-autoscaler in workload cluster")
 			}
 
-			ctx.Status.End(true)
+			ctx.Status.End(true) // End Installing cluster-autoscaler in workload cluster
 		}
 
 		ctx.Status.Start("Installing keos cluster operator in workload cluster 💻")
@@ -810,10 +833,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return errors.Wrap(err, "failed to deploy cluster operator in workload cluster")
 		}
 
-		ctx.Status.End(true)
+		ctx.Status.End(true) // Installing keos cluster operator in workload cluster
 
 		// Apply custom CoreDNS configuration
-		if a.keosCluster.Spec.Dns.Forwarders != nil && len(a.keosCluster.Spec.Dns.Forwarders) > 0 && !awsEKSEnabled {
+		if len(a.keosCluster.Spec.Dns.Forwarders) > 0 && (!awsEKSEnabled || !gcpGKEEnabled) {
 			ctx.Status.Start("Customizing CoreDNS configuration 🪡")
 			defer ctx.Status.End(false)
 
@@ -823,6 +846,46 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			ctx.Status.End(true) // End Customizing CoreDNS configuration
+		}
+
+		if provider.capxProvider == "gcp" {
+			// XXX Ref kubernetes/kubernetes#86793 Starting from v1.18, gcp cloud-controller-manager requires RBAC to patch,update service/status (in-tree)
+			ctx.Status.Start("Creating Kubernetes RBAC for internal loadbalancing 🔐")
+			defer ctx.Status.End(false)
+
+			requiredInternalNginx, err := infra.internalNginx(providerParams, a.keosCluster.Spec.Networks)
+			if err != nil {
+				return err
+			}
+
+			if requiredInternalNginx {
+				rbacInternalLoadBalancingPath := "/kind/internalloadbalancing_rbac.yaml"
+
+				// Deploy Kubernetes RBAC internal loadbalancing
+				c = "echo \"" + rbacInternalLoadBalancing + "\" > " + rbacInternalLoadBalancingPath
+				_, err = commons.ExecuteCommand(n, c, 5, 3)
+				if err != nil {
+					return errors.Wrap(err, "failed to write the kubernetes RBAC internal loadbalancing")
+				}
+
+				c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + rbacInternalLoadBalancingPath
+				_, err = commons.ExecuteCommand(n, c, 5, 3)
+				if err != nil {
+					return errors.Wrap(err, "failed to the kubernetes RBAC internal loadbalancing")
+				}
+			}
+			ctx.Status.End(true) // End Creating Kubernetes RBAC for internal loadbalancing
+		}
+
+		if awsEKSEnabled && a.clusterConfig.Spec.EKSLBController {
+			ctx.Status.Start("Installing AWS LB controller in workload cluster ⚖️")
+			defer ctx.Status.End(false)
+			err = installLBController(n, kubeconfigPath, privateParams, providerParams, chartsList)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to install AWS LB controller in workload cluster")
+			}
+			ctx.Status.End(true) // End Installing AWS LB controller in workload cluster
 		}
 
 		// Create cloud-provisioner Objects backup
