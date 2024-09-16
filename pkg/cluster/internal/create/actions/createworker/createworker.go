@@ -690,24 +690,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 		}
 
-		ctx.Status.Start("Configuring Flux in workload cluster 🧭")
-		defer ctx.Status.End(false)
-
-		err = configureFlux(n, kubeconfigPath, privateParams, helmRegistry, a.keosCluster.Spec, chartsList)
-		if err != nil {
-			return errors.Wrap(err, "failed to install Flux in workload cluster")
-		}
-		ctx.Status.End(true) // End Installing Flux in workload cluster
-
-		ctx.Status.Start("Reconciling the existing Helm charts in workload cluster 🧲")
-		defer ctx.Status.End(false)
-		
-		err = reconcileCharts(n, kubeconfigPath, privateParams, a.keosCluster.Spec, chartsList, awsEKSEnabled)
-		if err != nil {
-			return errors.Wrap(err, "failed to reconcile with Flux the existing Helm charts in workload cluster")
-		}
-		ctx.Status.End(true) // End Installing Flux in workload cluster
-
 		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
 		defer ctx.Status.End(false)
 		err = provider.deployCertManager(n, keosRegistry.url, kubeconfigPath, privateParams, chartsList)
@@ -725,6 +707,24 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return err
 		}
 		ctx.Status.End(true) // End Installing CAPx in workload cluster
+
+		ctx.Status.Start("Configuring Flux in workload cluster 🧭")
+		defer ctx.Status.End(false)
+
+		err = configureFlux(n, kubeconfigPath, privateParams, helmRegistry, a.keosCluster.Spec, chartsList)
+		if err != nil {
+			return errors.Wrap(err, "failed to install Flux in workload cluster")
+		}
+		ctx.Status.End(true) // End Installing Flux in workload cluster
+
+		ctx.Status.Start("Reconciling the existing Helm charts in workload cluster 🧲")
+		defer ctx.Status.End(false)
+		
+		err = reconcileCharts(n, kubeconfigPath, privateParams, a.keosCluster.Spec, chartsList, awsEKSEnabled)
+		if err != nil {
+			return errors.Wrap(err, "failed to reconcile with Flux the existing Helm charts in workload cluster")
+		}
+		ctx.Status.End(true) // End Installing Flux in workload cluster
 
 		ctx.Status.Start("Enabling workload cluster's self-healing 🏥")
 		defer ctx.Status.End(false)
