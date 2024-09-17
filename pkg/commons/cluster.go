@@ -303,7 +303,6 @@ type GCPCredentials struct {
 	PrivateKey   string `yaml:"private_key"`
 	ClientEmail  string `yaml:"client_email"`
 	ClientID     string `yaml:"client_id"`
-	Region       string `yaml:"region"`
 }
 
 type DockerRegistryCredentials struct {
@@ -326,11 +325,11 @@ type HelmRepositoryCredentials struct {
 }
 
 type HelmRepository struct {
-	AuthRequired 		  bool   `yaml:"auth_required" validate:"boolean"`
-	URL          		  string `yaml:"url" validate:"required"`
-	Type         		  string `yaml:"type,omitempty" validate:"oneof='ecr' 'acr' 'gar' 'generic'"`
-	ReleaseInterval		  string `yaml:"release_interval,omitempty"`
-	ReleaseRetries		  *int   `yaml:"release_retries,omitempty"`
+	AuthRequired          bool   `yaml:"auth_required" validate:"boolean"`
+	URL                   string `yaml:"url" validate:"required"`
+	Type                  string `yaml:"type,omitempty" validate:"oneof='ecr' 'acr' 'gar' 'generic'"`
+	ReleaseInterval       string `yaml:"release_interval,omitempty"`
+	ReleaseRetries        *int   `yaml:"release_retries,omitempty"`
 	ReleaseSourceInterval string `yaml:"release_source_interval,omitempty"`
 	RepositoryInterval    string `yaml:"repository_interval,omitempty"`
 }
