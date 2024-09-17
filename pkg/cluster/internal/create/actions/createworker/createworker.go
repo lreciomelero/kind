@@ -486,7 +486,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Saving the workload cluster kubeconfig
 
 		// Install unmanaged cluster addons
-		if !a.keosCluster.Spec.ControlPlane.Managed  {
+		if !a.keosCluster.Spec.ControlPlane.Managed {
 
 			ctx.Status.Start("Installing cloud-provider in workload cluster ☁️")
 			defer ctx.Status.End(false)
