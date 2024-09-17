@@ -35,8 +35,9 @@ type CrossplaneProviderParams struct {
 }
 
 type CrossplaneProviderConfigParams struct {
-	Addon  string
-	Secret string
+	Addon     string
+	Secret    string
+	ProjectID string
 }
 
 func configureCrossPlaneProviders(n nodes.Node, kubeconfigpath string, keosRegUrl string, privateRegistry bool, infraProvider string, addons []string) error {
@@ -190,6 +191,14 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 		params := CrossplaneProviderConfigParams{
 			Addon:  addon + "-provider",
 			Secret: infra.builder.getProvider().capxProvider + "-" + addon + "-secret",
+		}
+
+		if keosCluster.Spec.InfraProvider == "gcp" {
+			if credentialsFound {
+				params.ProjectID = (*credentials[addon])["ProjectID"]
+			} else {
+				params.ProjectID = (*credentials["crossplane"])["ProjectID"]
+			}
 		}
 
 		if !credentialsFound {

@@ -1,0 +1,82 @@
+apiVersion:  apiextensions.crossplane.io/v1 
+kind:  CompositeResourceDefinition 
+metadata: 
+  name:  xgcpzonesconfigs.configs.stratio.io 
+spec: 
+  group: configs.stratio.io
+  names: 
+    kind:  xGCPZonesConfig 
+    plural:  xgcpzonesconfigs
+  versions: 
+    -  name:  v1alpha1 
+       served:  true 
+       referenceable:  true 
+       schema: 
+         openAPIV3Schema: 
+           type:  object 
+           properties: 
+            spec: 
+                type:  object
+                properties:
+                  projectName:
+                    type: string
+                  externalDomain:
+                    type: string
+                  clusterName:
+                    type: string
+                  providerConfigName:
+                    type: string
+                    default: "default"
+            status:
+                type: object
+                properties:
+                  publicManagedZone:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      dnsName:
+                        type: string
+                  privateManagedZone:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      dnsName:
+                        type: string
+                  serviceAccount:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      member:
+                        type: string
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      serviceAccountKey:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                          secretName:
+                            type: string
+                          secretNamespace:
+                            type: string
+                  projectIAMMember:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      member:
+                        type: string
+                      project:
+                        type: string
+                      role:
+                        type: string
+
+                      
+                  

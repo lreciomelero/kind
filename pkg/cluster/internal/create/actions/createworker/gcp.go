@@ -37,6 +37,9 @@ import (
 //go:embed files/gcp/internal-ingress-nginx.yaml
 var gcpInternalIngress []byte
 
+//go:embed files/gcp/compositereourcedefinition-hostedzones-gcp.yaml
+var gcpCRDHostedZones []byte
+
 type GCPBuilder struct {
 	capxProvider        string
 	capxVersion         string
@@ -48,6 +51,14 @@ type GCPBuilder struct {
 	scProvisioner       string
 	csiNamespace        string
 	crossplaneProviders map[string]string
+}
+
+type CrossplaneGCPParams struct {
+	ClusterName    string
+	ExternalDomain string
+	Addon          string
+	ProjectName    string
+	Managed        bool
 }
 
 var crossplaneGCPAddons = []string{"external-dns"}
@@ -272,16 +283,40 @@ func (b *GCPBuilder) postInstallPhase(n nodes.Node, k string) error {
 }
 
 func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]*map[string]string, addon string, clusterName string, kubeconfigString string) (string, bool, error) {
-	return "", false, nil
+	credentialsFound := true
+	addonCredentials := credentials[addon]
+	if isEmptyCredsMap(*addonCredentials, b.capxProvider) {
+		credentialsFound = false
+		addonCredentials = credentials["crossplane"]
+	}
+	gcpCredentialsMap := map[string]interface{}{
+		"type":                        "service_account",
+		"project_id":                  (*addonCredentials)["ProjectID"],
+		"private_key_id":              (*addonCredentials)["PrivateKeyID"],
+		"private_key":                 formatPrivateKey((*addonCredentials)["PrivateKey"]),
+		"client_email":                (*addonCredentials)["ClientEmail"],
+		"client_id":                   (*addonCredentials)["ClientID"],
+		"auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
+		"token_uri":                   "https://accounts.google.com/o/oauth2/token",
+		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+		"client_x509_cert_url":        "https://www.googleapis.com/robot/v1/metadata/x509/" + url.QueryEscape((*addonCredentials)["ClientEmail"]),
+	}
+
+	gcpCredentials, err := json.Marshal(gcpCredentialsMap)
+	if err != nil {
+		return "", false, err
+	}
+	return string(gcpCredentials), credentialsFound, nil
 }
 
 func (b *GCPBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
 	var addons []string
-	switch clusterManaged {
-	case true:
-		return addons
-	case false:
-		return addons
+
+	for _, addon := range crossplaneGCPAddons {
+		enabled := addonsParams[addon]
+		if (enabled != nil && *enabled) || enabled == nil {
+			addons = append(addons, addon)
+		}
 	}
 
 	return addons
@@ -293,7 +328,17 @@ func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 
 func (b *GCPBuilder) setCrossplaneProviders(addons []string) {
 
-	b.crossplaneProviders = map[string]string{}
+	b.crossplaneProviders = map[string]string{
+		"provider-family-gcp": "v1.7.0",
+	}
+
+	for _, addon := range addons {
+		switch addon {
+		case "external-dns":
+			b.crossplaneProviders["provider-gcp-cloudplatform"] = "v1.7.0"
+			b.crossplaneProviders["provider-gcp-dns"] = "v1.7.0"
+		}
+	}
 }
 
 func (b *GCPBuilder) getCrossplaneProviders(addons []string) map[string]string {
@@ -303,4 +348,15 @@ func (b *GCPBuilder) getCrossplaneProviders(addons []string) map[string]string {
 
 func (b *GCPBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
 	return nil, nil
+}
+
+func formatPrivateKey(key string) string {
+
+	nk := strings.TrimSpace(key)
+	nk = strings.ReplaceAll(nk, "\n", "\\n")
+	formattedKey := "-----BEGIN PRIVATE KEY-----\\n" +
+		nk[len("-----BEGIN PRIVATE KEY-----\\n"):len(nk)-len("\\n-----END PRIVATE KEY-----")] +
+		"\\n-----END PRIVATE KEY-----\\n"
+
+	return formattedKey
 }

@@ -1,0 +1,12 @@
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: {{ .Addon }}
+spec:
+  projectID: {{ .ProjectID }}
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: {{ .Secret }}
+      key: creds

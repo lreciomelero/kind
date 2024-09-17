@@ -1,0 +1,239 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xgcpzonesconfigs
+  labels:
+    keos.stratio.com/cluster: {{ .ClusterName }}
+spec:
+  compositeTypeRef:
+    apiVersion: configs.stratio.io/v1alpha1
+    kind: xGCPZonesConfig
+  resources:
+  - name: PublicManagedZone
+    base:
+      apiVersion: dns.gcp.upbound.io/v1beta1
+      kind: ManagedZone
+      spec:
+        forProvider: {}
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-public-managed-zone"
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.externalDomain
+      toFieldPath: spec.forProvider.dnsName
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.description
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "Public managed zone for external-dns in cluster: %s" 
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.publicManagedZone.id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.dnsName
+      toFieldPath: status.publicManagedZone.dnsName
+      type: ToCompositeFieldPath
+  - name: PrivateManagedZone
+    base:
+      apiVersion: dns.gcp.upbound.io/v1beta1
+      kind: ManagedZone
+      spec:
+        forProvider:
+          visibility: private
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "%s-private-managed-zone"
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - fromFieldPath: spec.externalDomain
+      toFieldPath: spec.forProvider.dnsName
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.description
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "Private managed zone for external-dns in cluster: %s"
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.privateManagedZone.id
+      type: ToCompositeFieldPath
+    - fromFieldPath: status.atProvider.dnsName
+      toFieldPath: status.privateManagedZone.dnsName
+      type: ToCompositeFieldPath 
+  - name: ServiceAccount
+    base:
+        apiVersion: cloudplatform.gcp.upbound.io/v1beta1
+        kind: ServiceAccount
+        spec:
+          forProvider: 
+            createIgnoreAlreadyExists: true
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-external-dns-%s"
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.description
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "Service Account zone for external-dns in cluster: %s" 
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.displayName
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-external-dns-%s"
+    - type: CombineFromComposite
+      toFieldPath: metadata.labels["keos.stratio.com/sa-name"]
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-external-dns-%s"
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.serviceAccount.id
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.member
+      toFieldPath: status.serviceAccount.member
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.name
+      toFieldPath: status.serviceAccount.name
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.email
+      toFieldPath: status.serviceAccount.email
+      type: ToCompositeFieldPath 
+  - name: ServiceAccountKey
+    base:
+      apiVersion: cloudplatform.gcp.upbound.io/v1beta1
+      kind: ServiceAccountKey
+      spec:
+        forProvider: {} 
+        writeConnectionSecretToRef:
+          namespace: crossplane-system
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-key-external-dns-%s"
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: metadata.labels["keos.stratio.com/sa-key-name"]
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-key-external-dns-%s"
+    - type: CombineFromComposite
+      toFieldPath: spec.writeConnectionSecretToRef.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-key-external-dns-%s-secret"
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.serviceAccountIdSelector.matchLabels['keos.stratio.com/sa-name']
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "sa-external-dns-%s"
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.serviceAccount.serviceAccountKey.id
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.name
+      toFieldPath: status.serviceAccount.serviceAccountKey.name
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.serviceAccount.serviceAccountKey.id
+      type: ToCompositeFieldPath 
+    - fromFieldPath: spec.writeConnectionSecretToRef.name
+      toFieldPath: status.serviceAccount.serviceAccountKey.secretName
+      type: ToCompositeFieldPath
+    - fromFieldPath: spec.writeConnectionSecretToRef.namespace
+      toFieldPath: status.serviceAccount.serviceAccountKey.secretNamespace
+      type: ToCompositeFieldPath
+  - name: ProjectIAMMember
+    base:
+      apiVersion: cloudplatform.gcp.upbound.io/v1beta1
+      kind: ProjectIAMMember
+      spec:
+        forProvider: 
+          role: roles/dns.admin
+    patches:
+    - type: CombineFromComposite
+      toFieldPath: metadata.name
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        strategy: string
+        string:
+          fmt: "project-iam-member-external-dns-%s"
+    - fromFieldPath: spec.providerConfigName
+      toFieldPath: spec.providerConfigRef.name
+      type: FromCompositeFieldPath
+    - type: CombineFromComposite
+      toFieldPath: spec.forProvider.member
+      combine:
+        variables:
+        - fromFieldPath: spec.clusterName
+        - fromFieldPath: spec.projectName
+        strategy: string
+        string:
+          fmt: "serviceAccount:sa-external-dns-%s@%s.iam.gserviceaccount.com"
+    - fromFieldPath: spec.projectName
+      toFieldPath: spec.forProvider.project
+      type: FromCompositeFieldPath
+    - fromFieldPath: status.atProvider.id
+      toFieldPath: status.projectIAMMember.id
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.member
+      toFieldPath: status.projectIAMMember.member
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.project
+      toFieldPath: status.projectIAMMember.project
+      type: ToCompositeFieldPath 
+    - fromFieldPath: status.atProvider.role
+      toFieldPath: status.projectIAMMember.role
+      type: ToCompositeFieldPath 

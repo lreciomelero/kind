@@ -705,10 +705,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.End(true) // End Installing Network Policy Engine in workload cluster
 		}
 
-		enabledExternalDNS := a.keosCluster.Spec.Dns.ManageZone || awsEKSEnabled
-
 		addonEnabled := map[string]*bool{
-			"external-dns": &enabledExternalDNS,
+			"external-dns": commons.ToPtr(a.keosCluster.Spec.Dns.ManageZone),
 		}
 
 		addons := infra.getAddons(a.keosCluster.Spec.ControlPlane.Managed, addonEnabled)
@@ -741,17 +739,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			if err != nil || kubeconfig == "" {
 				return errors.Wrap(err, "failed to get workload cluster kubeconfig")
 			}
-
-			// c = "cat " + kubeconfigPath
-			// kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-			// if err != nil {
-			// 	return errors.Wrap(err, "failed to get workload kubeconfig string")
-			// }
-			// c = "cat " + localKubeconfigPath
-			// localKubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-			// if err != nil {
-			// 	return errors.Wrap(err, "failed to get workload kubeconfig string")
-			// }
 
 			if awsEKSEnabled {
 				c = "kubectl get cluster -n cluster-" + a.keosCluster.Metadata.Name + " " + a.keosCluster.Metadata.Name + " -o jsonpath='{.spec.controlPlaneEndpoint.host}'"
@@ -798,7 +785,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 								return errors.Wrap(err, "failed to get roleArn")
 							}
 
-							// roleArn, err := getRoleArn(a.keosCluster.Metadata.Name, kubeconfigString)
 							customParams["roleArn"] = roleArn
 						}
 
@@ -1050,6 +1036,10 @@ func isEmptyCredsMap(creds map[string]string, infra string) bool {
 		}
 	case "azure":
 		if creds["ClientID"] == "" || creds["ClientSecret"] == "" || creds["TenantID"] == "" || creds["SubscriptionID"] == "" {
+			return true
+		}
+	case "gcp":
+		if creds["ProjectID"] == "" || creds["PrivateKeyID"] == "" || creds["PrivateKey"] == "" || creds["ClientEmail"] == "" || creds["ClientID"] == "" {
 			return true
 		}
 	}
