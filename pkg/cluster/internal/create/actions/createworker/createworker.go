@@ -96,7 +96,6 @@ var rbacAWSNode string
 //go:embed files/gcp/coredns_*.yaml
 var gcpCoreDNSDeploy embed.FS
 
-
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
 	return &action{
@@ -536,7 +535,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.Start("Preparing nodes in workload cluster 📦")
 		defer ctx.Status.End(false)
 
-
 		if awsEKSEnabled {
 			c = "kubectl -n capa-system rollout restart deployment capa-controller-manager"
 			_, err = commons.ExecuteCommand(n, c, 5, 3)
@@ -633,7 +631,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			combinedCoreDNS := combinedCoreDNSContents.String()
 
 			coreDNSTemplate := "/kind/coredns-configmap.yaml"
-			coreDNSConfigmap, err := getManifest(a.keosCluster.Spec.InfraProvider, "coredns_configmap.tmpl", majorVersion,a.keosCluster.Spec)
+			coreDNSConfigmap, err := getManifest(a.keosCluster.Spec.InfraProvider, "coredns_configmap.tmpl", majorVersion, a.keosCluster.Spec)
 			if err != nil {
 				return errors.Wrap(err, "failed to get CoreDNS file")
 			}
@@ -676,12 +674,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 
 		// Ensure CoreDNS replicas are assigned to different nodes
-        // once more than 2 control planes or workers are running
-        c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
-        _, err = commons.ExecuteCommand(n, c, 3, 5)
-        if err != nil {
-            return errors.Wrap(err, "failed to restart coredns deployment")
-        }
+		// once more than 2 control planes or workers are running
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to restart coredns deployment")
+		}
 
 		// Wait for CoreDNS deployment to be ready
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
@@ -719,8 +717,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.Start("Reconciling the existing Helm charts in workload cluster 🧲")
 		defer ctx.Status.End(false)
-		
-		err = reconcileCharts(n, kubeconfigPath, privateParams, a.keosCluster.Spec, chartsList, awsEKSEnabled)
+
+		err = reconcileCharts(n, kubeconfigPath, privateParams, a.keosCluster.Spec, chartsList, awsEKSEnabled || gcpGKEEnabled)
 		if err != nil {
 			return errors.Wrap(err, "failed to reconcile with Flux the existing Helm charts in workload cluster")
 		}
@@ -745,7 +743,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to apply tigera-operator egress NetworkPolicy")
 		}
-			// Allow egress in calico-system namespace
+		// Allow egress in calico-system namespace
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n calico-system apply -f " + allowCommonEgressNetPolPath
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {

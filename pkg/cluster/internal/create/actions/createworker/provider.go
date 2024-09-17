@@ -159,7 +159,7 @@ type calicoHelmParams struct {
 	KeosRegUrl     string
 	Private        bool
 	IsNetPolEngine bool
-	Annotations map[string]string
+	Annotations    map[string]string
 }
 
 type commonHelmParams struct {
@@ -462,7 +462,6 @@ func (p *Provider) deployCertManager(n nodes.Node, keosRegistryUrl string, kubec
 	return nil
 }
 
-
 func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivateParams, clusterCredentials commons.ClusterCredentials, keosRegistry KeosRegistry, clusterConfig *commons.ClusterConfig, kubeconfigPath string, firstInstallation bool, helmRepoCreds HelmRegistry) error {
 	var c string
 	var err error
@@ -686,7 +685,7 @@ func installCalico(n nodes.Node, k string, privateParams PrivateParams, isNetPol
 		KeosRegUrl:     privateParams.KeosRegUrl,
 		Private:        privateParams.Private,
 		IsNetPolEngine: isNetPolEngine,
-		Annotations:    map[string]string{
+		Annotations: map[string]string{
 			postInstallAnnotation: "var-lib-calico",
 		},
 	}
@@ -890,14 +889,14 @@ func configureFlux(n nodes.Node, k string, privateParams PrivateParams, helmRepo
 	return nil
 }
 
-func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosClusterSpec commons.KeosSpec, chartsList map[string]commons.ChartEntry, awsEKSEnabled bool) error {
+func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosClusterSpec commons.KeosSpec, chartsList map[string]commons.ChartEntry, enabledNetPol bool) error {
 	var c string
 	var err error
 
 	// Iterate through charts and create Helm repositories and releases
 	for name, entry := range chartsList {
 		// Create fluxHelmReleaseParams for the current entry
-		fluxHelmReleaseParams := fluxHelmReleaseParams {
+		fluxHelmReleaseParams := fluxHelmReleaseParams{
 			ChartRepoRef: "keos",
 		}
 		// Update fluxHelmRepositoryParams if not private
@@ -913,7 +912,7 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartNamespace = entry.Namespace
 			fluxHelmReleaseParams.ChartVersion = entry.Version
 			// tigera-operator-helm-values.yaml is required to install Calico as Network Policy engine
-			if name == "tigera-operator" && awsEKSEnabled {
+			if name == "tigera-operator" && enabledNetPol {
 				if err := installCalico(n, k, privateParams, false, true); err != nil {
 					return err
 				}
@@ -984,20 +983,20 @@ func configureHelmRelease(n nodes.Node, k string, templatePath string, params fl
 	var defaultHelmReleaseSourceInterval = "1m"
 
 	completedfluxHelmReleaseParams := struct {
-		ChartName				  string
+		ChartName                 string
 		ChartNamespace            string
 		ChartRepoRef              string
-		ChartVersion			  string
+		ChartVersion              string
 		HelmReleaseInterval       string
 		HelmReleaseRetries        int
 		HelmReleaseSourceInterval string
 	}{
-		ChartName: 				   params.ChartName,
-		ChartNamespace: 		   params.ChartNamespace,
-		ChartRepoRef: 			   params.ChartRepoRef,
-		ChartVersion: 			   params.ChartVersion,
-		HelmReleaseInterval: 	   defaultHelmReleaseInterval,
-		HelmReleaseRetries: 	   defaultHelmReleaseRetries,
+		ChartName:                 params.ChartName,
+		ChartNamespace:            params.ChartNamespace,
+		ChartRepoRef:              params.ChartRepoRef,
+		ChartVersion:              params.ChartVersion,
+		HelmReleaseInterval:       defaultHelmReleaseInterval,
+		HelmReleaseRetries:        defaultHelmReleaseRetries,
 		HelmReleaseSourceInterval: defaultHelmReleaseSourceInterval,
 	}
 
@@ -1484,20 +1483,20 @@ func installCorednsPdb(n nodes.Node) error {
 
 func pullCharts(n nodes.Node, charts map[string]commons.ChartEntry, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials) error {
 	for name, chart := range charts {
-        // Set default repository if needed
-        if chart.Repository == "default" {
-            chart.Repository = keosSpec.HelmRepository.URL
-        }
+		// Set default repository if needed
+		if chart.Repository == "default" {
+			chart.Repository = keosSpec.HelmRepository.URL
+		}
 		// Check if the chart needs to be pulled
 		if chart.Pull {
 			var c string
-            if strings.HasPrefix(chart.Repository, "oci://") {
-                c = "helm pull " + chart.Repository + "/" + name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
-            } else {
-                c = "helm pull " + name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
-            }
+			if strings.HasPrefix(chart.Repository, "oci://") {
+				c = "helm pull " + chart.Repository + "/" + name + " --version " + chart.Version + " --untar --untardir /stratio/helm"
+			} else {
+				c = "helm pull " + name + " --version " + chart.Version + " --repo " + chart.Repository + " --untar --untardir /stratio/helm"
+			}
 			// Add authentication if required
-            if chart.Repository == keosSpec.HelmRepository.URL && keosSpec.HelmRepository.AuthRequired {
+			if chart.Repository == keosSpec.HelmRepository.URL && keosSpec.HelmRepository.AuthRequired {
 				if keosSpec.HelmRepository.AuthRequired {
 					c = c + " --username " + clusterCredentials.HelmRepositoryCredentials["User"] + " --password " + clusterCredentials.HelmRepositoryCredentials["Pass"]
 				}
