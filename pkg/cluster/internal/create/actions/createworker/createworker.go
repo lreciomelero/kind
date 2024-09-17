@@ -599,21 +599,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 		}
 
-		// Ensure CoreDNS replicas are assigned to different nodes
-        // once more than 2 control planes or workers are running
-        c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
-        _, err = commons.ExecuteCommand(n, c, 3, 5)
-        if err != nil {
-            return errors.Wrap(err, "failed to restart coredns deployment")
-        }
-
-		// Wait for CoreDNS deployment to be ready
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to wait for coredns ready")
-		}
-
 		ctx.Status.End(true) // End Preparing nodes in workload cluster
 
 		if gcpGKEEnabled {
@@ -688,6 +673,21 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to disable kube-dns deployment")
 			}
+		}
+
+		// Ensure CoreDNS replicas are assigned to different nodes
+        // once more than 2 control planes or workers are running
+        c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout restart deployment coredns"
+        _, err = commons.ExecuteCommand(n, c, 3, 5)
+        if err != nil {
+            return errors.Wrap(err, "failed to restart coredns deployment")
+        }
+
+		// Wait for CoreDNS deployment to be ready
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system rollout status deployment coredns"
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to wait for coredns ready")
 		}
 
 		ctx.Status.Start("Installing CAPx in workload cluster 🎖️")
