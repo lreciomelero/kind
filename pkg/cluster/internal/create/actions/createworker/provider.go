@@ -94,7 +94,7 @@ type PBuilder interface {
 	getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterType string) map[string]commons.ChartEntry
 	getOverriddenCharts(charts *[]commons.Chart, clusterConfigSpec *commons.ClusterConfigSpec, clusterType string) []commons.Chart
 	installCloudProvider(n nodes.Node, k string, privateParams PrivateParams) error
-	installCSI(n nodes.Node, k string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error
+	installCSI(n nodes.Node, k string, privateParams PrivateParams, providerParams ProviderParams, chartsList map[string]commons.ChartEntry) error
 	getProvider() Provider
 	configureStorageClass(n nodes.Node, k string) error
 	internalNginx(p ProviderParams, networks commons.Networks) (bool, error)
@@ -364,8 +364,8 @@ func (i *Infra) installCloudProvider(n nodes.Node, k string, privateParams Priva
 	return i.builder.installCloudProvider(n, k, privateParams)
 }
 
-func (i *Infra) installCSI(n nodes.Node, k string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
-	return i.builder.installCSI(n, k, privateParams, chartsList)
+func (i *Infra) installCSI(n nodes.Node, k string, privateParams PrivateParams, providerParams ProviderParams, chartsList map[string]commons.ChartEntry) error {
+	return i.builder.installCSI(n, k, privateParams, providerParams, chartsList)
 }
 
 func (i *Infra) configureStorageClass(n nodes.Node, k string) error {

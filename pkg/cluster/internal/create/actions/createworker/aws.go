@@ -236,7 +236,7 @@ func (b *AWSBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	return nil
 }
 
-func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
+func (b *AWSBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams, providerParams ProviderParams, chartsList map[string]commons.ChartEntry) error {
 	csiName := "aws-ebs-csi-driver"
 	csiValuesFile := "/kind/" + csiName + "-helm-values.yaml"
 	csiEntry := chartsList[csiName]

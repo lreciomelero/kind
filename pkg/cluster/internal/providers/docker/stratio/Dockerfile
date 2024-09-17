@@ -15,7 +15,7 @@ ENV HELM=v3.13.1
 ENV CAPI_REPO=/root/.cluster-api/local-repository
 ENV CAPA=v2.5.2
 ENV CAPG=v1.6.1
-ENV CAPZ=v1.11.4
+ENV CAPZ=v1.12.4
 
 # Install vim
 RUN apt-get update && apt-get install -y \

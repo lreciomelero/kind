@@ -212,7 +212,7 @@ func (b *GCPBuilder) installCloudProvider(n nodes.Node, k string, privateParams 
 	return nil
 }
 
-func (b *GCPBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams, charstList map[string]commons.ChartEntry) error {
+func (b *GCPBuilder) installCSI(n nodes.Node, k string, privateParams PrivateParams, providerParams ProviderParams, charstList map[string]commons.ChartEntry) error {
 	var c string
 	var err error
 	var cmd exec.Cmd

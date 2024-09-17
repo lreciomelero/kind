@@ -1,6 +1,7 @@
 controller:
   podAnnotations:
     cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes: socket-dir,azure-cred
+  tolerations: {}
   vmType: standard
 
 image:

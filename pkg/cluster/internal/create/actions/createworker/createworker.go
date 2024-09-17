@@ -795,7 +795,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Installing CSI in workload cluster 💾")
 			defer ctx.Status.End(false)
 
-			err = infra.installCSI(n, kubeconfigPath, privateParams, chartsList)
+			err = infra.installCSI(n, kubeconfigPath, privateParams, providerParams, chartsList)
 			if err != nil {
 				return errors.Wrap(err, "failed to install CSI in workload cluster")
 			}

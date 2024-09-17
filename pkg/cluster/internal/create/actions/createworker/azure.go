@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -94,8 +95,8 @@ func newAzureBuilder() *AzureBuilder {
 
 func (b *AzureBuilder) setCapx(managed bool) {
 	b.capxProvider = "azure"
-	b.capxVersion = "v1.11.4"
-	b.capxImageVersion = "v1.11.4"
+	b.capxVersion = "v1.12.4"
+	b.capxImageVersion = "v1.12.4"
 	b.capxName = "capz"
 	b.capxManaged = managed
 	b.csiNamespace = "kube-system"
@@ -217,9 +218,85 @@ func (b *AzureBuilder) installCloudProvider(n nodes.Node, k string, privateParam
 	return nil
 }
 
-func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privateParams PrivateParams, chartsList map[string]commons.ChartEntry) error {
+func (b *AzureBuilder) installCSI(n nodes.Node, kubeconfigPath string, privateParams PrivateParams, providerParams ProviderParams, chartsList map[string]commons.ChartEntry) error {
 	var c string
 	var err error
+
+	// Workaround for azuredisk driver issue with MachineDeployments (standalone VMs)
+	// See: https://kubernetes.slack.com/archives/C5HJXTT9Q/p1726137253181949
+	if !privateParams.KeosCluster.Spec.ControlPlane.Managed {
+		var ctx = context.Background()
+		azureDiskSecretFile := "/kind/azuredisk-azure.json"
+		azureDiskNamespace := 	chartsList["azuredisk-csi-driver"].Namespace
+		nodesIdentity := privateParams.KeosCluster.Spec.Security.NodesIdentity
+
+		matchResourceGroup := strings.Split(nodesIdentity, "resourceGroups/")
+		var resourceGroupName string
+		if len(matchResourceGroup) > 1 {
+			resourceGroupName = strings.Split(matchResourceGroup[1], "/")[0]
+		} else {
+			resourceGroupName = ""
+		}
+		matchIdentity := strings.Split(nodesIdentity, "userAssignedIdentities/")
+		var managedIdentityName string
+		if len(matchIdentity) > 1 {
+			managedIdentityName = strings.Split(matchIdentity[1], "/")[0]
+		} else {
+			managedIdentityName = ""
+		}
+		if resourceGroupName == "" || managedIdentityName == "" {
+			return errors.New("failed to extract resource group name or managed identity name from managed identity")
+		}
+
+		cfg, err := commons.AzureGetConfig(providerParams.Credentials)
+		if err != nil {
+			return err
+		}
+		msiClient, err := armmsi.NewClientFactory(providerParams.Credentials["SubscriptionID"], cfg, nil)
+		if err != nil {
+			return errors.Wrap(err, "failed to create msi client")
+		}
+
+		managedIdentity, err := msiClient.NewUserAssignedIdentitiesClient().Get(ctx, resourceGroupName, managedIdentityName, nil)
+		if err != nil {
+			return errors.Wrap(err, "failed to retrieve managed identity info")
+		}
+		// Extract the principalId
+		objectIDIdentity := *managedIdentity.Properties.ClientID
+
+		azureDiskParams := struct {
+			TenantID  string
+			SubscriptionID string
+			KeosClusterName string
+			Region string
+			Networks commons.Networks
+			UserAssignedIdentityID string
+		}{
+			TenantID: providerParams.Credentials["TenantID"],
+			SubscriptionID: providerParams.Credentials["SubscriptionID"],
+			KeosClusterName: providerParams.ClusterName,
+			Region: providerParams.Region,
+			Networks: privateParams.KeosCluster.Spec.Networks,
+			UserAssignedIdentityID: objectIDIdentity,
+		}
+
+		// Generate azuredisk driver secret
+		azureDiskSecret, getManifestErr := getManifest(privateParams.KeosCluster.Spec.InfraProvider, "azuredisk-azure-json.tmpl", majorVersion, azureDiskParams)
+		if getManifestErr != nil {
+			return errors.Wrap(getManifestErr, "failed to generate azuredisk driver config")
+		}
+		c = "echo '" + azureDiskSecret + "' > " + azureDiskSecretFile
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to create azuredisk driver config")
+		}
+		c = "kubectl --kubeconfig " + kubeconfigPath + " create secret generic azure-cloud-provider -n " +
+		azureDiskNamespace + " --from-file=cloud-config=/kind/azuredisk-azure.json"
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to create azuredisk secret")
+		}
+	}
 
 	for _, csiName := range []string{"azuredisk-csi-driver", "azurefile-csi-driver"} {
 		csiValuesFile := "/kind/" + csiName + "-helm-values.yaml"
