@@ -894,13 +894,12 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 	var c string
 	var err error
 
-	// Create fluxHelmReleaseParams for the current entry
-	fluxHelmReleaseParams := fluxHelmReleaseParams{
-		ChartRepoRef: "keos",
-	}
-
 	// Iterate through charts and create Helm repositories and releases
 	for name, entry := range chartsList {
+		// Create fluxHelmReleaseParams for the current entry
+		fluxHelmReleaseParams := fluxHelmReleaseParams {
+			ChartRepoRef: "keos",
+		}
 		// Update fluxHelmRepositoryParams if not private
 		if !privateParams.HelmPrivate && entry.Repository != "default" {
 			fluxHelmReleaseParams.ChartRepoRef = name
