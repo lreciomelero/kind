@@ -170,6 +170,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
+	azAKSEnabled := a.keosCluster.Spec.InfraProvider == "azure" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	gcpGKEEnabled := a.keosCluster.Spec.InfraProvider == "gcp" && a.keosCluster.Spec.ControlPlane.Managed
 
@@ -485,7 +486,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Saving the workload cluster kubeconfig
 
 		// Install unmanaged cluster addons
-		if !a.keosCluster.Spec.ControlPlane.Managed {
+		if !a.keosCluster.Spec.ControlPlane.Managed  {
 
 			ctx.Status.Start("Installing cloud-provider in workload cluster ☁️")
 			defer ctx.Status.End(false)
@@ -496,17 +497,21 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			}
 
 			ctx.Status.End(true) // End Installing cloud-provider in workload cluster
+		}
 
+		if !azAKSEnabled {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
-			err = installCalico(n, kubeconfigPath, privateParams, true, false)
+			isNetPolEngine := gcpGKEEnabled || awsEKSEnabled
+
+			err = installCalico(n, kubeconfigPath, privateParams, isNetPolEngine, false)
 
 			if err != nil {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
 
-			// After calico is installed and network policies are applied, patch the tigera-operator clusterrole to allow resourcequotas creation
+			// After calico is installed patch the tigera-operator clusterrole to allow resourcequotas creation
 			if gcpGKEEnabled {
 				c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole tigera-operator -o jsonpath='{.rules}'"
 				tigerarules, err := commons.ExecuteCommand(n, c, 3, 5)
@@ -745,7 +750,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to apply tigera-operator egress NetworkPolicy")
 		}
-			// Allow egress in calico-system namespace
+		
+		// Allow egress in calico-system namespace
 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n calico-system apply -f " + allowCommonEgressNetPolPath
 		_, err = commons.ExecuteCommand(n, c, 5, 3)
 		if err != nil {
