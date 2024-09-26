@@ -779,7 +779,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 						ctx.Status.Start("Installing External-DNS in workload cluster 🎖️")
 						defer ctx.Status.End(false)
 						if awsEKSEnabled {
-							c = "kubectl --kubeconfig " + kubeconfigPath + " get xzonesconfigs " + providerParams.ClusterName + "-zones-config -o jsonpath='{.status.role.arn}'"
+							c = "kubectl --kubeconfig " + kubeconfigPath + " get xawszonesconfigs " + providerParams.ClusterName + "-zones-config -o jsonpath='{.status.role.arn}'"
 							roleArn, err := commons.ExecuteCommand(n, c, 3, 5)
 							if err != nil {
 								return errors.Wrap(err, "failed to get roleArn")

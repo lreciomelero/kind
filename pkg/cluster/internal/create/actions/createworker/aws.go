@@ -479,7 +479,7 @@ func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 		params.VPCId = vpcId
 		if !keosCluster.Spec.ControlPlane.Managed {
 			manifests = append(manifests, string(awsCRDHostedZones))
-			compositionsToWait["xZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
+			compositionsToWait["xAWSZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
 			compositionHostedZones, err := getManifest("aws", "composition-hostedzones-aws.tmpl", params)
 			if err != nil {
 				return nil, nil, err
@@ -493,7 +493,7 @@ func (b *AWSBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, c
 		} else {
 			params.OIDCProviderID = customParams["oidcProviderId"]
 			manifests = append(manifests, string(eksCRDHostedZones))
-			compositionsToWait["xZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
+			compositionsToWait["xAWSZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
 			compositionHostedZones, err := getManifest("aws", "composition-hostedzones-eks.tmpl", params)
 			if err != nil {
 				return nil, nil, err
@@ -556,15 +556,15 @@ func (b *AWSBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubec
 
 func getRoleArn(clusterName string, kubeconfigString string) (string, error) {
 	gvr := schema.GroupVersionResource{
-		Group:    "configs.stratio.io", // Cambia esto según tu CRD
+		Group:    "configs.stratio.io",
 		Version:  "v1alpha1",
-		Resource: "xzonesconfigs", // Este es el nombre plural de tu CRD
+		Resource: "xawszonesconfigs",
 	}
-	xZonesConfig, err := getObject(clusterName+"-zones-config", kubeconfigString, gvr, false, "")
+	xAWSZonesConfig, err := getObject(clusterName+"-zones-config", kubeconfigString, gvr, false, "")
 	if err != nil {
 		return "", err
 	}
-	roleArn := xZonesConfig["status"].(map[string]interface{})["role"].(map[string]interface{})["arn"].(string)
+	roleArn := xAWSZonesConfig["status"].(map[string]interface{})["role"].(map[string]interface{})["arn"].(string)
 	if roleArn != "" {
 		return roleArn, nil
 	}
@@ -589,9 +589,9 @@ func getVpcId(keosCluster commons.KeosCluster, credentials map[string]string) (s
 
 func getOIDCProviderId(clusterName string) (string, error) {
 	gvr := schema.GroupVersionResource{
-		Group:    "cluster.x-k8s.io", // Cambia esto según tu CRD
+		Group:    "cluster.x-k8s.io",
 		Version:  "v1beta1",
-		Resource: "clusters", // Este es el nombre plural de tu CRD
+		Resource: "clusters",
 	}
 	cluster, err := getObject(clusterName, "", gvr, true, "cluster-"+clusterName)
 	if err != nil {

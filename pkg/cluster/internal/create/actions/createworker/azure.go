@@ -491,11 +491,11 @@ func getApplicationId(clusterName string, kubeconfigString string) (string, erro
 		Version:  "v1alpha1",
 		Resource: "xazurezonesconfigs",
 	}
-	xZonesConfig, err := getObject(clusterName+"-zones-config", kubeconfigString, gvr, false, "")
+	xAzureZonesConfig, err := getObject(clusterName+"-zones-config", kubeconfigString, gvr, false, "")
 	if err != nil {
 		return "", err
 	}
-	applicationId := xZonesConfig["status"].(map[string]interface{})["application"].(map[string]interface{})["applicationId"].(string)
+	applicationId := xAzureZonesConfig["status"].(map[string]interface{})["application"].(map[string]interface{})["applicationId"].(string)
 	if applicationId != "" {
 		return applicationId, nil
 	}

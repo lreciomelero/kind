@@ -388,15 +388,6 @@ func (b *GCPBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubec
 	if err != nil {
 		return nil, err
 	}
-	// credsJson, err := jsonStringToMap(string(secret.Data["private_key"]))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// credsJson["private_key"] = formatPrivateKey(credsJson["private_key"])
-	// jsonCreds, err := json.Marshal(credsJson)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	externalDnsCreds := map[string]string{
 		"gcp.json": string(secret.Data["private_key"]),
@@ -423,20 +414,3 @@ func jsonStringToMap(jsonString string) (map[string]string, error) {
 	}
 	return resultMap, nil
 }
-
-// func getCredentialsString(creds map[string]string) string {
-// 	data := map[string]interface{}{
-// 		"type":                        "service_account",
-// 		"project_id":                  creds["project_id"],
-// 		"private_key_id":              creds["private_key_id"],
-// 		"private_key":                 creds["private_key"],
-// 		"client_email":                creds["client_email"],
-// 		"client_id":                   creds["client_id"],
-// 		"auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
-// 		"token_uri":                   "https://accounts.google.com/o/oauth2/token",
-// 		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-// 		"client_x509_cert_url":        "https://www.googleapis.com/robot/v1/metadata/x509/" + url.QueryEscape(p.Credentials["ClientEmail"]),
-// 	}
-// 	jsonData, _ := json.Marshal(data)
-// 	return string(jsonData)
-// }

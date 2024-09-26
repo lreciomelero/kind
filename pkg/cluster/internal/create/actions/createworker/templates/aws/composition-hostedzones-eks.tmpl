@@ -1,13 +1,13 @@
 apiVersion: apiextensions.crossplane.io/v1
 kind: Composition
 metadata:
-  name: xzonesconfigs
+  name: xawszonesconfigs
   labels:
     keos.stratio.com/cluster: "{{ .ClusterName }}"
 spec:
   compositeTypeRef:
     apiVersion: configs.stratio.io/v1alpha1
-    kind: xZonesConfig
+    kind: xAWSZonesConfig
   resources:
     - name: PrivateZone
       patches:

@@ -621,24 +621,10 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 			},
 		}
 
-		// Guarda el nuevo secreto en el namespace destino.
 		_, err = clientset.CoreV1().Secrets("external-dns").Create(context.TODO(), newSecret, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
-
-		// // Create secret for GCP credentials
-		// c = "echo \"" + credentials["gcp.json"] + "\" > " + externalDnsWorkloadCredsFile
-		// _, err = commons.ExecuteCommand(n, c, 3, 5)
-		// if err != nil {
-		// 	return errors.Wrap(err, "failed to create external-dns credentials secret")
-		// }
-		// c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
-		// 	" --from-file=gcp.json=" + externalDnsWorkloadCredsFile
-		// _, err = commons.ExecuteCommand(n, c, 3, 5)
-		// if err != nil {
-		// 	return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
-		// }
 
 	}
 
