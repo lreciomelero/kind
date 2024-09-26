@@ -432,20 +432,14 @@ func (b *AWSBuilder) getCrossplaneProviderConfigContent(credentials map[string]*
 
 func (b *AWSBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
 	var addons []string
-	switch clusterManaged {
-	case true:
-		for _, addon := range crossplaneEKSAddons {
-			enabled := addonsParams[addon]
-			if (enabled != nil && *enabled) || enabled == nil {
-				addons = append(addons, addon)
-			}
-		}
-	case false:
-		for _, addon := range crossplaneAwsAddons {
-			enabled := addonsParams[addon]
-			if (enabled != nil && *enabled) || enabled == nil {
-				addons = append(addons, addon)
-			}
+	addonsReference := crossplaneEKSAddons
+	if !clusterManaged {
+		addonsReference = crossplaneAwsAddons
+	}
+	for _, addon := range addonsReference {
+		enabled := addonsParams[addon]
+		if (enabled != nil && *enabled) || enabled == nil {
+			addons = append(addons, addon)
 		}
 	}
 

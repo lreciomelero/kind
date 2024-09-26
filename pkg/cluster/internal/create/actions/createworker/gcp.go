@@ -65,6 +65,7 @@ type CrossplaneGCPParams struct {
 }
 
 var crossplaneGCPAddons = []string{"external-dns"}
+var crossplaneGKEAddons = []string{"external-dns"}
 
 func newGCPBuilder() *GCPBuilder {
 	return &GCPBuilder{}
@@ -314,8 +315,11 @@ func (b *GCPBuilder) getCrossplaneProviderConfigContent(credentials map[string]*
 
 func (b *GCPBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
 	var addons []string
-
-	for _, addon := range crossplaneGCPAddons {
+	addonsReference := crossplaneGKEAddons
+	if !clusterManaged {
+		addonsReference = crossplaneGCPAddons
+	}
+	for _, addon := range addonsReference {
 		enabled := addonsParams[addon]
 		if (enabled != nil && *enabled) || enabled == nil {
 			addons = append(addons, addon)

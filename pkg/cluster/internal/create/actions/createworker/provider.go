@@ -32,6 +32,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/fatih/structs"
+	"github.com/oleiade/reflections"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1222,6 +1224,33 @@ func installCorednsPdb(n nodes.Node) error {
 		return errors.Wrap(err, "failed to apply coredns PodDisruptionBudget")
 	}
 	return nil
+}
+
+func getCredentials(creds commons.Credentials, infra string, providerCredentials map[string]string) (map[string]*map[string]string, error) {
+	crossplaneCredsMap, err := getAddonsCredentials(creds.Crossplane, strings.ToUpper(infra))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get crossplane credentials")
+	}
+
+	externalDnsCredsMap, err := getAddonsCredentials(creds.ExternalDNS, strings.ToUpper(infra))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get external-dns credentials")
+	}
+
+	credentialsMap := map[string]*map[string]string{
+		"provisioner":  commons.ToPtr(providerCredentials),
+		"crossplane":   commons.ToPtr(crossplaneCredsMap),
+		"external-dns": commons.ToPtr(externalDnsCredsMap),
+	}
+	return credentialsMap, nil
+}
+
+func getAddonsCredentials(addonsCredentials commons.AddonCredentials, infra string) (map[string]string, error) {
+	addonsCreds, err := reflections.GetField(addonsCredentials, infra)
+	if err != nil {
+		return nil, err
+	}
+	return convertToMapStringString(structs.Map(addonsCreds)), nil
 }
 
 func convertToMapStringString(m map[string]interface{}) map[string]string {

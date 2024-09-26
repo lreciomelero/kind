@@ -70,6 +70,7 @@ type CrossplaneAzureParams struct {
 }
 
 var crossplaneAzureAddons = []string{"external-dns"}
+var crossplaneAKSAddons = []string{"external-dns"}
 
 func newAzureBuilder() *AzureBuilder {
 	return &AzureBuilder{}
@@ -391,8 +392,11 @@ func (b *AzureBuilder) getCrossplaneProviderConfigContent(credentials map[string
 
 func (b *AzureBuilder) getAddons(clusterManaged bool, addonsParams map[string]*bool) []string {
 	var addons []string
-
-	for _, addon := range crossplaneAzureAddons {
+	addonsReference := crossplaneAKSAddons
+	if !clusterManaged {
+		addonsReference = crossplaneAzureAddons
+	}
+	for _, addon := range addonsReference {
 		enabled := addonsParams[addon]
 		if (enabled != nil && *enabled) || enabled == nil {
 			addons = append(addons, addon)
