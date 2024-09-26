@@ -33,9 +33,11 @@ import (
 	"text/template"
 
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -536,6 +538,7 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 		Releases []string
 	}
 	providers := map[string][]ExternalDNSProvider{}
+
 	switch privateParams.KeosCluster.Spec.InfraProvider {
 	case "gcp":
 		providers["gcp"] = []ExternalDNSProvider{{Provider: "google", Releases: []string{"external-dns", "private-external-dns"}}}
@@ -595,7 +598,47 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 		}
 
 	case "gcp":
-		// Create secret for GCP credentials
+		c = "cat " + kubeconfigPath
+		kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil || kubeconfigString == "" {
+			return errors.Wrap(err, "failed to get workload cluster kubeconfig")
+		}
+
+		config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+		if err != nil {
+			return err
+		}
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			return err
+		}
+		newSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "external-dns-creds",
+			},
+			Data: map[string][]byte{
+				"gcp.json": []byte(credentials["gcp.json"]),
+			},
+		}
+
+		// Guarda el nuevo secreto en el namespace destino.
+		_, err = clientset.CoreV1().Secrets("external-dns").Create(context.TODO(), newSecret, metav1.CreateOptions{})
+		if err != nil {
+			return err
+		}
+
+		// // Create secret for GCP credentials
+		// c = "echo \"" + credentials["gcp.json"] + "\" > " + externalDnsWorkloadCredsFile
+		// _, err = commons.ExecuteCommand(n, c, 3, 5)
+		// if err != nil {
+		// 	return errors.Wrap(err, "failed to create external-dns credentials secret")
+		// }
+		// c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
+		// 	" --from-file=gcp.json=" + externalDnsWorkloadCredsFile
+		// _, err = commons.ExecuteCommand(n, c, 3, 5)
+		// if err != nil {
+		// 	return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
+		// }
 
 	}
 
@@ -610,8 +653,8 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 				" --set-string podAnnotations.\"cluster-autoscaler\\.kubernetes\\.io/safe-to-evict\"=true" +
 				" --set securityContext.runAsNonRoot=false" +
 				" --set replicaCount=2" +
+				" --set policy=sync" +
 				" --set securityContext.runAsUser=0"
-			// PRIORITY CLASS "{{ keos_priorityclasses.core.name }}" ?¿
 
 			if privateParams.Private {
 				c += " --set image.repository=" + privateParams.KeosRegUrl + "/external-dns/external-dns"
@@ -646,12 +689,17 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 					" --set extraVolumeMounts[0].readOnly=true"
 			case "gcp":
 				c += " --set extraVolumes[0].name=google-service-account" +
-					" --set extraVolumes[0].secret.secretName=" + customParams["external_dns_gcp_config_secret_name"] +
+					" --set extraVolumes[0].secret.secretName=external-dns-creds" +
 					" --set extraVolumeMounts[0].name=google-service-account" +
 					" --set extraVolumeMounts[0].mountPath=/etc/secrets/service-account/" +
 					" --set extraVolumeMounts[0].readOnly=true" +
 					" --set env[0].name=GOOGLE_APPLICATION_CREDENTIALS" +
 					" --set env[0].value=/etc/secrets/service-account/gcp.json"
+				if releaseName == "private-external-dns" {
+					c += " --set extraArgs[0]=\"--google-zone-visibility=private\""
+				} else {
+					c += " --set extraArgs[0]=\"--google-zone-visibility=public\""
+				}
 			}
 
 			_, err = commons.ExecuteCommand(n, c, 3, 5)

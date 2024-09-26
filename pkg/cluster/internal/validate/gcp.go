@@ -51,6 +51,11 @@ func validateGCP(spec commons.KeosSpec, providerSecrets map[string]string) error
 		return errors.New("spec.region: " + spec.Region + " region does not exist")
 	}
 
+	err = validateGCPExternalDomain(spec)
+	if err != nil {
+		return err
+	}
+
 	azs, err := getGoogleAZs(credentialsJson, spec.Region)
 	if err != nil {
 		return err
@@ -279,6 +284,14 @@ func validateGCPNetwork(network commons.Networks, credentialsJson string, region
 		return errors.New("\"vpc_cidr\": is not supported")
 	}
 
+	return nil
+}
+
+// checkExternalDomain ensures that the spec.externaldomain ends with a dot.
+func validateGCPExternalDomain(spec commons.KeosSpec) error {
+	if !strings.HasSuffix(spec.ExternalDomain, ".") {
+		return fmt.Errorf("spec.externaldomain must end with a dot: %s", spec.ExternalDomain)
+	}
 	return nil
 }
 

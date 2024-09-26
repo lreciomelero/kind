@@ -28,6 +28,9 @@ import (
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -323,7 +326,33 @@ func (b *GCPBuilder) getAddons(clusterManaged bool, addonsParams map[string]*boo
 }
 
 func (b *GCPBuilder) getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error) {
-	return []string{}, nil, nil
+	var manifests = []string{}
+	compositionsToWait := make(map[string]string)
+	params := CrossplaneGCPParams{
+		ClusterName:    keosCluster.Metadata.Name,
+		ExternalDomain: keosCluster.Spec.ExternalDomain,
+		Addon:          addon,
+		ProjectName:    credentials["ProjectID"],
+		Managed:        keosCluster.Spec.ControlPlane.Managed,
+	}
+
+	switch addon {
+	case "external-dns":
+		manifests = append(manifests, string(gcpCRDHostedZones))
+		compositionsToWait["xGCPZonesConfig"] = keosCluster.Metadata.Name + "-zones-config"
+		compositionHostedZones, err := getManifest("gcp", "composition-hostedzones-gcp.tmpl", params)
+		if err != nil {
+			return nil, nil, err
+		}
+		manifests = append(manifests, compositionHostedZones)
+		hostedZone, err := getManifest("gcp", "hostedzone.gcp.tmpl", params)
+		if err != nil {
+			return nil, nil, err
+		}
+		manifests = append(manifests, hostedZone)
+	}
+
+	return manifests, compositionsToWait, nil
 }
 
 func (b *GCPBuilder) setCrossplaneProviders(addons []string) {
@@ -347,7 +376,32 @@ func (b *GCPBuilder) getCrossplaneProviders(addons []string) map[string]string {
 }
 
 func (b *GCPBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
-	return nil, nil
+	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+	if err != nil {
+		panic(err.Error())
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.Background(), "sa-key-external-dns-"+clusterName+"-secret", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	// credsJson, err := jsonStringToMap(string(secret.Data["private_key"]))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// credsJson["private_key"] = formatPrivateKey(credsJson["private_key"])
+	// jsonCreds, err := json.Marshal(credsJson)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	externalDnsCreds := map[string]string{
+		"gcp.json": string(secret.Data["private_key"]),
+	}
+	return externalDnsCreds, nil
 }
 
 func formatPrivateKey(key string) string {
@@ -360,3 +414,29 @@ func formatPrivateKey(key string) string {
 
 	return formattedKey
 }
+
+func jsonStringToMap(jsonString string) (map[string]string, error) {
+	var resultMap map[string]string
+	err := json.Unmarshal([]byte(jsonString), &resultMap)
+	if err != nil {
+		return nil, err
+	}
+	return resultMap, nil
+}
+
+// func getCredentialsString(creds map[string]string) string {
+// 	data := map[string]interface{}{
+// 		"type":                        "service_account",
+// 		"project_id":                  creds["project_id"],
+// 		"private_key_id":              creds["private_key_id"],
+// 		"private_key":                 creds["private_key"],
+// 		"client_email":                creds["client_email"],
+// 		"client_id":                   creds["client_id"],
+// 		"auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
+// 		"token_uri":                   "https://accounts.google.com/o/oauth2/token",
+// 		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+// 		"client_x509_cert_url":        "https://www.googleapis.com/robot/v1/metadata/x509/" + url.QueryEscape(p.Credentials["ClientEmail"]),
+// 	}
+// 	jsonData, _ := json.Marshal(data)
+// 	return string(jsonData)
+// }

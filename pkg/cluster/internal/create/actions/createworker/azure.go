@@ -479,8 +479,8 @@ func (b *AzureBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kub
 	externalDnsCredsMap := map[string]string{
 		"ClientID":       applicationId,
 		"ClientSecret":   secretKey,
-		"SubscriptionID": credentials["SubscriptionID"], // Not needed for external-dns
-		"TenantID":       credentials["TenantID"],       // Not needed for external-dns
+		"SubscriptionID": credentials["SubscriptionID"],
+		"TenantID":       credentials["TenantID"],
 	}
 	return externalDnsCredsMap, nil
 }

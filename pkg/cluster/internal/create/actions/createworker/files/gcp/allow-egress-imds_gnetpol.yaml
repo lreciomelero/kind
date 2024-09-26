@@ -11,7 +11,7 @@ spec:
       - 169.254.169.254/32
     protocol: TCP
   order: 0
-  namespaceSelector: kubernetes.io/metadata.name in { 'kube-system', 'capg-system' }
-  selector: app == 'gcp-compute-persistent-disk-csi-driver' || cluster.x-k8s.io/provider == 'infrastructure-gcp'
+  namespaceSelector: kubernetes.io/metadata.name in { 'kube-system', 'capg-system', 'external-dns' }
+  selector: app == 'gcp-compute-persistent-disk-csi-driver' || cluster.x-k8s.io/provider == 'infrastructure-gcp' || app.kubernetes.io/name == 'external-dns'
   types:
   - Egress

@@ -1039,6 +1039,9 @@ func isEmptyCredsMap(creds map[string]string, infra string) bool {
 			return true
 		}
 	case "gcp":
+		if creds["gcp.json"] != "" {
+			return false
+		}
 		if creds["ProjectID"] == "" || creds["PrivateKeyID"] == "" || creds["PrivateKey"] == "" || creds["ClientEmail"] == "" || creds["ClientID"] == "" {
 			return true
 		}
