@@ -143,7 +143,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		keosRegistry.user = a.clusterCredentials.KeosRegistryCredentials["User"]
 		keosRegistry.pass = a.clusterCredentials.KeosRegistryCredentials["Pass"]
 	}
-	// awsNotManaged := a.keosCluster.Spec.InfraProvider == "aws" && !a.keosCluster.Spec.ControlPlane.Managed
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	gcpGKEEnabled := a.keosCluster.Spec.InfraProvider == "gcp" && a.keosCluster.Spec.ControlPlane.Managed

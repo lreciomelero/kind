@@ -1,12 +1,12 @@
 apiVersion:  apiextensions.crossplane.io/v1 
 kind:  CompositeResourceDefinition 
 metadata: 
-  name:  xzonesconfigs.configs.stratio.io 
+  name:  xawszonesconfigs.configs.stratio.io 
 spec: 
   group: configs.stratio.io
   names: 
-    kind:  xZonesConfig 
-    plural:  xzonesconfigs
+    kind:  xAWSZonesConfig 
+    plural:  xawszonesconfigs
   versions: 
     -  name:  v1alpha1 
        served:  true 
