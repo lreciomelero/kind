@@ -32,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -456,25 +455,14 @@ func (b *AzureBuilder) getCrossplaneProviders(addons []string) map[string]string
 	return b.crossplaneProviders
 }
 
-func (b *AzureBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
+func (b *AzureBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, clientset *kubernetes.Clientset, credentials map[string]string) (map[string]string, error) {
 
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
-	if err != nil {
-		panic(err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
 	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), clusterName+"-external-dns-principal-application-secret", metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get external-dns credentials secret")
 	}
 	secretKey := string(secret.Data["attribute.value"])
-	// applicationId, err := getApplicationId(clusterName, kubeconfigString)
-	// if err != nil {
-	// 	return nil, errors.Wrap(err, "failed to get applicationId")
-	// }
+
 	c := "kubectl --kubeconfig " + kubeconfigPath + " get xazurezonesconfigs " + clusterName + "-zones-config -o jsonpath='{.status.application.applicationId}'"
 	applicationId, err := commons.ExecuteCommand(n, c, 3, 5)
 	if err != nil {
@@ -487,6 +475,30 @@ func (b *AzureBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kub
 		"TenantID":       credentials["TenantID"],
 	}
 	return externalDnsCredsMap, nil
+}
+
+func (b *AzureBuilder) getAddonsReleaseInstallation(addon string) []InstallationReleases {
+	switch addon {
+	case "external-dns":
+		return []InstallationReleases{{Provider: "azure", Releases: []string{"external-dns"}}, {Provider: "azure-private-dns", Releases: []string{"private-external-dns"}}}
+	}
+	return []InstallationReleases{}
+}
+
+func (b *AzureBuilder) createExternalDNSCredsSecret(n nodes.Node, kubeconfigPath string, credentials map[string]string, managed bool, clusterName string) error {
+	// Create secret for Azure credentials
+	c := "echo \"{\n\"aadClientId\": \"" + credentials["ClientID"] + "\",\n" + "\"aadClientSecret\": \"" + credentials["ClientSecret"] + "\",\n" + "\"subscriptionId\": \"" + credentials["SubscriptionID"] + "\",\n" + "\"resourceGroup\": \"" + clusterName + "\",\n" + "\"tenantId\": \"" + credentials["TenantID"] + "\"\n}\" > " + externalDnsWorkloadCredsFile
+	_, err := commons.ExecuteCommand(n, c, 3, 5)
+	if err != nil {
+		return errors.Wrap(err, "failed to create external-dns credentials secret")
+	}
+	c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
+		" --from-file=azure.json=" + externalDnsWorkloadCredsFile
+	_, err = commons.ExecuteCommand(n, c, 3, 5)
+	if err != nil {
+		return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
+	}
+	return nil
 }
 
 func getApplicationId(clusterName string, kubeconfigString string) (string, error) {

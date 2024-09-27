@@ -35,7 +35,6 @@ import (
 	"github.com/fatih/structs"
 	"github.com/oleiade/reflections"
 	"gopkg.in/yaml.v3"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -90,6 +89,11 @@ type PrivateParams struct {
 	Private     bool
 }
 
+type InstallationReleases struct {
+	Provider string
+	Releases []string
+}
+
 type PBuilder interface {
 	setCapx(managed bool)
 	setCapxEnvVars(p ProviderParams)
@@ -107,7 +111,9 @@ type PBuilder interface {
 	getCrossplaneCRManifests(keosCluster commons.KeosCluster, credentials map[string]string, workloadClusterInstallation bool, credentialsFound bool, addon string, customParams map[string]string) ([]string, map[string]string, error)
 	getCrossplaneProviders(addons []string) map[string]string
 	getAddons(clusterManaged bool, addonsParams map[string]*bool) []string
-	getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error)
+	getExternalDNSCreds(n nodes.Node, clusterName string, clientset *kubernetes.Clientset, credentials map[string]string) (map[string]string, error)
+	getAddonsReleaseInstallation(addon string) []InstallationReleases
+	createExternalDNSCredsSecret(n nodes.Node, kubeconfigPath string, credentials map[string]string, managed bool, clusterName string) error
 }
 
 type Provider struct {
@@ -248,8 +254,16 @@ func (i *Infra) getCrossplaneCRManifests(keosCluster commons.KeosCluster, creden
 	return i.builder.getCrossplaneCRManifests(keosCluster, credentials, workloadClusterInstallation, credentialsFound, addon, customParams)
 }
 
-func (i *Infra) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
-	return i.builder.getExternalDNSCreds(n, clusterName, kubeconfigString, credentials)
+func (i *Infra) getExternalDNSCreds(n nodes.Node, clusterName string, clientset *kubernetes.Clientset, credentials map[string]string) (map[string]string, error) {
+	return i.builder.getExternalDNSCreds(n, clusterName, clientset, credentials)
+}
+
+func (i *Infra) getAddonsReleaseInstallation(addon string) []InstallationReleases {
+	return i.builder.getAddonsReleaseInstallation(addon)
+}
+
+func (i *Infra) createExternalDNSCredsSecret(n nodes.Node, kubeconfigPath string, credentials map[string]string, managed bool, clusterName string) error {
+	return i.builder.createExternalDNSCredsSecret(n, kubeconfigPath, credentials, managed, clusterName)
 }
 
 func (i *Infra) getCrossplaneProviders(addons []string) map[string]string {
@@ -535,20 +549,19 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams PrivateParams, allowCommonEgressNetPolPath string, customParams map[string]string, credentials map[string]string) error {
 	var c string
 	var err error
-	type ExternalDNSProvider struct {
-		Provider string
-		Releases []string
-	}
-	providers := map[string][]ExternalDNSProvider{}
 
-	switch privateParams.KeosCluster.Spec.InfraProvider {
-	case "gcp":
-		providers["gcp"] = []ExternalDNSProvider{{Provider: "google", Releases: []string{"external-dns", "private-external-dns"}}}
-	case "aws":
-		providers["aws"] = []ExternalDNSProvider{{Provider: "aws", Releases: []string{"external-dns"}}}
-	case "azure":
-		providers["azure"] = []ExternalDNSProvider{{Provider: "azure", Releases: []string{"external-dns"}}, {Provider: "azure-private-dns", Releases: []string{"private-external-dns"}}}
+	providers := map[string][]InstallationReleases{
+		privateParams.KeosCluster.Spec.InfraProvider: infra.getAddonsReleaseInstallation("external-dns"),
 	}
+
+	// switch privateParams.KeosCluster.Spec.InfraProvider {
+	// case "gcp":
+	// 	providers["gcp"] = []InstallationReleases{{Provider: "google", Releases: []string{"external-dns", "private-external-dns"}}}
+	// case "aws":
+	// 	providers["aws"] = []InstallationReleases{{Provider: "aws", Releases: []string{"external-dns"}}}
+	// case "azure":
+	// 	providers["azure"] = []InstallationReleases{{Provider: "azure", Releases: []string{"external-dns"}}, {Provider: "azure-private-dns", Releases: []string{"private-external-dns"}}}
+	// }
 
 	c = "kubectl create ns external-dns"
 	if kubeconfigPath != "" {
@@ -567,68 +580,64 @@ func installExternalDNS(n nodes.Node, kubeconfigPath string, privateParams Priva
 			return errors.Wrap(err, "failed to apply external-dns egress NetworkPolicy")
 		}
 	}
-
-	switch privateParams.KeosCluster.Spec.InfraProvider {
-	case "aws":
-		if !privateParams.KeosCluster.Spec.ControlPlane.Managed {
-			c = "echo '[default]\naws_access_key_id = " + credentials["AccessKey"] + "\naws_secret_access_key = " + credentials["SecretKey"] + "\n' > " + externalDnsWorkloadCredsFile
-			// Create secret for AWS credentials
-			_, err = commons.ExecuteCommand(n, c, 3, 5)
-			if err != nil {
-				return errors.Wrap(err, "failed to create external-dns credentials secret")
-			}
-
-			c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
-				" --from-file=credentials=" + externalDnsWorkloadCredsFile
-			_, err = commons.ExecuteCommand(n, c, 3, 5)
-			if err != nil {
-				return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
-			}
-		}
-	case "azure":
-		// Create secret for Azure credentials
-		c = "echo \"{\n\"aadClientId\": \"" + credentials["ClientID"] + "\",\n" + "\"aadClientSecret\": \"" + credentials["ClientSecret"] + "\",\n" + "\"subscriptionId\": \"" + credentials["SubscriptionID"] + "\",\n" + "\"resourceGroup\": \"" + privateParams.KeosCluster.Metadata.Name + "\",\n" + "\"tenantId\": \"" + credentials["TenantID"] + "\"\n}\" > " + externalDnsWorkloadCredsFile
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to create external-dns credentials secret")
-		}
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
-			" --from-file=azure.json=" + externalDnsWorkloadCredsFile
-		_, err = commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil {
-			return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
-		}
-
-	case "gcp":
-		c = "cat " + kubeconfigPath
-		kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil || kubeconfigString == "" {
-			return errors.Wrap(err, "failed to get workload cluster kubeconfig")
-		}
-
-		config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
-		if err != nil {
-			return err
-		}
-		clientset, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-		newSecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "external-dns-creds",
-			},
-			Data: map[string][]byte{
-				"gcp.json": []byte(credentials["gcp.json"]),
-			},
-		}
-
-		_, err = clientset.CoreV1().Secrets("external-dns").Create(context.TODO(), newSecret, metav1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-
+	err = infra.createExternalDNSCredsSecret(n, kubeconfigPath, credentials, privateParams.KeosCluster.Spec.ControlPlane.Managed, privateParams.KeosCluster.Metadata.Name)
+	if err != nil {
+		return errors.Wrap(err, "failed to create external-dns credentials secret")
 	}
+
+	// switch privateParams.KeosCluster.Spec.InfraProvider {
+	// case "aws":
+	// 	if !privateParams.KeosCluster.Spec.ControlPlane.Managed {
+	// 		c = "echo '[default]\naws_access_key_id = " + credentials["AccessKey"] + "\naws_secret_access_key = " + credentials["SecretKey"] + "\n' > " + externalDnsWorkloadCredsFile
+	// 		// Create secret for AWS credentials
+	// 		_, err = commons.ExecuteCommand(n, c, 3, 5)
+	// 		if err != nil {
+	// 			return errors.Wrap(err, "failed to create external-dns credentials secret")
+	// 		}
+
+	// 		c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
+	// 			" --from-file=credentials=" + externalDnsWorkloadCredsFile
+	// 		_, err = commons.ExecuteCommand(n, c, 3, 5)
+	// 		if err != nil {
+	// 			return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
+	// 		}
+	// 	}
+	// case "azure":
+	// 	// Create secret for Azure credentials
+	// 	c = "echo \"{\n\"aadClientId\": \"" + credentials["ClientID"] + "\",\n" + "\"aadClientSecret\": \"" + credentials["ClientSecret"] + "\",\n" + "\"subscriptionId\": \"" + credentials["SubscriptionID"] + "\",\n" + "\"resourceGroup\": \"" + privateParams.KeosCluster.Metadata.Name + "\",\n" + "\"tenantId\": \"" + credentials["TenantID"] + "\"\n}\" > " + externalDnsWorkloadCredsFile
+	// 	_, err = commons.ExecuteCommand(n, c, 3, 5)
+	// 	if err != nil {
+	// 		return errors.Wrap(err, "failed to create external-dns credentials secret")
+	// 	}
+	// 	c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
+	// 		" --from-file=azure.json=" + externalDnsWorkloadCredsFile
+	// 	_, err = commons.ExecuteCommand(n, c, 3, 5)
+	// 	if err != nil {
+	// 		return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
+	// 	}
+
+	// case "gcp":
+
+	// 	clientset, err := getClientSet(n, "", "")
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	newSecret := &corev1.Secret{
+	// 		ObjectMeta: metav1.ObjectMeta{
+	// 			Name: "external-dns-creds",
+	// 		},
+	// 		Data: map[string][]byte{
+	// 			"gcp.json": []byte(credentials["gcp.json"]),
+	// 		},
+	// 	}
+
+	// 	_, err = clientset.CoreV1().Secrets("external-dns").Create(context.TODO(), newSecret, metav1.CreateOptions{})
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// }
 
 	for _, installation := range providers[privateParams.KeosCluster.Spec.InfraProvider] {
 		for _, releaseName := range installation.Releases {

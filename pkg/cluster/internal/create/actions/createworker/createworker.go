@@ -26,7 +26,10 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/internal/create/actions"
+	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
 	"sigs.k8s.io/kind/pkg/exec"
@@ -414,8 +417,8 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		// Get the workload cluster kubeconfig
 		c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + a.keosCluster.Metadata.Name + " | tee " + kubeconfigPath
-		kubeconfig, err := commons.ExecuteCommand(n, c, 3, 5)
-		if err != nil || kubeconfig == "" {
+		kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil || kubeconfigString == "" {
 			return errors.Wrap(err, "failed to get workload cluster kubeconfig")
 		}
 
@@ -434,7 +437,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return err
 			}
 		}
-		err = os.WriteFile(workKubeconfigPath, []byte(kubeconfig), 0600)
+		err = os.WriteFile(workKubeconfigPath, []byte(kubeconfigString), 0600)
 		if err != nil {
 			return errors.Wrap(err, "failed to save the workload cluster kubeconfig")
 		}
@@ -717,11 +720,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 			customParams := map[string]string{}
 
-			// Get the workload cluster kubeconfig
-			c = "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + a.keosCluster.Metadata.Name + " | tee " + kubeconfigPath
-			kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
-			if err != nil || kubeconfig == "" {
-				return errors.Wrap(err, "failed to get workload cluster kubeconfig")
+			// Get the clientset
+			clientset, err := getClientSet(n, capiClustersNamespace, a.keosCluster.Metadata.Name)
+			if err != nil {
+				return errors.Wrap(err, "failed to get clientset")
 			}
 
 			if awsEKSEnabled {
@@ -744,7 +746,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 					return err
 				}
 
-				*credentials["external-dns"], err = infra.getExternalDNSCreds(n, a.keosCluster.Metadata.Name, kubeconfigString, *credentials["crossplane"])
+				*credentials["external-dns"], err = infra.getExternalDNSCreds(n, a.keosCluster.Metadata.Name, clientset, *credentials["crossplane"])
 				if err != nil {
 					return errors.Wrap(err, "failed to get external-dns credentials")
 				}
@@ -1047,4 +1049,29 @@ func isEmptyCredsMap(creds map[string]string, infra string) bool {
 		}
 	}
 	return false
+}
+
+func getClientSet(n nodes.Node, capiClustersNamespace string, clusterName string) (*kubernetes.Clientset, error) {
+	// Get the workload cluster kubeconfig
+	c := "cat " + kubeconfigPath
+	kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+	if err != nil || kubeconfigString == "" {
+		return nil, errors.Wrap(err, "failed to get workload cluster kubeconfig")
+	}
+	if capiClustersNamespace != "" {
+		c := "clusterctl -n " + capiClustersNamespace + " get kubeconfig " + clusterName + " | tee " + kubeconfigPath
+		kubeconfigString, err := commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil || kubeconfigString == "" {
+			return nil, errors.Wrap(err, "failed to get workload cluster kubeconfig")
+		}
+	}
+	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
+	if err != nil {
+		return nil, err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return clientset, nil
 }

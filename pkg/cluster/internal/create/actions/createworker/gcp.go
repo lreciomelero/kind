@@ -28,9 +28,9 @@ import (
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -379,15 +379,8 @@ func (b *GCPBuilder) getCrossplaneProviders(addons []string) map[string]string {
 	return b.crossplaneProviders
 }
 
-func (b *GCPBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
-	if err != nil {
-		panic(err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
+func (b *GCPBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, clientset *kubernetes.Clientset, credentials map[string]string) (map[string]string, error) {
+
 	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.Background(), "sa-key-external-dns-"+clusterName+"-secret", metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -408,6 +401,62 @@ func formatPrivateKey(key string) string {
 		"\\n-----END PRIVATE KEY-----\\n"
 
 	return formattedKey
+}
+
+func (b *GCPBuilder) getAddonsReleaseInstallation(addon string) []InstallationReleases {
+	switch addon {
+	case "external-dns":
+		return []InstallationReleases{{Provider: "google", Releases: []string{"external-dns", "private-external-dns"}}}
+	}
+	return []InstallationReleases{}
+}
+
+func (b *GCPBuilder) createExternalDNSCredsSecret(n nodes.Node, kubeconfigPath string, credentials map[string]string, managed bool, clusterName string) error {
+	clientset, err := getClientSet(n, "", "")
+	if err != nil {
+		return err
+	}
+	newSecret := &corev1.Secret{}
+	if credentials["gcp.json"] != "" {
+		newSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "external-dns-creds",
+			},
+			Data: map[string][]byte{
+				"gcp.json": []byte(credentials["gcp.json"]),
+			},
+		}
+	} else if credentials["ProjectID"] != "" && credentials["PrivateKeyID"] != "" && credentials["PrivateKey"] != "" && credentials["ClientEmail"] != "" && credentials["ClientID"] != "" {
+		data := map[string]interface{}{
+			"type":                        "service_account",
+			"project_id":                  credentials["ProjectID"],
+			"private_key_id":              credentials["PrivateKeyID"],
+			"private_key":                 credentials["PrivateKey"],
+			"client_email":                credentials["ClientEmail"],
+			"client_id":                   credentials["ClientID"],
+			"auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
+			"token_uri":                   "https://accounts.google.com/o/oauth2/token",
+			"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+			"client_x509_cert_url":        "https://www.googleapis.com/robot/v1/metadata/x509/" + url.QueryEscape(credentials["ClientEmail"]),
+		}
+		jsonData, _ := json.Marshal(data)
+		newSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "external-dns-creds",
+			},
+			Data: map[string][]byte{
+				"gcp.json": jsonData,
+			},
+		}
+	} else {
+		return errors.New("no credentials found to create external-dns-creds secret")
+	}
+
+	_, err = clientset.CoreV1().Secrets("external-dns").Create(context.TODO(), newSecret, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func jsonStringToMap(jsonString string) (map[string]string, error) {

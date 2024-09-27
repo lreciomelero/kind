@@ -33,7 +33,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/commons"
 	"sigs.k8s.io/kind/pkg/errors"
@@ -525,16 +524,8 @@ func getAWSVPCByName(config aws.Config, vpcName string) ([]string, error) {
 	return vpcs, nil
 }
 
-func (b *AWSBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubeconfigString string, credentials map[string]string) (map[string]string, error) {
+func (b *AWSBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, clientset *kubernetes.Clientset, credentials map[string]string) (map[string]string, error) {
 
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
-	if err != nil {
-		panic(err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
 	secret, err := clientset.CoreV1().Secrets("crossplane-system").Get(context.TODO(), clusterName+"-external-dns-accesskey-secret", metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get external-dns credentials secret")
@@ -546,6 +537,33 @@ func (b *AWSBuilder) getExternalDNSCreds(n nodes.Node, clusterName string, kubec
 		"SecretKey": secretKey,
 	}
 	return externalDnsCredsMap, nil
+}
+
+func (b *AWSBuilder) getAddonsReleaseInstallation(addon string) []InstallationReleases {
+	switch addon {
+	case "external-dns":
+		return []InstallationReleases{{Provider: "aws", Releases: []string{"external-dns"}}}
+	}
+	return []InstallationReleases{}
+}
+
+func (b *AWSBuilder) createExternalDNSCredsSecret(n nodes.Node, kubeconfigPath string, credentials map[string]string, managed bool, clusterName string) error {
+	if managed {
+		c := "echo '[default]\naws_access_key_id = " + credentials["AccessKey"] + "\naws_secret_access_key = " + credentials["SecretKey"] + "\n' > " + externalDnsWorkloadCredsFile
+		// Create secret for AWS credentials
+		_, err := commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to create external-dns credentials secret")
+		}
+
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n external-dns create secret generic external-dns-creds" +
+			" --from-file=credentials=" + externalDnsWorkloadCredsFile
+		_, err = commons.ExecuteCommand(n, c, 3, 5)
+		if err != nil {
+			return errors.Wrap(err, "failed to create external-dns-creds credentials secret")
+		}
+	}
+	return nil
 }
 
 func getRoleArn(clusterName string, kubeconfigString string) (string, error) {
