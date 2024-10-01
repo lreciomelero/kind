@@ -548,7 +548,7 @@ func (b *AWSBuilder) getAddonsReleaseInstallation(addon string) []InstallationRe
 }
 
 func (b *AWSBuilder) createExternalDNSCredsSecret(n nodes.Node, kubeconfigPath string, credentials map[string]string, managed bool, clusterName string) error {
-	if managed {
+	if !managed {
 		c := "echo '[default]\naws_access_key_id = " + credentials["AccessKey"] + "\naws_secret_access_key = " + credentials["SecretKey"] + "\n' > " + externalDnsWorkloadCredsFile
 		// Create secret for AWS credentials
 		_, err := commons.ExecuteCommand(n, c, 3, 5)
