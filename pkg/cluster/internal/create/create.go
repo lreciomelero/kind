@@ -240,9 +240,9 @@ func logSalutation(logger log.Logger) {
 		"2. Stratio KEOS documentation",
 	}
 
-    for _, salutation := range salutations {
-        logger.V(0).Info(salutation)
-    }
+	for _, salutation := range salutations {
+		logger.V(0).Info(salutation)
+	}
 }
 
 func fixupOptions(opts *ClusterOptions) error {
