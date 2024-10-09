@@ -20,7 +20,6 @@ package createworker
 import (
 	"bytes"
 	"context"
-	"embed"
 	_ "embed"
 	"encoding/json"
 	"os"
@@ -80,9 +79,6 @@ var allowCommonEgressNetPol string
 
 //go:embed files/gcp/rbac-loadbalancing.yaml
 var rbacInternalLoadBalancing string
-
-//go:embed files/gcp/coredns_*.yaml
-var gcpCoreDNSDeploy embed.FS
 
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
