@@ -180,7 +180,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 
 		params := CrossplaneProviderConfigParams{
 			Addon:  addon + "-provider",
-			Secret: infra.builder.getProvider().capxProvider + "-" + addon + "-secret",
+			Secret: addon + "-secret",
 		}
 
 		if keosCluster.Spec.InfraProvider == "gcp" {
@@ -192,7 +192,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 		}
 
 		if !credentialsFound {
-			params.Secret = infra.builder.getProvider().capxProvider + "-crossplane-secret"
+			params.Secret = infra.builder.getProvider().capxProvider + "crossplane-secret"
 			config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfigString))
 			if err != nil {
 				return privateParams.KeosCluster, errors.Wrap(err, "failed to get workload kubeconfig")

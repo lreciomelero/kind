@@ -10,8 +10,9 @@ var (
 
 var (
 	//Crossplane variables
-	crossplaneAddonName = "crossplane"
-	crossplaneNamespace = "crossplane-system"
+	crossplaneAddonName             = "crossplane"
+	crossplaneNamespace             = "crossplane-system"
+	crossplaneCredentialsSecretName = "crossplane-creds"
 
 	// Crossplane file variables
 	crossplane_folder_path              = "/kind/cache"
