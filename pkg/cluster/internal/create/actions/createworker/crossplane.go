@@ -16,16 +16,6 @@ import (
 	"sigs.k8s.io/kind/pkg/errors"
 )
 
-var (
-	crossplane_folder_path              = "/kind/cache"
-	crossplane_directoy_path            = "/kind/crossplane"
-	crossplane_provider_creds_file_base = "/kind/crossplane/crossplane-"
-	crossplane_provider_config_file     = "/kind/crossplane/crossplane-provider-creds.yaml"
-	crossplane_custom_creds_file        = "/kind/crossplane/crossplane-custom-creds.yaml"
-	crossplane_crs_file_local_base      = "/kind/crossplane/crossplane-crs-local"
-	crossplane_crs_file_workload_base   = "/kind/crossplane/crossplane-crs-workload"
-)
-
 type CrossplaneProviderParams struct {
 	Provider string
 	Package  string
@@ -177,7 +167,7 @@ func installCrossplane(n nodes.Node, kubeconfigpath string, keosRegUrl string, c
 
 	keosCluster := privateParams.KeosCluster
 	for _, addon := range addons {
-		credsAddonContent, credentialsFound, err := infra.getCrossplaneProviderConfigContent(credentials, addon, keosCluster.Metadata.Name, kubeconfigString) // EN LOCAL SIEMPRE FALSE SI ENTRAMOS AQUI
+		credsAddonContent, credentialsFound, err := infra.getCrossplaneProviderConfigContent(credentials, addon, keosCluster.Metadata.Name, kubeconfigString)
 		if err != nil {
 			return privateParams.KeosCluster, errors.Wrap(err, "failed to get Crossplane Provider config content")
 		}
