@@ -119,13 +119,18 @@ type KeosSpec struct {
 		Tags            []map[string]string `yaml:"tags,omitempty"`
 		AWS             AWSCP               `yaml:"aws,omitempty"`
 		Azure           AzureCP             `yaml:"azure,omitempty"`
+		GCP             GCPCP               `yaml:"gcp,omitempty"`
 		ExtraVolumes    []ExtraVolume       `yaml:"extra_volumes,omitempty" validate:"dive"`
-		ClusterNetwork  *ClusterNetwork     `yaml:"cluster_network,omitempty"`
 	} `yaml:"control_plane"`
 
 	WorkerNodes WorkerNodes `yaml:"worker_nodes" validate:"required,dive"`
 
 	ClusterConfigRef ClusterConfigRef `yaml:"cluster_config_ref,omitempty" validate:"dive"`
+}
+
+type GCPCP struct {
+	ClusterNetwork                 *ClusterNetwork                 `yaml:"cluster_network,omitempty"`
+	MasterAuthorizedNetworksConfig *MasterAuthorizedNetworksConfig `yaml:"master_authorized_networks_config,omitempty"`
 }
 
 type ClusterNetwork struct {
@@ -134,8 +139,26 @@ type ClusterNetwork struct {
 
 type PrivateCluster struct {
 	// +kubebuilder:default=true
-	EnablePrivateNodes    bool   `yaml:"enable_private_nodes,omitempty"`
+	EnablePrivateEndpoint bool `yaml:"enable_private_endpoint,omitempty"`
+	// +kubebuilder:default=true
+	EnablePrivateNodes bool `yaml:"enable_private_nodes,omitempty"`
+	// +kubebuilder:validation:Pattern=`^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(192\.168\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$`
 	ControlPlaneCidrBlock string `yaml:"control_plane_cidr_block,omitempty"`
+}
+
+// MasterAuthorizedNetworksConfig represents configuration options for master authorized networks feature of the GKE cluster.
+type MasterAuthorizedNetworksConfig struct {
+	CIDRBlocks []CIDRBlock `yaml:"cidr_blocks,omitempty"`
+	// +kubebuilder:default=false
+	GCPPublicCIDRsAccessEnabled *bool `yaml:"gcp_public_cidrs_access_enabled,omitempty"`
+}
+
+type CIDRBlock struct {
+	// +kubebuilder:validation:Pattern=`^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(192\.168\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$`
+	CIDRBlock string `yaml:"cidr_block"`
+
+	// +kubebuilder:validation:Optional
+	DisplayName string `yaml:"display_name,omitempty"`
 }
 
 type Keos struct {
