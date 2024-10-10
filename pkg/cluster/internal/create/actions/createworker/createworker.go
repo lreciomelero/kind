@@ -20,10 +20,8 @@ package createworker
 import (
 	"bytes"
 	"context"
-	"embed"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"os"
 	"strings"
 
@@ -58,16 +56,17 @@ type HelmRegistry struct {
 }
 
 const (
-	kubeconfigPath          = "/kind/worker-cluster.kubeconfig"
-	workKubeconfigPath      = ".kube/config"
-	CAPILocalRepository     = "/root/.cluster-api/local-repository"
-	cloudProviderBackupPath = "/kind/backup/objects"
-	localBackupPath         = "backup"
-	manifestsPath           = "/kind/manifests"
-	cniDefaultFile          = "/kind/manifests/default-cni.yaml"
-	storageDefaultPath      = "/kind/manifests/default-storage.yaml"
-	infraGCPVersion         = "v1.6.1"
-	infraAWSVersion         = "v2.2.1"
+	kubeconfigPath           = "/kind/worker-cluster.kubeconfig"
+	workKubeconfigPath       = ".kube/config"
+	CAPILocalRepository      = "/root/.cluster-api/local-repository"
+	cloudProviderBackupPath  = "/kind/backup/objects"
+	localBackupPath          = "backup"
+	manifestsPath            = "/kind/manifests"
+	cniDefaultFile           = "/kind/manifests/default-cni.yaml"
+	storageDefaultPath       = "/kind/manifests/default-storage.yaml"
+	infraGCPVersion          = "v1.6.1"
+	infraAWSVersion          = "v2.2.1"
+	GKECoreDNSDeploymentPath = "/kind/manifests/coredns-deployment.yaml"
 )
 
 var PathsToBackupLocally = []string{
@@ -80,9 +79,6 @@ var allowCommonEgressNetPol string
 
 //go:embed files/gcp/rbac-loadbalancing.yaml
 var rbacInternalLoadBalancing string
-
-//go:embed files/gcp/coredns_*.yaml
-var gcpCoreDNSDeploy embed.FS
 
 // NewAction returns a new action for installing default CAPI
 func NewAction(vaultPassword string, descriptorPath string, moveManagement bool, avoidCreation bool, keosCluster commons.KeosCluster, clusterCredentials commons.ClusterCredentials, clusterConfig *commons.ClusterConfig) actions.Action {
@@ -277,6 +273,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		if err != nil {
 			return err
 		}
+		gcpVersion := infraGCPVersion
+		if gcpGKEEnabled {
+			gcpVersion = provider.capxImageVersion
+		}
 
 		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cluster-api:\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -290,7 +290,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    tag: " + infraAWSVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-gcp:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
-			"echo \"    tag: " + infraGCPVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    tag: " + gcpVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -561,32 +561,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.Start("Enabling CoreDNS as DNS server 📡")
 			defer ctx.Status.End(false)
 
-			gcpCoreDNSDeploymentPath := "files/gcp/coredns_deployment.yaml"
-			gcpCoreDNSRBACPath := "files/gcp/coredns_rbac.yaml"
-			combinedCoreDNSPath := "/kind/coredns-deployment.yaml"
-
-			gcpCoreDNSRBAC, err := gcpCoreDNSDeploy.Open(gcpCoreDNSRBACPath)
-			if err != nil {
-				return errors.Wrap(err, "error opening the CoreDNS RBAC file")
-			}
-			defer gcpCoreDNSRBAC.Close()
-			gcpCoreDNSDeployment, err := gcpCoreDNSDeploy.Open(gcpCoreDNSDeploymentPath)
-			if err != nil {
-				return errors.Wrap(err, "error opening the CoreDNS deployment file")
-			}
-			defer gcpCoreDNSDeployment.Close()
-
-			// Create a buffer to hold the combined contents
-			var combinedCoreDNSContents bytes.Buffer
-
-			// Combine the contents of gcpCoreDNSRBAC and gcpCoreDNSDeployment with a newline in between
-			combinedReader := io.MultiReader(gcpCoreDNSRBAC, strings.NewReader("\n"), gcpCoreDNSDeployment)
-
-			// Read all combined contents into the buffer
-			if _, err := combinedCoreDNSContents.ReadFrom(combinedReader); err != nil {
-				return errors.Wrap(err, "error reading the combined CoreDNS files")
-			}
-			combinedCoreDNS := combinedCoreDNSContents.String()
+			gcpCoreDNSTemplate, err := getManifest(a.keosCluster.Spec.InfraProvider, "coredns_deployment.tmpl", privateParams)
 
 			coreDNSTemplate := "/kind/coredns-configmap.yaml"
 			coreDNSConfigmap, err := getManifest(a.keosCluster.Spec.InfraProvider, "coredns_configmap.tmpl", a.keosCluster.Spec)
@@ -603,12 +578,12 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to apply CoreDNS configmap")
 			}
-			c := "echo '" + combinedCoreDNS + "' > " + combinedCoreDNSPath
+			c := "echo '" + gcpCoreDNSTemplate + "' > " + GKECoreDNSDeploymentPath
 			_, err = commons.ExecuteCommand(n, c, 5)
 			if err != nil {
 				return errors.Wrap(err, "failed to create CoreDNS deployment and RBAC file")
 			}
-			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + combinedCoreDNSPath
+			c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + GKECoreDNSDeploymentPath
 			_, err = commons.ExecuteCommand(n, c, 5)
 			if err != nil {
 				return errors.Wrap(err, "failed to apply CoreDNS deployment and RBAC")
