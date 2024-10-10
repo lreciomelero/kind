@@ -362,9 +362,8 @@ func (p *Provider) deployClusterOperator(n nodes.Node, privateParams PrivatePara
 		if keosCluster.Spec.InfraProvider != "aws" || (keosCluster.Spec.InfraProvider == "aws" && !keosCluster.Spec.ControlPlane.Managed) {
 			keosCluster.Spec.ControlPlane.AWS = commons.AWSCP{}
 		}
-		if keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed {
-			// Ensure ClusterNetwork is initialized
-			keosCluster.Spec.ControlPlane.GCP = commons.GCPCP{}
+		if !(keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed) {
+			keosCluster.Spec.ControlPlane.Gcp = commons.GCPCP{}
 		}
 
 		if keosCluster.Spec.ControlPlane.Managed {

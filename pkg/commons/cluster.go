@@ -119,7 +119,7 @@ type KeosSpec struct {
 		Tags            []map[string]string `yaml:"tags,omitempty"`
 		AWS             AWSCP               `yaml:"aws,omitempty"`
 		Azure           AzureCP             `yaml:"azure,omitempty"`
-		GCP             GCPCP               `yaml:"gcp,omitempty"`
+		Gcp             GCPCP               `yaml:"gcp,omitempty"`
 		ExtraVolumes    []ExtraVolume       `yaml:"extra_volumes,omitempty" validate:"dive"`
 	} `yaml:"control_plane"`
 
@@ -129,12 +129,12 @@ type KeosSpec struct {
 }
 
 type GCPCP struct {
-	ClusterNetwork                 *ClusterNetwork                 `yaml:"cluster_network,omitempty"`
-	MasterAuthorizedNetworksConfig *MasterAuthorizedNetworksConfig `yaml:"master_authorized_networks_config,omitempty"`
+	ClusterNetwork                 ClusterNetwork                 `yaml:"cluster_network,omitempty"`
+	MasterAuthorizedNetworksConfig MasterAuthorizedNetworksConfig `yaml:"master_authorized_networks_config,omitempty"`
 }
 
 type ClusterNetwork struct {
-	PrivateCluster *PrivateCluster `yaml:"private_cluster,omitempty"`
+	PrivateCluster PrivateCluster `yaml:"private_cluster,omitempty"`
 }
 
 type PrivateCluster struct {
@@ -416,6 +416,12 @@ func (s KeosSpec) Init() KeosSpec {
 	s.ControlPlane.AWS.Logging.Authenticator = false
 	s.ControlPlane.AWS.Logging.ControllerManager = false
 	s.ControlPlane.AWS.Logging.Scheduler = false
+
+	// GKE
+
+	s.ControlPlane.Gcp.ClusterNetwork.PrivateCluster.EnablePrivateEndpoint = true
+	s.ControlPlane.Gcp.ClusterNetwork.PrivateCluster.EnablePrivateNodes = true
+	s.ControlPlane.Gcp.MasterAuthorizedNetworksConfig.GCPPublicCIDRsAccessEnabled = ToPtr[bool](false)
 
 	// Helm
 	s.HelmRepository.AuthRequired = false
