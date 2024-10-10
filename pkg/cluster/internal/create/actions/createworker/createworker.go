@@ -273,6 +273,10 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		if err != nil {
 			return err
 		}
+		gcpVersion := infraGCPVersion
+		if gcpGKEEnabled {
+			gcpVersion = provider.capxImageVersion
+		}
 
 		c = "echo \"images:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cluster-api:\" >> /root/.cluster-api/clusterctl.yaml && " +
@@ -286,7 +290,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			"echo \"    tag: " + infraAWSVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-gcp:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-gcp\" >> /root/.cluster-api/clusterctl.yaml && " +
-			"echo \"    tag: " + infraGCPVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
+			"echo \"    tag: " + gcpVersion + "\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  infrastructure-azure:\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"    repository: " + keosRegistry.url + "/cluster-api-azure\" >> /root/.cluster-api/clusterctl.yaml && " +
 			"echo \"  cert-manager:\" >> /root/.cluster-api/clusterctl.yaml && " +
