@@ -695,7 +695,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Enabling workload cluster's self-healing
 
 		// Use Calico as network policy engine in managed systems
-		if provider.capxProvider != "azure" {
+		if provider.capxProvider == "aws" {
 			ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 			defer ctx.Status.End(false)
 
