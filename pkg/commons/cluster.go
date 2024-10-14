@@ -88,6 +88,7 @@ type ChartEntry struct {
 	Version    string
 	Namespace  string
 	Pull       bool
+	Reconcile  bool
 }
 
 type ControlplaneConfig struct {
@@ -150,20 +151,43 @@ type ControlPlane struct {
 	Tags            []map[string]string `yaml:"tags,omitempty"`
 	AWS             AWSCP               `yaml:"aws,omitempty"`
 	Azure           AzureCP             `yaml:"azure,omitempty"`
+	Gcp             GCPCP               `yaml:"gcp,omitempty"`
 	CRIVolume       CustomVolume        `yaml:"cri_volume,omitempty"  validate:"dive"`
 	ETCDVolume      CustomVolume        `yaml:"etcd_volume,omitempty"  validate:"dive"`
 	ExtraVolumes    []ExtraVolume       `yaml:"extra_volumes,omitempty" validate:"dive"`
-	ClusterNetwork  *ClusterNetwork     `yaml:"cluster_network,omitempty"`
+}
+
+type GCPCP struct {
+	ClusterNetwork                 ClusterNetwork                 `yaml:"cluster_network,omitempty"`
+	MasterAuthorizedNetworksConfig MasterAuthorizedNetworksConfig `yaml:"master_authorized_networks_config,omitempty"`
 }
 
 type ClusterNetwork struct {
-	PrivateCluster *PrivateCluster `yaml:"private_cluster,omitempty"`
+	PrivateCluster PrivateCluster `yaml:"private_cluster,omitempty"`
 }
 
 type PrivateCluster struct {
 	// +kubebuilder:default=true
-	EnablePrivateNodes    bool   `yaml:"enable_private_nodes,omitempty"`
+	EnablePrivateEndpoint bool `yaml:"enable_private_endpoint,omitempty"`
+	// +kubebuilder:default=true
+	EnablePrivateNodes bool `yaml:"enable_private_nodes,omitempty"`
+	// +kubebuilder:validation:Pattern=`^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(192\.168\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$`
 	ControlPlaneCidrBlock string `yaml:"control_plane_cidr_block,omitempty"`
+}
+
+// MasterAuthorizedNetworksConfig represents configuration options for master authorized networks feature of the GKE cluster.
+type MasterAuthorizedNetworksConfig struct {
+	CIDRBlocks []CIDRBlock `yaml:"cidr_blocks,omitempty"`
+	// +kubebuilder:default=false
+	GCPPublicCIDRsAccessEnabled *bool `yaml:"gcp_public_cidrs_access_enabled,omitempty"`
+}
+
+type CIDRBlock struct {
+	// +kubebuilder:validation:Pattern=`^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$|^(192\.168\.\d{1,3}\.\d{1,3}\/[0-9]{1,2})$`
+	CIDRBlock string `yaml:"cidr_block"`
+
+	// +kubebuilder:validation:Optional
+	DisplayName string `yaml:"display_name,omitempty"`
 }
 
 type Keos struct {
@@ -448,6 +472,12 @@ func (s KeosSpec) Init() KeosSpec {
 	s.ControlPlane.AWS.Logging.Authenticator = false
 	s.ControlPlane.AWS.Logging.ControllerManager = false
 	s.ControlPlane.AWS.Logging.Scheduler = false
+
+	// GKE
+
+	s.ControlPlane.Gcp.ClusterNetwork.PrivateCluster.EnablePrivateEndpoint = true
+	s.ControlPlane.Gcp.ClusterNetwork.PrivateCluster.EnablePrivateNodes = true
+	s.ControlPlane.Gcp.MasterAuthorizedNetworksConfig.GCPPublicCIDRsAccessEnabled = ToPtr[bool](false)
 
 	// Helm
 	s.HelmRepository.AuthRequired = false

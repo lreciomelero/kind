@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"os"
 	"regexp"
 	"strings"
@@ -165,7 +164,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	}
 
 	awsEKSEnabled := a.keosCluster.Spec.InfraProvider == "aws" && a.keosCluster.Spec.ControlPlane.Managed
-	azAKSEnabled := a.keosCluster.Spec.InfraProvider == "azure" && a.keosCluster.Spec.ControlPlane.Managed
+	// azAKSEnabled := a.keosCluster.Spec.InfraProvider == "azure" && a.keosCluster.Spec.ControlPlane.Managed
 	isMachinePool := a.keosCluster.Spec.InfraProvider != "aws" && a.keosCluster.Spec.ControlPlane.Managed
 	gcpGKEEnabled := a.keosCluster.Spec.InfraProvider == "gcp" && a.keosCluster.Spec.ControlPlane.Managed
 
@@ -499,7 +498,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			ctx.Status.End(true) // End Installing cloud-provider in workload cluster
 		}
 
-		if !azAKSEnabled {
+		if !a.keosCluster.Spec.ControlPlane.Managed || a.keosCluster.Spec.InfraProvider == "aws" {
 			ctx.Status.Start("Installing Calico in workload cluster 🔌")
 			defer ctx.Status.End(false)
 
@@ -511,30 +510,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 				return errors.Wrap(err, "failed to install Calico in workload cluster")
 			}
 
-			// After calico is installed patch the tigera-operator clusterrole to allow resourcequotas creation
-			if gcpGKEEnabled {
-				c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole tigera-operator -o jsonpath='{.rules}'"
-				tigerarules, err := commons.ExecuteCommand(n, c, 3, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to get tigera-operator clusterrole rules")
-				}
-				var rules []json.RawMessage
-				err = json.Unmarshal([]byte(tigerarules), &rules)
-				if err != nil {
-					return errors.Wrap(err, "failed to parse tigera-operator clusterrole rules")
-				}
-				// create, delete
-				rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["resourcequotas"],"verbs": ["create"]}`))
-				newtigerarules, err := json.Marshal(rules)
-				if err != nil {
-					return errors.Wrap(err, "failed to marshal tigera-operator clusterrole rules")
-				}
-				c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole tigera-operator -p '{\"rules\": " + string(newtigerarules) + "}'"
-				_, err = commons.ExecuteCommand(n, c, 3, 5)
-				if err != nil {
-					return errors.Wrap(err, "failed to patch tigera-operator clusterrole")
-				}
-			}
 			ctx.Status.End(true) // End Installing Calico in workload cluster
 		}
 
@@ -716,21 +691,24 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 
 		ctx.Status.End(true) // End Enabling workload cluster's self-healing
 
+		//// <<<<<<< HEAD
 		ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 		defer ctx.Status.End(false)
 
-		// Allow egress in tigera-operator namespace
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n tigera-operator apply -f " + allowCommonEgressNetPolPath
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to apply tigera-operator egress NetworkPolicy")
-		}
+		if !a.keosCluster.Spec.ControlPlane.Managed || a.keosCluster.Spec.InfraProvider == "aws" {
+			// Allow egress in tigera-operator namespace
+			c = "kubectl --kubeconfig " + kubeconfigPath + " -n tigera-operator apply -f " + allowCommonEgressNetPolPath
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply tigera-operator egress NetworkPolicy")
+			}
 
-		// Allow egress in calico-system namespace
-		c = "kubectl --kubeconfig " + kubeconfigPath + " -n calico-system apply -f " + allowCommonEgressNetPolPath
-		_, err = commons.ExecuteCommand(n, c, 5, 3)
-		if err != nil {
-			return errors.Wrap(err, "failed to apply calico-system egress NetworkPolicy")
+			// Allow egress in calico-system namespace
+			c = "kubectl --kubeconfig " + kubeconfigPath + " -n calico-system apply -f " + allowCommonEgressNetPolPath
+			_, err = commons.ExecuteCommand(n, c, 5, 3)
+			if err != nil {
+				return errors.Wrap(err, "failed to apply calico-system egress NetworkPolicy")
+			}
 		}
 
 		// Allow egress in CAPX's Namespace
@@ -769,6 +747,52 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return errors.Wrap(err, "failed to apply cert-manager's NetworkPolicy")
 		}
 
+		// Set the deny-all-traffic-to-imds and allow-selected-namespace-to-imds as the default global network policy
+		// Create the allow and deny (global) network policy file in the container
+		denyallEgressIMDSGNetPolPath := "/kind/deny-all-egress-imds_gnetpol.yaml"
+		allowCAPXEgressIMDSGNetPolPath := "/kind/allow-egress-imds_gnetpol.yaml"
+
+		// Allow egress in kube-system Namespace
+		c = "kubectl --kubeconfig " + kubeconfigPath + " -n kube-system apply -f " + allowCommonEgressNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply kube-system egress NetworkPolicy")
+		}
+		denyEgressIMDSGNetPol, err := provider.getDenyAllEgressIMDSGNetPol()
+		if err != nil {
+			return err
+		}
+
+		c = "echo \"" + denyEgressIMDSGNetPol + "\" > " + denyallEgressIMDSGNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to write the deny-all-traffic-to-aws-imds global network policy")
+		}
+		allowEgressIMDSGNetPol, err := provider.getAllowCAPXEgressIMDSGNetPol()
+		if err != nil {
+			return err
+		}
+
+		c = "echo \"" + allowEgressIMDSGNetPol + "\" > " + allowCAPXEgressIMDSGNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to write the allow-traffic-to-aws-imds-capa global network policy")
+		}
+
+		// Deny CAPA egress to AWS IMDS
+		c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + denyallEgressIMDSGNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply deny IMDS traffic GlobalNetworkPolicy")
+		}
+
+		// Allow CAPA egress to AWS IMDS
+		c = "kubectl --kubeconfig " + kubeconfigPath + " apply -f " + allowCAPXEgressIMDSGNetPolPath
+		_, err = commons.ExecuteCommand(n, c, 5, 3)
+		if err != nil {
+			return errors.Wrap(err, "failed to apply allow CAPX as egress GlobalNetworkPolicy")
+		}
+
 		ctx.Status.End(true) // End Configuring Network Policy Engine in workload cluster
 
 		if !a.keosCluster.Spec.ControlPlane.Managed {
@@ -793,6 +817,30 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 			return errors.Wrap(err, "failed to configure StorageClass in workload cluster")
 		}
 		ctx.Status.End(true) // End Installing StorageClass in workload cluster
+
+		// if gcpGKEEnabled {
+		// 	c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole tigera-operator -o jsonpath='{.rules}'"
+		// 	tigerarules, err := commons.ExecuteCommand(n, c, 5, 3)
+		// 	if err != nil {
+		// 		return errors.Wrap(err, "failed to get tigera-operator clusterrole rules")
+		// 	}
+		// 	var rules []json.RawMessage
+		// 	err = json.Unmarshal([]byte(tigerarules), &rules)
+		// 	if err != nil {
+		// 		return errors.Wrap(err, "failed to parse tigera-operator clusterrole rules")
+		// 	}
+		// 	// create, delete
+		// 	rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["resourcequotas"],"verbs": ["create"]}`))
+		// 	newtigerarules, err := json.Marshal(rules)
+		// 	if err != nil {
+		// 		return errors.Wrap(err, "failed to marshal tigera-operator clusterrole rules")
+		// 	}
+		// 	c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole tigera-operator -p '{\"rules\": " + string(newtigerarules) + "}'"
+		// 	_, err = commons.ExecuteCommand(n, c, 5, 3)
+		// 	if err != nil {
+		// 		return errors.Wrap(err, "failed to patch tigera-operator clusterrole")
+		// 	}
+		// }
 
 		if a.keosCluster.Spec.DeployAutoscaler && !isMachinePool {
 			ctx.Status.Start("Installing cluster-autoscaler in workload cluster 🗚")
