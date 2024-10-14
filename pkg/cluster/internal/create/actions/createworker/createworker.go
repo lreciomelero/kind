@@ -695,18 +695,29 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		ctx.Status.End(true) // End Enabling workload cluster's self-healing
 
 		// Use Calico as network policy engine in managed systems
-		if provider.capxProvider == "aws" {
+		if provider.capxProvider != "azure" {
+
 			ctx.Status.Start("Configuring Network Policy Engine in workload cluster 🚧")
 			defer ctx.Status.End(false)
 
 			// Use Calico as network policy engine in managed systems
-			if a.keosCluster.Spec.ControlPlane.Managed {
+			if awsEKSEnabled {
 
 				err = installCalico(n, kubeconfigPath, privateParams, allowCommonEgressNetPolPath, true)
 				if err != nil {
 					return errors.Wrap(err, "failed to install Network Policy Engine in workload cluster")
 				}
 			}
+
+			// if gcpGKEEnabled {
+
+			// 	// Create calico metrics services
+			// 	cmd := n.Command("kubectl", "--kubeconfig", kubeconfigPath, "-n", "kube-system", "apply", "-f", "-")
+			// 	if err = cmd.SetStdin(strings.NewReader(calicoMetrics)).Run(); err != nil {
+			// 		return errors.Wrap(err, "failed to create calico metrics services")
+			// 	}
+
+			// }
 
 			// Create the allow and deny (global) network policy file in the container
 			denyallEgressIMDSGNetPolPath := "/kind/deny-all-egress-imds_gnetpol.yaml"
