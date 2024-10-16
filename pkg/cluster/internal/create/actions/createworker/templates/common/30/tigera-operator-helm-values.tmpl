@@ -39,6 +39,11 @@ installation:
     ipam:
       type: AmazonVPC
     type: AmazonVPC
+  {{- else if and $.Spec.ControlPlane.Managed (eq $.Spec.InfraProvider "gcp") $.IsNetPolEngine }}
+    ipam:
+      type: HostLocal
+    type: GKE
+  {{- else }}
   {{- else }}
     ipam:
       type: Calico
