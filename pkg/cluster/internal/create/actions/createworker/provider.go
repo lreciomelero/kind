@@ -911,12 +911,6 @@ func reconcileCharts(n nodes.Node, k string, privateParams PrivateParams, keosCl
 			fluxHelmReleaseParams.ChartRepoRef = name
 		}
 
-		// fluxAdoptedChartsPattern := `^(tigera-operator|.+-cloud-controller-manager|cloud-provider-azure|flux2|cert-manager)$`
-		// if keosClusterSpec.InfraProvider == "gcp" && keosClusterSpec.ControlPlane.Managed {
-		// 	fluxAdoptedChartsPattern = `^(.+-cloud-controller-manager|flux2|cert-manager)$`
-		// }
-		// fluxAdoptedCharts := regexp.MustCompile(fluxAdoptedChartsPattern)
-
 		// Adopt helm charts already deployed: tigera-operator and cloud-provider
 		if entry.Reconcile {
 			fluxHelmReleaseParams.ChartName = name
