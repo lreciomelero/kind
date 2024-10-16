@@ -287,8 +287,6 @@ func (i *Infra) getProviderCharts(clusterConfigSpec *commons.ClusterConfigSpec, 
 		completedChartsList[key] = value
 	}
 
-	fmt.Println("Charts list: ", completedChartsList)
-
 	return completedChartsList
 }
 
