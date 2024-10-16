@@ -818,30 +818,6 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		}
 		ctx.Status.End(true) // End Installing StorageClass in workload cluster
 
-		// if gcpGKEEnabled {
-		// 	c = "kubectl --kubeconfig " + kubeconfigPath + " get clusterrole tigera-operator -o jsonpath='{.rules}'"
-		// 	tigerarules, err := commons.ExecuteCommand(n, c, 5, 3)
-		// 	if err != nil {
-		// 		return errors.Wrap(err, "failed to get tigera-operator clusterrole rules")
-		// 	}
-		// 	var rules []json.RawMessage
-		// 	err = json.Unmarshal([]byte(tigerarules), &rules)
-		// 	if err != nil {
-		// 		return errors.Wrap(err, "failed to parse tigera-operator clusterrole rules")
-		// 	}
-		// 	// create, delete
-		// 	rules = append(rules, json.RawMessage(`{"apiGroups": [""],"resources": ["resourcequotas"],"verbs": ["create"]}`))
-		// 	newtigerarules, err := json.Marshal(rules)
-		// 	if err != nil {
-		// 		return errors.Wrap(err, "failed to marshal tigera-operator clusterrole rules")
-		// 	}
-		// 	c = "kubectl --kubeconfig " + kubeconfigPath + " patch clusterrole tigera-operator -p '{\"rules\": " + string(newtigerarules) + "}'"
-		// 	_, err = commons.ExecuteCommand(n, c, 5, 3)
-		// 	if err != nil {
-		// 		return errors.Wrap(err, "failed to patch tigera-operator clusterrole")
-		// 	}
-		// }
-
 		if a.keosCluster.Spec.DeployAutoscaler && !isMachinePool {
 			ctx.Status.Start("Installing cluster-autoscaler in workload cluster 🗚")
 			defer ctx.Status.End(false)
