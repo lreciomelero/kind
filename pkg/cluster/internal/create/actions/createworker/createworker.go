@@ -71,7 +71,9 @@ const (
 	cniDefaultFile           = "/kind/manifests/default-cni.yaml"
 	storageDefaultPath       = "/kind/manifests/default-storage.yaml"
 	infraGCPVersion          = "v1.6.1"
+	infraGKEVersion          = "v1.6.1"
 	infraAWSVersion          = "v2.5.2"
+	infraAzureVersion        = "v1.12.4"
 	GKECoreDNSDeploymentPath = "/kind/manifests/coredns-deployment.yaml"
 )
 

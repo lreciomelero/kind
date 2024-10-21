@@ -76,6 +76,14 @@ type ClusterConfigSpec struct {
 	ClusterOperatorImageVersion string             `yaml:"cluster_operator_image_version,omitempty"`
 	PrivateHelmRepo             bool               `yaml:"private_helm_repo"`
 	Charts                      []Chart            `yaml:"charts,omitempty"`
+	Capx                        CAPX               `yaml:"capx,omitempty"`
+}
+
+type CAPX struct {
+	CAPIVersion string `yaml:"capi_version,omitempty"`
+	CAPZVersion string `yaml:"capz_version,omitempty"`
+	CAPAVersion string `yaml:"capa_version,omitempty"`
+	CAPGVersion string `yaml:"capg_version,omitempty"`
 }
 
 type Chart struct {
