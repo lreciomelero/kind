@@ -125,6 +125,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		Credentials:  a.clusterCredentials.ProviderCredentials,
 		GithubToken:  a.clusterCredentials.GithubToken,
 		StorageClass: a.keosCluster.Spec.StorageClass,
+		Capx:         a.clusterConfig.Spec.Capx,
 	}
 
 	providerBuilder := getBuilder(a.keosCluster.Spec.InfraProvider)

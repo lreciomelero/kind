@@ -87,7 +87,7 @@ type PrivateParams struct {
 }
 
 type PBuilder interface {
-	setCapx(managed bool)
+	setCapx(managed bool, capx commons.CAPX)
 	setCapxEnvVars(p ProviderParams)
 	setSC(p ProviderParams)
 	pullProviderCharts(n nodes.Node, clusterConfigSpec *commons.ClusterConfigSpec, keosSpec commons.KeosSpec, clusterCredentials commons.ClusterCredentials, clusterType string) error
@@ -133,6 +133,7 @@ type ProviderParams struct {
 	Credentials  map[string]string
 	GithubToken  string
 	StorageClass commons.StorageClass
+	Capx         commons.CAPX
 }
 
 type DefaultStorageClass struct {
@@ -263,7 +264,7 @@ func newInfra(b PBuilder) *Infra {
 }
 
 func (i *Infra) buildProvider(p ProviderParams) Provider {
-	i.builder.setCapx(p.Managed)
+	i.builder.setCapx(p.Managed, p.Capx)
 	i.builder.setCapxEnvVars(p)
 	i.builder.setSC(p)
 	return i.builder.getProvider()

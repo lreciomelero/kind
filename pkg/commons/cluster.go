@@ -76,6 +76,16 @@ type ClusterConfigSpec struct {
 	ClusterOperatorImageVersion string             `yaml:"cluster_operator_image_version,omitempty"`
 	PrivateHelmRepo             bool               `yaml:"private_helm_repo"`
 	Charts                      []Chart            `yaml:"charts,omitempty"`
+	Capx                        CAPX               `yaml:"capx,omitempty"`
+}
+
+type CAPX struct {
+	CAPA_Version       string `yaml:"capa_version,omitempty"`
+	CAPA_Image_version string `yaml:"capa_image_version,omitempty"`
+	CAPG_Version       string `yaml:"capg_version,omitempty"`
+	CAPG_Image_version string `yaml:"capg_image_version,omitempty"`
+	CAPZ_Version       string `yaml:"capz_version,omitempty"`
+	CAPZ_Image_version string `yaml:"capz_image_version,omitempty"`
 }
 
 type Chart struct {
@@ -447,9 +457,22 @@ type SCParameters struct {
 	ReplicationType               string `yaml:"replication-type,omitempty"`
 }
 
-func (s ClusterConfigSpec) Init() ClusterConfigSpec {
+func (s ClusterConfigSpec) Init(gke *bool) ClusterConfigSpec {
 	s.Private = false
 	s.WorkersConfig.MaxUnhealthy = ToPtr[int](100)
+
+	s.Capx.CAPA_Version = "v2.5.2"
+	s.Capx.CAPA_Image_version = "v2.5.2"
+	s.Capx.CAPG_Version = "v1.6.1"
+	s.Capx.CAPG_Image_version = "v1.6.1"
+	if gke != nil && *gke {
+		s.Capx.CAPG_Version = "1.6.1-0.2.0"
+		s.Capx.CAPG_Image_version = "1.6.1-0.2.0"
+	}
+
+	s.Capx.CAPZ_Version = "v1.12.4"
+	s.Capx.CAPZ_Image_version = "v1.12.4"
+
 	return s
 }
 
@@ -639,7 +662,7 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 				keosCluster.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
 			case "ClusterConfig":
 				findClusterConfig = true
-				clusterConfig.Spec = new(ClusterConfigSpec).Init()
+				clusterConfig.Spec = new(ClusterConfigSpec).Init(nil)
 				err = yaml.Unmarshal([]byte(manifest), &clusterConfig)
 				if err != nil {
 					return nil, nil, err
@@ -665,7 +688,7 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 		clusterConfig.Kind = "ClusterConfig"
 		clusterConfig.Metadata.Name = keosCluster.Spec.InfraProvider + "-config"
 		clusterConfig.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
-		clusterConfig.Spec = new(ClusterConfigSpec).Init()
+		clusterConfig.Spec = new(ClusterConfigSpec).Init(ToPtr(keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed))
 		if !keosCluster.Spec.ControlPlane.Managed {
 			clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = ToPtr[int](34)
 		}
