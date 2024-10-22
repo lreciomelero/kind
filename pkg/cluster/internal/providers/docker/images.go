@@ -111,8 +111,6 @@ func ensureStratioImageFiles(logger log.Logger) (dir string, err error) {
 // buildStratioImage builds the stratio image
 func buildStratioImage(logger log.Logger, image string, path string) error {
 	capx_opts := create.Capx_opts
-	fmt.Println("CAPX_OPTS: ", capx_opts)
-	fmt.Println("IS_GKE=" + fmt.Sprintf("%t", capx_opts.IS_GKE))
 	cmd := exec.Command("docker", "build",
 		"--build-arg", "IS_GKE="+fmt.Sprintf("%t", capx_opts.IS_GKE),
 		"--build-arg", "CAPA="+capx_opts.CAPA_Version,

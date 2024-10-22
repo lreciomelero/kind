@@ -53,15 +53,6 @@ const (
 
 var Capx_opts providers.CAPX_Options
 
-// var (
-// 	// capiVersion = ""
-// 	capaVersion    = "v2.5.2"
-// 	capgGCPVersion = "v1.6.1"
-// 	capgGKEVersion = "1.6.1-0.2.0-ecd22ba"
-// 	capzVersion    = "v1.12.4"
-// 	is_gke         = false
-// )
-
 // ClusterOptions holds cluster creation options
 type ClusterOptions struct {
 	Config       *config.Cluster
@@ -91,13 +82,6 @@ type ClusterOptions struct {
 	DisplayUsage      bool
 	DisplaySalutation bool
 }
-
-// type CAPX_Options struct {
-// 	CAPI_Version string
-// 	CAPA_Version string
-// 	CAPG_Version string
-// 	IS_GKE       bool
-// }
 
 // Cluster creates a cluster
 func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) error {
@@ -317,29 +301,6 @@ func validateProvider(p providers.Provider) error {
 func getCAPXVersion(keoscluster commons.KeosCluster, clusterConfig *commons.ClusterConfig) providers.CAPX_Options {
 	capx_opts := providers.CAPX_Options{}
 
-	// is_gke = keoscluster.Spec.ControlPlane.Managed && keoscluster.Spec.InfraProvider == "gcp"
-	// capgVersion := capgGCPVersion
-	// if is_gke {
-	// 	capgVersion = capgGKEVersion
-	// }
-	// if clusterConfig == nil {
-	// 	capx_opts = providers.CAPX_Options{
-	// 		CAPA_Version: capaVersion,
-	// 		CAPG_Version: capgVersion,
-	// 		CAPZ_Version: capzVersion,
-	// 		IS_GKE:       is_gke,
-	// 	}
-	// 	return capx_opts
-	// } else {
-	// 	fmt.Println("ClusterConfig: ", clusterConfig.Spec.Capx)
-	// 	capx := clusterConfig.Spec.Capx
-	// 	capx_opts = providers.CAPX_Options{
-	// 		CAPA_Version: capx.CAPA_Version,
-	// 		CAPG_Version: capx.CAPG_Version,
-	// 		CAPZ_Version: capx.CAPZ_Version,
-	// 		IS_GKE:       keoscluster.Spec.ControlPlane.Managed && keoscluster.Spec.InfraProvider == "gcp",
-	// 	}
-	// }
 	capx := clusterConfig.Spec.Capx
 	capx_opts = providers.CAPX_Options{
 		CAPA_Version: capx.CAPA_Version,

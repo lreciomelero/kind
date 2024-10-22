@@ -718,8 +718,6 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 
 	clusterConfig.Spec = clusterConfig.Spec.InitCapx(ToPtr(keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed))
 
-	fmt.Println("capx: ", clusterConfig.Spec.Capx)
-
 	return &keosCluster, &clusterConfig, nil
 }
 
