@@ -117,7 +117,6 @@ func buildStratioImage(logger log.Logger, image string, path string) error {
 		"--build-arg", "CAPG="+capx_opts.CAPG_Version,
 		"--build-arg", "CAPZ="+capx_opts.CAPZ_Version,
 		"--tag="+image, path)
-	fmt.Println("CMD: ", cmd)
 	if err := cmd.Run(); err != nil {
 		return errors.Wrapf(err, "failed to build image %q", image)
 	}
