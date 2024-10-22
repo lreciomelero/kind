@@ -260,7 +260,7 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 		return errors.Wrap(err, "failed to create docker-registry secret")
 	}
 
-	if provider.capxVersion != provider.capxImageVersion {
+	if gcpGKEEnabled {
 
 		infraComponents := CAPILocalRepository + "/infrastructure-" + provider.capxProvider + "/" + provider.capxVersion + "/infrastructure-components.yaml"
 

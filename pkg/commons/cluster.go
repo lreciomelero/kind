@@ -39,6 +39,17 @@ var AWSVolumeType = "gp3"
 var AzureVMsVolumeType = "Standard_LRS"
 var GCPVMsVolumeType = "pd-ssd"
 
+var (
+	capa_version           = "v2.5.2"
+	capa_image_version     = "v2.5.2"
+	capg_version           = "v1.6.1"
+	capg_image_version     = "v1.6.1"
+	capz_version           = "v1.12.4"
+	capz_image_version     = "v1.12.4"
+	capg_gke_version       = "1.6.1-0.2.0-ecd22ba"
+	capg_gke_image_version = "1.6.1-0.2.0-ecd22ba"
+)
+
 type Resource struct {
 	APIVersion string      `yaml:"apiVersion" validate:"required"`
 	Kind       string      `yaml:"kind" validate:"required"`
@@ -457,23 +468,34 @@ type SCParameters struct {
 	ReplicationType               string `yaml:"replication-type,omitempty"`
 }
 
-func (s ClusterConfigSpec) Init(gke *bool) ClusterConfigSpec {
+func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 	s.Private = false
 	s.WorkersConfig.MaxUnhealthy = ToPtr[int](100)
 
-	s.Capx.CAPA_Version = "v2.5.2"
-	s.Capx.CAPA_Image_version = "v2.5.2"
-	s.Capx.CAPG_Version = "v1.6.1"
-	s.Capx.CAPG_Image_version = "v1.6.1"
+	return s
+}
+
+func (s ClusterConfigSpec) InitCapx(gke *bool) ClusterConfigSpec {
+	setDefaultValue(&s.Capx.CAPA_Version, capa_version)
+	setDefaultValue(&s.Capx.CAPA_Image_version, capa_image_version)
+
 	if gke != nil && *gke {
-		s.Capx.CAPG_Version = "1.6.1-0.2.0"
-		s.Capx.CAPG_Image_version = "1.6.1-0.2.0"
+		setDefaultValue(&s.Capx.CAPG_Version, capg_gke_version)
+		setDefaultValue(&s.Capx.CAPG_Image_version, capg_gke_image_version)
+	} else {
+		setDefaultValue(&s.Capx.CAPG_Version, capg_version)
+		setDefaultValue(&s.Capx.CAPG_Image_version, capg_image_version)
 	}
 
-	s.Capx.CAPZ_Version = "v1.12.4"
-	s.Capx.CAPZ_Image_version = "v1.12.4"
-
+	setDefaultValue(&s.Capx.CAPZ_Version, capz_version)
+	setDefaultValue(&s.Capx.CAPZ_Image_version, capz_image_version)
 	return s
+}
+
+func setDefaultValue(s *string, value string) {
+	if *s == "" {
+		*s = value
+	}
 }
 
 // Init sets default values for the Spec
@@ -662,7 +684,7 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 				keosCluster.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
 			case "ClusterConfig":
 				findClusterConfig = true
-				clusterConfig.Spec = new(ClusterConfigSpec).Init(nil)
+				clusterConfig.Spec = new(ClusterConfigSpec).Init()
 				err = yaml.Unmarshal([]byte(manifest), &clusterConfig)
 				if err != nil {
 					return nil, nil, err
@@ -688,11 +710,15 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 		clusterConfig.Kind = "ClusterConfig"
 		clusterConfig.Metadata.Name = keosCluster.Spec.InfraProvider + "-config"
 		clusterConfig.Metadata.Namespace = "cluster-" + keosCluster.Metadata.Name
-		clusterConfig.Spec = new(ClusterConfigSpec).Init(ToPtr(keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed))
+		clusterConfig.Spec = new(ClusterConfigSpec).Init()
 		if !keosCluster.Spec.ControlPlane.Managed {
 			clusterConfig.Spec.ControlplaneConfig.MaxUnhealthy = ToPtr[int](34)
 		}
 	}
+
+	clusterConfig.Spec = clusterConfig.Spec.InitCapx(ToPtr(keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed))
+
+	fmt.Println("capx: ", clusterConfig.Spec.Capx)
 
 	return &keosCluster, &clusterConfig, nil
 }

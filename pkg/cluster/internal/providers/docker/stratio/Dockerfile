@@ -15,10 +15,10 @@ ENV HELM=v3.13.1
 ARG IS_GKE=false
 ENV IS_GKE=$IS_GKE
 ENV CAPI_REPO=/root/.cluster-api/local-repository
-ARG CAPA=v2.5.2
-ARG CAPG=v1.6.1
+ARG CAPA
+ARG CAPG
 #ENV CAPG_GKE=1.6.1-0.2.0-ecd22ba
-ARG CAPZ=v1.12.4
+ARG CAPZ
 #ENV CAPG_FORK_URL_GKE="https://github.com/Stratio/cluster-api-provider-gcp/releases/download/${CAPG_GKE}/"
 ENV CAPG_FORK_URL_GKE="https://github.com/Stratio/cluster-api-provider-gcp/releases/download/${CAPG}/"
 ENV CAPG_FORK_URL_UPSTREAM="https://github.com/kubernetes-sigs/cluster-api-provider-gcp/releases/download/${CAPG}/"
@@ -75,9 +75,7 @@ RUN for i in metadata.yaml infrastructure-components.yaml; do \
 RUN if [ "$IS_GKE" = "true" ]; then \
       curl -L ${CAPG_FORK_URL_GKE}/infrastructure-components.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml; \
       curl -L ${CAPG_FORK_URL_GKE}/metadata.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/metadata.yaml; \
-      sed -i "/machinepools\/status/{n;N;N;N;s/.*/  verbs:\n  - get\n  - list\n  - watch\n  - update\n  - patch/}" ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml; \
-      sed -i "/insecure-diagnostics/a \        - --sync-period=2m" ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml; \
-    else \
+   else \
       curl -L ${CAPG_FORK_URL_UPSTREAM}/infrastructure-components.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml; \
       curl -L ${CAPG_FORK_URL_UPSTREAM}/metadata.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/metadata.yaml; \
     fi
