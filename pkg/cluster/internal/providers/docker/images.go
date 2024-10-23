@@ -112,6 +112,7 @@ func ensureStratioImageFiles(logger log.Logger) (dir string, err error) {
 func buildStratioImage(logger log.Logger, image string, path string) error {
 	capx_opts := create.Capx_opts
 	cmd := exec.Command("docker", "build",
+		"--build-arg", "CLUSTERCTL="+capx_opts.CAPI_Version,
 		"--build-arg", "CAPA="+capx_opts.CAPA_Version,
 		"--build-arg", "CAPG="+capx_opts.CAPG_Version,
 		"--build-arg", "CAPZ="+capx_opts.CAPZ_Version,

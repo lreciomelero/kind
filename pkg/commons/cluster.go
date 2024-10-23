@@ -40,6 +40,7 @@ var AzureVMsVolumeType = "Standard_LRS"
 var GCPVMsVolumeType = "pd-ssd"
 
 var (
+	capi_version           = "v1.7.4"
 	capa_version           = "v2.5.2"
 	capa_image_version     = "v2.5.2"
 	capg_version           = "v1.6.1"
@@ -91,6 +92,7 @@ type ClusterConfigSpec struct {
 }
 
 type CAPX struct {
+	CAPI_Version       string `yaml:"capi_version,omitempty"`
 	CAPA_Version       string `yaml:"capa_version,omitempty"`
 	CAPA_Image_version string `yaml:"capa_image_version,omitempty"`
 	CAPG_Version       string `yaml:"capg_version,omitempty"`
@@ -475,6 +477,7 @@ func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 }
 
 func (s ClusterConfigSpec) InitCapx(gke *bool) ClusterConfigSpec {
+	setDefaultValue(&s.Capx.CAPI_Version, capi_version)
 	setDefaultValue(&s.Capx.CAPA_Version, capa_version)
 	setDefaultValue(&s.Capx.CAPA_Image_version, capa_image_version)
 	setDefaultValue(&s.Capx.CAPZ_Version, capz_version)

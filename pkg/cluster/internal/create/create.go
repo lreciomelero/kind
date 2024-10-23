@@ -302,6 +302,7 @@ func getCAPXVersion(capx commons.CAPX) providers.CAPX_Options {
 	capx_opts := providers.CAPX_Options{}
 
 	capx_opts = providers.CAPX_Options{
+		CAPI_Version: capx.CAPI_Version,
 		CAPA_Version: capx.CAPA_Version,
 		CAPG_Version: capx.CAPG_Version,
 		CAPZ_Version: capx.CAPZ_Version,
