@@ -477,17 +477,11 @@ func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 func (s ClusterConfigSpec) InitCapx(gke *bool) ClusterConfigSpec {
 	setDefaultValue(&s.Capx.CAPA_Version, capa_version)
 	setDefaultValue(&s.Capx.CAPA_Image_version, capa_image_version)
-
-	if gke != nil && *gke {
-		setDefaultValue(&s.Capx.CAPG_Version, capg_gke_version)
-		setDefaultValue(&s.Capx.CAPG_Image_version, capg_gke_image_version)
-	} else {
-		setDefaultValue(&s.Capx.CAPG_Version, capg_version)
-		setDefaultValue(&s.Capx.CAPG_Image_version, capg_image_version)
-	}
-
 	setDefaultValue(&s.Capx.CAPZ_Version, capz_version)
 	setDefaultValue(&s.Capx.CAPZ_Image_version, capz_image_version)
+	setDefaultValue(&s.Capx.CAPG_Version, capg_gke_version)
+	setDefaultValue(&s.Capx.CAPG_Image_version, capg_gke_image_version)
+
 	return s
 }
 

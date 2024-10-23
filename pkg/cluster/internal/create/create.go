@@ -122,7 +122,7 @@ func Cluster(logger log.Logger, p providers.Provider, opts *ClusterOptions) erro
 	// we're going to start creating now, tell the user
 	logger.V(0).Infof("Creating temporary cluster %q ...\n", opts.Config.Name)
 
-	Capx_opts = getCAPXVersion(opts.KeosCluster, opts.ClusterConfig)
+	Capx_opts = getCAPXVersion(opts.ClusterConfig.Spec.Capx)
 
 	// Create node containers implementing defined config Nodes
 	if err := p.Provision(status, opts.Config, opts.DockerRegUrl, opts.UseLocalStratioImage); err != nil {
@@ -298,15 +298,13 @@ func validateProvider(p providers.Provider) error {
 	return nil
 }
 
-func getCAPXVersion(keoscluster commons.KeosCluster, clusterConfig *commons.ClusterConfig) providers.CAPX_Options {
+func getCAPXVersion(capx commons.CAPX) providers.CAPX_Options {
 	capx_opts := providers.CAPX_Options{}
 
-	capx := clusterConfig.Spec.Capx
 	capx_opts = providers.CAPX_Options{
 		CAPA_Version: capx.CAPA_Version,
 		CAPG_Version: capx.CAPG_Version,
 		CAPZ_Version: capx.CAPZ_Version,
-		IS_GKE:       keoscluster.Spec.ControlPlane.Managed && keoscluster.Spec.InfraProvider == "gcp",
 	}
 
 	return capx_opts

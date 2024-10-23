@@ -12,14 +12,11 @@ ENV CLUSTERAWSADM=v2.5.2
 ENV HELM=v3.13.1
 
 # Cluster-api artifacts
-ARG IS_GKE=false
-ENV IS_GKE=$IS_GKE
 ENV CAPI_REPO=/root/.cluster-api/local-repository
 ARG CAPA
 ARG CAPG
 ARG CAPZ
 ENV CAPG_FORK_URL_GKE="https://github.com/Stratio/cluster-api-provider-gcp/releases/download/${CAPG}/"
-ENV CAPG_FORK_URL_UPSTREAM="https://github.com/kubernetes-sigs/cluster-api-provider-gcp/releases/download/${CAPG}/"
 
 # Install vim
 RUN apt-get update && apt-get install -y \
@@ -66,16 +63,8 @@ RUN mkdir -p ${CAPI_REPO}/infrastructure-aws/${CAPA} ${CAPI_REPO}/infrastructure
 # Download cluster-api artifacts
 RUN for i in metadata.yaml infrastructure-components.yaml; do \
       curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/${CAPA}/${i} -o ${CAPI_REPO}/infrastructure-aws/${CAPA}/${i} \
+      && curl -L https://github.com/Stratio/cluster-api-provider-gcp/releases/download/${CAPG}/${i} -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/${i} \
       && curl -L https://github.com/kubernetes-sigs/cluster-api-provider-azure/releases/download/${CAPZ}/${i} -o ${CAPI_REPO}/infrastructure-azure/${CAPZ}/${i}; done
-
-
-RUN if [ "$IS_GKE" = "true" ]; then \
-      curl -L ${CAPG_FORK_URL_GKE}/infrastructure-components.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml; \
-      curl -L ${CAPG_FORK_URL_GKE}/metadata.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/metadata.yaml; \
-   else \
-      curl -L ${CAPG_FORK_URL_UPSTREAM}/infrastructure-components.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/infrastructure-components.yaml; \
-      curl -L ${CAPG_FORK_URL_UPSTREAM}/metadata.yaml -o ${CAPI_REPO}/infrastructure-gcp/${CAPG}/metadata.yaml; \
-    fi
 
 RUN curl -L  https://github.com/kubernetes-sigs/cluster-api/releases/download/${CLUSTERCTL}/core-components.yaml -o ${CAPI_REPO}/cluster-api/${CLUSTERCTL}/core-components.yaml \
     && curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/${CLUSTERCTL}/bootstrap-components.yaml -o ${CAPI_REPO}/bootstrap-kubeadm/${CLUSTERCTL}/bootstrap-components.yaml \

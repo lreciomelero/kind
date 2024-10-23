@@ -28,7 +28,6 @@ type CAPX_Options struct {
 	CAPA_Version string
 	CAPG_Version string
 	CAPZ_Version string
-	IS_GKE       bool
 }
 
 // Provider represents a provider of cluster / node infrastructure
