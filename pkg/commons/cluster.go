@@ -178,6 +178,8 @@ type ControlPlane struct {
 type GCPCP struct {
 	ClusterNetwork                 ClusterNetwork                 `yaml:"cluster_network,omitempty"`
 	MasterAuthorizedNetworksConfig MasterAuthorizedNetworksConfig `yaml:"master_authorized_networks_config,omitempty"`
+	MonitoringConfig               MonitoringConfig               `yaml:"monitoring_config,omitempty"`
+	LoggingConfig                  LoggingConfig                  `yaml:"logging_config,omitempty"`
 }
 
 type ClusterNetwork struct {
@@ -206,6 +208,18 @@ type CIDRBlock struct {
 
 	// +kubebuilder:validation:Optional
 	DisplayName string `yaml:"display_name,omitempty"`
+}
+
+type MonitoringConfig struct {
+	// +kubebuilder:default=false
+	EnableManagedPrometheus *bool `yaml:"enable_managed_prometheus,omitempty"`
+}
+
+type LoggingConfig struct {
+	// +kubebuilder:default=false
+	SystemComponents *bool `yaml:"system_components,omitempty"`
+	// +kubebuilder:default=false
+	Workloads *bool `yaml:"workloads,omitempty"`
 }
 
 type Keos struct {
@@ -515,6 +529,9 @@ func (s KeosSpec) Init() KeosSpec {
 	s.ControlPlane.Gcp.ClusterNetwork.PrivateCluster.EnablePrivateEndpoint = true
 	s.ControlPlane.Gcp.ClusterNetwork.PrivateCluster.EnablePrivateNodes = true
 	s.ControlPlane.Gcp.MasterAuthorizedNetworksConfig.GCPPublicCIDRsAccessEnabled = ToPtr[bool](false)
+	s.ControlPlane.Gcp.MonitoringConfig.EnableManagedPrometheus = ToPtr[bool](false)
+	s.ControlPlane.Gcp.LoggingConfig.SystemComponents = ToPtr[bool](false)
+	s.ControlPlane.Gcp.LoggingConfig.Workloads = ToPtr[bool](false)
 
 	// Helm
 	s.HelmRepository.AuthRequired = false
