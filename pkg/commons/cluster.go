@@ -40,15 +40,10 @@ var AzureVMsVolumeType = "Standard_LRS"
 var GCPVMsVolumeType = "pd-ssd"
 
 var (
-	capi_version           = "v1.7.4"
-	capa_version           = "v2.5.2"
-	capa_image_version     = "v2.5.2"
-	capg_version           = "v1.6.1"
-	capg_image_version     = "v1.6.1"
-	capz_version           = "v1.12.4"
-	capz_image_version     = "v1.12.4"
-	capg_gke_version       = "1.6.1-0.2.0-ecd22ba"
-	capg_gke_image_version = "1.6.1-0.2.0-ecd22ba"
+	capi_version = "v1.7.4"
+	capa_version = "v2.5.2"
+	capz_version = "v1.12.4"
+	capg_version = "1.6.1-0.2.0"
 )
 
 type Resource struct {
@@ -476,14 +471,15 @@ func (s ClusterConfigSpec) Init() ClusterConfigSpec {
 	return s
 }
 
-func (s ClusterConfigSpec) InitCapx(gke *bool) ClusterConfigSpec {
+func (s ClusterConfigSpec) InitCapx() ClusterConfigSpec {
+
 	setDefaultValue(&s.Capx.CAPI_Version, capi_version)
 	setDefaultValue(&s.Capx.CAPA_Version, capa_version)
-	setDefaultValue(&s.Capx.CAPA_Image_version, capa_image_version)
+	setDefaultValue(&s.Capx.CAPA_Image_version, s.Capx.CAPA_Version)
 	setDefaultValue(&s.Capx.CAPZ_Version, capz_version)
-	setDefaultValue(&s.Capx.CAPZ_Image_version, capz_image_version)
-	setDefaultValue(&s.Capx.CAPG_Version, capg_gke_version)
-	setDefaultValue(&s.Capx.CAPG_Image_version, capg_gke_image_version)
+	setDefaultValue(&s.Capx.CAPZ_Image_version, s.Capx.CAPZ_Version)
+	setDefaultValue(&s.Capx.CAPG_Version, capg_version)
+	setDefaultValue(&s.Capx.CAPG_Image_version, s.Capx.CAPG_Version)
 
 	return s
 }
@@ -712,7 +708,7 @@ func GetClusterDescriptor(descriptorPath string) (*KeosCluster, *ClusterConfig, 
 		}
 	}
 
-	clusterConfig.Spec = clusterConfig.Spec.InitCapx(ToPtr(keosCluster.Spec.InfraProvider == "gcp" && keosCluster.Spec.ControlPlane.Managed))
+	clusterConfig.Spec = clusterConfig.Spec.InitCapx()
 
 	return &keosCluster, &clusterConfig, nil
 }
